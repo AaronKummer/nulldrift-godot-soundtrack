@@ -3,24 +3,27 @@ frontend:
   phases:
     preBuild:
       commands:
-        # Amplify build image is Amazon Linux 2023 — wget/unzip already
-        # installed, no apt-get available. Just download Godot + templates.
+        # Amplify build image is Amazon Linux 2023, NOT root. Install Godot
+        # under $HOME/bin (user-writable) instead of /usr/local/bin.
         - GODOT_VER="4.6.1-stable"
+        - mkdir -p "$HOME/bin"
         - wget -q https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}/Godot_v${GODOT_VER}_linux.x86_64.zip -O /tmp/godot.zip
         - unzip -q /tmp/godot.zip -d /tmp
-        - mv /tmp/Godot_v${GODOT_VER}_linux.x86_64 /usr/local/bin/godot
-        - chmod +x /usr/local/bin/godot
+        - mv "/tmp/Godot_v${GODOT_VER}_linux.x86_64" "$HOME/bin/godot"
+        - chmod +x "$HOME/bin/godot"
+        - export PATH="$HOME/bin:$PATH"
         - wget -q https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}/Godot_v${GODOT_VER}_export_templates.tpz -O /tmp/templates.tpz
         - unzip -q /tmp/templates.tpz -d /tmp/tpls
-        - mkdir -p ~/.local/share/godot/export_templates/${GODOT_VER}
-        - mv /tmp/tpls/templates/* ~/.local/share/godot/export_templates/${GODOT_VER}/
-        - godot --version
+        - mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VER}"
+        - mv /tmp/tpls/templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VER}/"
+        - "$HOME/bin/godot" --version
     build:
       commands:
+        - export PATH="$HOME/bin:$PATH"
         # Import the project once so asset GUIDs resolve before the export
-        - godot --headless --import || true
+        - "$HOME/bin/godot" --headless --import || true
         - mkdir -p build
-        - godot --headless --export-release "Web" build/index.html
+        - "$HOME/bin/godot" --headless --export-release "Web" build/index.html
         - /bin/ls -la build/
   artifacts:
     baseDirectory: build
