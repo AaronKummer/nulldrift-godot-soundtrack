@@ -3,9 +3,9 @@ frontend:
   phases:
     preBuild:
       commands:
-        # Install Godot 4.6.1 headless + matching export templates
+        # Amplify build image is Amazon Linux 2023 — wget/unzip already
+        # installed, no apt-get available. Just download Godot + templates.
         - GODOT_VER="4.6.1-stable"
-        - apt-get update && apt-get install -y unzip wget ca-certificates
         - wget -q https://github.com/godotengine/godot-builds/releases/download/${GODOT_VER}/Godot_v${GODOT_VER}_linux.x86_64.zip -O /tmp/godot.zip
         - unzip -q /tmp/godot.zip -d /tmp
         - mv /tmp/Godot_v${GODOT_VER}_linux.x86_64 /usr/local/bin/godot
