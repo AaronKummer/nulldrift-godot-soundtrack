@@ -20,3 +20,4 @@ build/
 
 # Editor cache
 *.tmp
+build/
