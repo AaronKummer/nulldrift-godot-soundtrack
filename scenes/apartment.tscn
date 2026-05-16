@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift02apt"]
+
+[ext_resource type="Script" path="res://scripts/scenes/apartment.gd" id="1_apt"]
+
+[node name="Apartment" type="Node3D"]
+script = ExtResource("1_apt")

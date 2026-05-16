@@ -1,0 +1,22 @@
+# Godot 4+ specific ignores
+.godot/
+.import/
+*.translation
+
+# Mono-specific ignores
+.mono/
+data_*/
+
+# System
+.DS_Store
+Thumbs.db
+
+# Local-only assets
+_renders/
+*.log
+
+# Build artifacts
+build/
+
+# Editor cache
+*.tmp

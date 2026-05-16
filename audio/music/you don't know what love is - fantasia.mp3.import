@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cc620rmudjfkg"
+path="res://.godot/imported/you don't know what love is - fantasia.mp3-1172c8402cb80a6f3966dfd1d8a5b860.mp3str"
+
+[deps]
+
+source_file="res://audio/music/you don't know what love is - fantasia.mp3"
+dest_files=["res://.godot/imported/you don't know what love is - fantasia.mp3-1172c8402cb80a6f3966dfd1d8a5b860.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift99cap"]
+
+[ext_resource type="Script" path="res://scripts/capture.gd" id="1_cap"]
+
+[node name="Capture" type="Node"]
+script = ExtResource("1_cap")
