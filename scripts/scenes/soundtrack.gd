@@ -267,7 +267,7 @@ func _build_moon() -> void:
 	_moon.position = Vector3(58.0, 90.0, 360.0)
 	for child in _moon.get_children():
 		if child is Sprite3D:
-			child.modulate = Color(3.6, 3.6, 3.6, 1.0)
+			child.modulate = Color(4.0, 4.0, 4.0, 1.0)
 	add_child(_moon)
 
 func _build_rain_overlay() -> void:
@@ -479,7 +479,7 @@ func _build_moon_light() -> void:
 	_moon_light.transform = Transform3D().looking_at(-moon_pos, Vector3.UP)
 	_moon_light.position = moon_pos
 	_moon_light.light_color = Color(0.55, 0.55, 1.0)
-	_moon_light.light_energy = 0.12
+	_moon_light.light_energy = 0.03
 	_moon_light.shadow_enabled = false
 	add_child(_moon_light)
 
@@ -1000,16 +1000,16 @@ func _build_road() -> void:
 	var rm := PlaneMesh.new()
 	rm.size = Vector2(ROAD_WIDTH * 4.0, ROAD_LENGTH)
 	road.mesh = rm
-	# Wet asphalt — high metallic + low roughness so the streetlight and
-	# headlight cones smear across the road like reflections on a film
-	# of water. Slight cool tint sells the "freshly soaked" look.
+	# Slightly damp asphalt — modest reflectivity. Higher metallic +
+	# lower roughness make any light source create a focused bright
+	# streak that outshines the source itself; we tone it down.
 	var road_mat := StandardMaterial3D.new()
 	road_mat.albedo_color = Color(0.030, 0.025, 0.045)
-	road_mat.metallic = 0.75
-	road_mat.metallic_specular = 1.0
-	road_mat.roughness = 0.18
+	road_mat.metallic = 0.35
+	road_mat.metallic_specular = 0.7
+	road_mat.roughness = 0.45
 	road_mat.rim_enabled = true
-	road_mat.rim = 0.35
+	road_mat.rim = 0.25
 	road_mat.rim_tint = 0.5
 	road.material_override = road_mat
 	road.position = Vector3(0, 0.0, ROAD_LENGTH / 2.0 - 30.0)
