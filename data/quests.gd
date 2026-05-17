@@ -8,6 +8,27 @@ extends Object
 enum State { LOCKED, AVAILABLE, ACTIVE, COMPLETED }
 
 const ALL := {
+	# First quest the player triggers — kicks off when they interact with
+	# the fishtank in the apartment and discover the fish are hungry.
+	"fishFood": {
+		"id": "fishFood",
+		"title": "Feed Your Damn Fish",
+		"description": "Your fish look hungry. Buy fish food at the pet store and feed them. Maybe that stray cat at your door will follow you home if you actually take care of something for once.",
+		"type": "main",
+		"prerequisites": [],
+		"objectives": [
+			{ "type": "flag", "flag": "fish_food_seen",
+			  "description": "Notice the fish are hungry" },
+			{ "type": "goto", "scene": "city",
+			  "description": "Find the pet store on the block" },
+			{ "type": "collect", "item": "fish_food",
+			  "description": "Buy fish food from the shopkeeper" },
+			{ "type": "flag", "flag": "fish_fed",
+			  "description": "Feed the fish" },
+		],
+		"on_complete": { "set_flags": ["fed_the_fish"], "credits": 0 },
+	},
+
 	"wakeUp": {
 		"id": "wakeUp",
 		"title": "Wake Up",

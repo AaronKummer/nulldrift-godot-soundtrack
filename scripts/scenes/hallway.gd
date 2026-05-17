@@ -64,6 +64,7 @@ func _ready() -> void:
 	_build_doors()
 	_build_endcaps()
 	_build_ceiling_lights()
+	_build_stray_cat()       # cat sits outside apartment 404, story hook
 	_build_player()
 	_build_hud()
 	_apply_pending_spawn()
@@ -357,6 +358,76 @@ func _build_ceiling_lights() -> void:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# STRAY CAT — sits at apartment 404 door. Story hook for the fishFood
+# quest: shopkeeper hints "while you're here, take care of that cat."
+# Once fish_fed flag is set, the cat follows the player home.
+# ─────────────────────────────────────────────────────────────────────────
+
+var _cat_sprite
+var _cat_zone: Area3D
+var _on_cat := false
+
+func _build_stray_cat() -> void:
+	# Apartment 404 door is at x=5, south wall (z = HALL_W/2 - WALL_T/2)
+	var cx := 5.0 + 1.2          # slightly east of the doorway
+	var cz := HALL_W / 2.0 - 1.0  # in front of the south wall
+	var pivot := Node3D.new()
+	pivot.position = Vector3(cx, 0, cz)
+	add_child(pivot)
+	_cat_sprite = AnimatedBillboardScript.new()
+	_cat_sprite.show_floor_shadow = false  # hallway is shallow camera
+	_cat_sprite.pixel_size = 0.04
+	_cat_sprite.position = Vector3(0, 0, 0)
+	pivot.add_child(_cat_sprite)
+	_cat_sprite.load_sheet("res://assets/sprites/blackCat.png")
+	_cat_sprite.facing = AnimatedBillboardScript.Facing.DOWN
+	_cat_sprite.set_moving(false)
+	# Small magenta back-glow so the cat reads in the dim hallway
+	var cat_light := OmniLight3D.new()
+	cat_light.position = Vector3(cx, 0.6, cz - 0.3)
+	cat_light.light_color = Color(1.0, 0.4, 0.85)
+	cat_light.light_energy = 0.7
+	cat_light.omni_range = 2.0
+	cat_light.omni_attenuation = 2.0
+	add_child(cat_light)
+	# Interactable trigger
+	_cat_zone = Area3D.new()
+	_cat_zone.position = Vector3(cx, 0.8, cz)
+	var ccol := CollisionShape3D.new()
+	var cshape := BoxShape3D.new()
+	cshape.size = Vector3(1.6, 1.6, 1.6)
+	ccol.shape = cshape
+	_cat_zone.add_child(ccol)
+	_cat_zone.body_entered.connect(_on_cat_entered)
+	_cat_zone.body_exited.connect(_on_cat_exited)
+	add_child(_cat_zone)
+
+func _on_cat_entered(body: Node3D) -> void:
+	if body is CharacterBody3D:
+		_on_cat = true
+		if GameState.has_flag("fish_fed"):
+			_set_status("[E] pet the cat — she follows you home")
+		else:
+			_set_status("[E] pet the cat (she won't follow yet)")
+
+func _on_cat_exited(body: Node3D) -> void:
+	if body is CharacterBody3D:
+		_on_cat = false
+		_set_status("")
+
+func _interact_cat() -> void:
+	if not _on_cat:
+		return
+	if GameState.has_flag("fish_fed") and not GameState.has_flag("cat_adopted"):
+		GameState.set_flag("cat_adopted")
+		_set_status("the cat follows you. she's yours now.")
+	elif GameState.has_flag("cat_adopted"):
+		_set_status("the cat purrs.")
+	else:
+		_set_status("the cat sniffs you. she seems hungry.")
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # PLAYER + HUD + spawn marker
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -504,5 +575,7 @@ func _add_box(pos: Vector3, sz: Vector3, col: Color,
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("phone_toggle"):
 		Phone.toggle()
+	elif event.is_action_pressed("interact") and _on_cat:
+		_interact_cat()
 	elif event.is_action_pressed("ui_cancel"):
 		get_tree().change_scene_to_file("res://scenes/title.tscn")

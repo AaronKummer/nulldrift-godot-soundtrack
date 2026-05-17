@@ -1424,7 +1424,29 @@ func _unhandled_input(event: InputEvent) -> void:
 		Phone.toggle()
 	elif event.is_action_pressed("interact"):
 		if not _near_store.is_empty():
-			_set_status("(" + _near_store.label + " interior not built yet)")
+			_on_storefront_interact(_near_store)
+
+
+# Per-store interact behavior. For now most stores stub a "not built"
+# message; the PET store is special-cased to grant fish_food as the
+# tutorial-quest payoff.
+func _on_storefront_interact(def: Dictionary) -> void:
+	var id: String = def.get("id", "")
+	if id == "pet":
+		if not GameState.has_item("fish_food"):
+			if GameState.credits >= 20:
+				GameState.add_credits(-20)
+				GameState.add_item("fish_food")
+				_set_status("you buy fish food. shopkeeper: 'feed your damn fish.'")
+			else:
+				# First-time visit: free fish food so the loop completes
+				# even with no credits. The shopkeeper is generous.
+				GameState.add_item("fish_food")
+				_set_status("shopkeeper hands you fish food. 'on the house. and take the cat.'")
+		else:
+			_set_status("shopkeeper: 'go feed your fish, kid.'")
+	else:
+		_set_status("(" + def.get("label", "?") + " interior not built yet)")
 
 
 # ─────────────────────────────────────────────────────────────────────────

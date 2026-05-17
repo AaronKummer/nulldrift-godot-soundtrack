@@ -20,4 +20,7 @@ build/
 
 # Editor cache
 *.tmp
-build/
+
+# Local agent state
+.claude/
+build.zip

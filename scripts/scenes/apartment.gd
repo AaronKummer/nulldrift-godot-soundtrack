@@ -116,6 +116,7 @@ func _ready() -> void:
 	_build_center_rug()
 	_build_ceiling_lamps()
 	_build_door()
+	_build_fishtank()
 	_build_player()
 	_build_lightning()
 	_build_hud()
@@ -708,6 +709,145 @@ func _build_ceiling_lamps() -> void:
 # DOOR — visible frame + interact trigger
 # ═══════════════════════════════════════════════════════════════════════
 
+## Fishtank — interactable. Triggers the fishFood first quest when player
+## inspects it. Tank stand + glass walls + glowing water + animated fish
+## silhouettes inside. Sits in the cozy corner near the bed.
+##
+## When dirty/hungry (no fish_fed flag), water is murky green-blue and fish
+## are sluggish. When fed, water is clear cyan and fish swim livelier.
+var _fishtank_zone: Area3D
+var _on_fishtank := false
+var _fish_silhouettes: Array = []  # MeshInstance3D × 3
+var _fishtank_water: MeshInstance3D
+var _fishtank_water_mat: StandardMaterial3D
+
+func _build_fishtank() -> void:
+	# Position near the bed in the cozy corner — slightly east of the bed
+	# so the player passes it walking from the door to the bed.
+	var tx := -ROOM_W / 2.0 + 7.5
+	var ty := 0.0
+	var tz := ROOM_D / 2.0 - 3.5
+	# Stand (wood-toned)
+	_add_box(Vector3(tx, 0.55, tz), Vector3(1.5, 1.1, 0.8),
+		Color(0.10, 0.07, 0.05), 0.0, 0.8)
+	# Tank base / underframe
+	_add_box(Vector3(tx, 1.18, tz), Vector3(1.4, 0.08, 0.7),
+		Color(0.05, 0.05, 0.06), 0.4, 0.5)
+	# WATER — emissive, the visual focus
+	_fishtank_water = MeshInstance3D.new()
+	var wmesh := BoxMesh.new()
+	wmesh.size = Vector3(1.35, 0.55, 0.65)
+	_fishtank_water.mesh = wmesh
+	_fishtank_water_mat = StandardMaterial3D.new()
+	# Default to "hungry/dirty" water; refresh when fed
+	_fishtank_water_mat.albedo_color = Color(0.10, 0.20, 0.18)
+	_fishtank_water_mat.metallic = 0.0
+	_fishtank_water_mat.roughness = 0.20
+	_fishtank_water_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_fishtank_water_mat.emission_enabled = true
+	_fishtank_water_mat.emission = Color(0.10, 0.45, 0.40)
+	_fishtank_water_mat.emission_energy_multiplier = 1.2
+	_fishtank_water.material_override = _fishtank_water_mat
+	_fishtank_water.position = Vector3(tx, 1.50, tz)
+	_fishtank_water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_fishtank_water)
+	# Glass frame trim — thin metallic edges
+	for fx in [-0.68, 0.68]:
+		_add_box(Vector3(tx + fx, 1.50, tz), Vector3(0.04, 0.62, 0.74),
+			Color(0.18, 0.18, 0.22), 0.7, 0.3)
+	for fz in [-0.34, 0.34]:
+		_add_box(Vector3(tx, 1.50, tz + fz), Vector3(1.42, 0.62, 0.04),
+			Color(0.18, 0.18, 0.22), 0.7, 0.3)
+	_add_box(Vector3(tx, 1.83, tz), Vector3(1.42, 0.06, 0.74),
+		Color(0.20, 0.20, 0.24), 0.6, 0.3)
+	# Hood lamp on top — warm above + emits softly into water
+	_add_box(Vector3(tx, 1.90, tz), Vector3(1.1, 0.10, 0.5),
+		Color(0.7, 0.55, 0.30), 0.0, 0.3,
+		true, Color(1.0, 0.85, 0.50), 1.8)
+	# 3 fish silhouettes inside — small dark fishes that animate side-to-side
+	var fish_colors := [Color(1.0, 0.55, 0.10), Color(0.4, 0.85, 1.0), Color(0.95, 0.30, 0.80)]
+	for i in 3:
+		var f := MeshInstance3D.new()
+		var fm := BoxMesh.new()
+		fm.size = Vector3(0.18, 0.10, 0.06)
+		f.mesh = fm
+		var fmat := StandardMaterial3D.new()
+		fmat.albedo_color = fish_colors[i] * Color(0.4, 0.4, 0.4, 1.0)
+		fmat.emission_enabled = true
+		fmat.emission = fish_colors[i]
+		fmat.emission_energy_multiplier = 1.2
+		f.material_override = fmat
+		f.position = Vector3(tx + (i - 1) * 0.32,
+			1.42 + (i % 2) * 0.18, tz)
+		f.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(f)
+		_fish_silhouettes.append(f)
+	# Soft cyan point light spilling from the tank onto the floor
+	var tank_light := OmniLight3D.new()
+	tank_light.position = Vector3(tx, 1.6, tz + 0.4)
+	tank_light.light_color = Color(0.4, 0.85, 1.0)
+	tank_light.light_energy = 1.6
+	tank_light.omni_range = 3.5
+	tank_light.omni_attenuation = 1.8
+	add_child(tank_light)
+	# Interactable
+	_fishtank_zone = Area3D.new()
+	_fishtank_zone.position = Vector3(tx, 1.2, tz + 0.6)
+	var fz_col := CollisionShape3D.new()
+	var fz_shape := BoxShape3D.new()
+	fz_shape.size = Vector3(2.0, 2.0, 1.4)
+	fz_col.shape = fz_shape
+	_fishtank_zone.add_child(fz_col)
+	_fishtank_zone.body_entered.connect(_on_fishtank_entered)
+	_fishtank_zone.body_exited.connect(_on_fishtank_exited)
+	add_child(_fishtank_zone)
+	_refresh_fishtank_state()
+
+func _on_fishtank_entered(body: Node3D) -> void:
+	if body == _player:
+		_on_fishtank = true
+		if GameState.has_item("fish_food") and not GameState.has_flag("fish_fed"):
+			_set_status("[E] feed the fish")
+		elif GameState.has_flag("fish_fed"):
+			_set_status("the fish look happy")
+		else:
+			_set_status("[E] fish look hungry")
+
+func _on_fishtank_exited(body: Node3D) -> void:
+	if body == _player:
+		_on_fishtank = false
+		_set_status("")
+
+func _refresh_fishtank_state() -> void:
+	# Update water tint based on whether fish were recently fed.
+	if _fishtank_water_mat == null:
+		return
+	if GameState.has_flag("fish_fed"):
+		_fishtank_water_mat.albedo_color = Color(0.10, 0.55, 0.45)
+		_fishtank_water_mat.emission = Color(0.30, 0.85, 1.0)
+		_fishtank_water_mat.emission_energy_multiplier = 1.6
+	else:
+		_fishtank_water_mat.albedo_color = Color(0.10, 0.20, 0.18)
+		_fishtank_water_mat.emission = Color(0.10, 0.45, 0.40)
+		_fishtank_water_mat.emission_energy_multiplier = 1.2
+
+func _interact_fishtank() -> void:
+	if not _on_fishtank:
+		return
+	if GameState.has_item("fish_food") and not GameState.has_flag("fish_fed"):
+		# Feed them
+		GameState.set_flag("fish_fed")
+		_refresh_fishtank_state()
+		_set_status("you feed the fish")
+	elif not GameState.has_flag("fish_food_seen"):
+		# First inspection — sets the "i should get food" quest hook
+		GameState.set_flag("fish_food_seen")
+		GameState.start_quest("fishFood")
+		_set_status("the fish look hungry. you should buy fish food.")
+	else:
+		_set_status("the fish look hungry. (buy food at the pet store)")
+
+
 func _build_door() -> void:
 	var dx := ROOM_W / 2.0
 	var dz := ROOM_D / 5.0
@@ -1088,6 +1228,8 @@ func _input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("interact") and _on_door:
 		_exit_to_city()
+	elif event.is_action_pressed("interact") and _on_fishtank:
+		_interact_fishtank()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
 	else:
