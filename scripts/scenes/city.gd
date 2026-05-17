@@ -73,6 +73,17 @@ var _camera_locked_rotation: Vector3 = Vector3.ZERO
 var _npcs: Array = []          # walking pedestrians [{node, ab, dir, speed, x_min, x_max}]
 var _cars: Array = []          # driving cars [{node, speed}]
 
+# ─── ATM scene state ────────────────────────────────────────────────────
+# Hacker drops a CyberDeck the first time the player walks near the ATM.
+# After pickup, the cop+hacker sprites despawn so the scene rests.
+var _atm_hacker_pivot: Node3D
+var _atm_cop_pivot: Node3D
+var _atm_siren: OmniLight3D
+var _atm_beam: SpotLight3D
+var _cyberdeck_pivot: Node3D
+var _cyberdeck_glow: OmniLight3D
+var _near_cyberdeck: bool = false
+
 
 func _ready() -> void:
 	_setup_camera()
@@ -706,6 +717,7 @@ func _on_store_far(def: Dictionary, body: Node) -> void:
 
 func _build_atm_scene() -> void:
 	# ATM with COP CHASING HACKER mid-action — Aaron's "first scene" hook.
+	# When the player walks near, the hacker bolts and drops a CyberDeck (E to pick up).
 	var ax := -75.0
 	# Cabinet
 	_add_box(Vector3(ax, 1.5, -SIDEWALK_W + 0.3),
@@ -729,53 +741,179 @@ func _build_atm_scene() -> void:
 	atm_light.omni_attenuation = 2.0
 	add_child(atm_light)
 
-	# HACKER NPC — orange-coverall scrapper sprite, positioned IN FRONT of ATM
-	# (still touching it — caught mid-action)
-	var hacker_pivot := Node3D.new()
-	hacker_pivot.position = Vector3(ax + 0.9, 0, -SIDEWALK_W + 0.9)
-	add_child(hacker_pivot)
-	var hacker_ab = AnimatedBillboardScript.new()
-	hacker_ab.show_floor_shadow = false
-	hacker_ab.pixel_size = 0.04
-	hacker_ab.position = Vector3(0, 0, 0)
-	hacker_pivot.add_child(hacker_ab)
-	hacker_ab.load_sheet("res://assets/sprites/npc-cyberpunk.png")
-	hacker_ab.facing = AnimatedBillboardScript.Facing.LEFT  # facing the ATM
-	hacker_ab.set_moving(false)
+	var hacker_pos := Vector3(ax + 0.9, 0, -SIDEWALK_W + 0.9)
+	var cop_pos := Vector3(ax - 4.5, 0, -SIDEWALK_W + 1.5)
 
-	# COP NPC — drifter sprite (dark hooded), approaching from the WEST
-	var cop_pivot := Node3D.new()
-	cop_pivot.position = Vector3(ax - 4.5, 0, -SIDEWALK_W + 1.5)
-	add_child(cop_pivot)
-	var cop_ab = AnimatedBillboardScript.new()
-	cop_ab.show_floor_shadow = false
-	cop_ab.pixel_size = 0.04
-	cop_ab.position = Vector3(0, 0, 0)
-	cop_pivot.add_child(cop_ab)
-	cop_ab.load_sheet("res://assets/sprites/npc-cop.png")
-	cop_ab.facing = AnimatedBillboardScript.Facing.RIGHT  # facing toward hacker
-	cop_ab.set_moving(false)
+	# Only spawn the cop+hacker tableau if the event hasn't happened yet.
+	# After atmEventDone, both have left and the cyberdeck pickup (or its
+	# absence, if collected) is the only remaining trace.
+	if not GameState.has_flag("atmEventDone"):
+		# HACKER NPC — orange-coverall sprite, mid-action at the ATM
+		_atm_hacker_pivot = Node3D.new()
+		_atm_hacker_pivot.position = hacker_pos
+		add_child(_atm_hacker_pivot)
+		var hacker_ab = AnimatedBillboardScript.new()
+		hacker_ab.show_floor_shadow = false
+		hacker_ab.pixel_size = 0.04
+		_atm_hacker_pivot.add_child(hacker_ab)
+		hacker_ab.load_sheet("res://assets/sprites/npc-cyberpunk.png")
+		hacker_ab.facing = AnimatedBillboardScript.Facing.LEFT
+		hacker_ab.set_moving(false)
 
-	# Cop's flashlight spotlight beam — points at the hacker, cuts through fog
-	var beam := SpotLight3D.new()
-	beam.position = cop_pivot.position + Vector3(0, 1.6, 0)
-	beam.look_at_from_position(beam.position,
-		hacker_pivot.position + Vector3(0, 1.0, 0), Vector3.UP)
-	beam.light_color = Color(1.0, 0.95, 0.85)
-	beam.light_energy = 5.0
-	beam.spot_range = 7.0
-	beam.spot_angle = 25.0
-	beam.spot_attenuation = 1.3
-	add_child(beam)
+		# COP NPC — approaching from the west, flashlight on the hacker
+		_atm_cop_pivot = Node3D.new()
+		_atm_cop_pivot.position = cop_pos
+		add_child(_atm_cop_pivot)
+		var cop_ab = AnimatedBillboardScript.new()
+		cop_ab.show_floor_shadow = false
+		cop_ab.pixel_size = 0.04
+		_atm_cop_pivot.add_child(cop_ab)
+		cop_ab.load_sheet("res://assets/sprites/npc-cop.png")
+		cop_ab.facing = AnimatedBillboardScript.Facing.RIGHT
+		cop_ab.set_moving(false)
 
-	# Red emergency strobe at the cop's feet (siren)
-	var siren := OmniLight3D.new()
-	siren.position = cop_pivot.position + Vector3(0, 0.4, 0)
-	siren.light_color = Color(1.0, 0.20, 0.20)
-	siren.light_energy = 2.2
-	siren.omni_range = 3.5
-	siren.omni_attenuation = 2.0
-	add_child(siren)
+		# Cop's flashlight — cuts through fog toward the hacker
+		_atm_beam = SpotLight3D.new()
+		_atm_beam.position = cop_pos + Vector3(0, 1.6, 0)
+		_atm_beam.look_at_from_position(_atm_beam.position,
+			hacker_pos + Vector3(0, 1.0, 0), Vector3.UP)
+		_atm_beam.light_color = Color(1.0, 0.95, 0.85)
+		_atm_beam.light_energy = 5.0
+		_atm_beam.spot_range = 7.0
+		_atm_beam.spot_angle = 25.0
+		_atm_beam.spot_attenuation = 1.3
+		add_child(_atm_beam)
+
+		# Red strobe at the cop's feet (siren)
+		_atm_siren = OmniLight3D.new()
+		_atm_siren.position = cop_pos + Vector3(0, 0.4, 0)
+		_atm_siren.light_color = Color(1.0, 0.20, 0.20)
+		_atm_siren.light_energy = 2.2
+		_atm_siren.omni_range = 3.5
+		_atm_siren.omni_attenuation = 2.0
+		add_child(_atm_siren)
+
+		# Proximity trigger — when the player enters this zone, the hacker
+		# bolts and drops the CyberDeck. Centered between the ATM and the
+		# street so the player triggers it from either approach direction.
+		var trigger := Area3D.new()
+		trigger.position = Vector3(ax + 0.5, 1.0, -SIDEWALK_W + 2.4)
+		var tc := CollisionShape3D.new()
+		var ts := BoxShape3D.new()
+		ts.size = Vector3(7.0, 2.4, 4.0)
+		tc.shape = ts
+		trigger.add_child(tc)
+		trigger.body_entered.connect(func(b): _on_atm_event_trigger(b, hacker_pos))
+		add_child(trigger)
+	elif not GameState.has_item("cyberDeck"):
+		# Event already fired this session but the player wandered off
+		# without grabbing the deck — keep it on the ground for them.
+		_spawn_cyberdeck_pickup(hacker_pos)
+
+# Player walked into the ATM trigger zone. Hacker bolts, cop "chases" off
+# screen, leaves a CyberDeck behind. Sets atmEventDone flag (used by the
+# atmWitness quest).
+func _on_atm_event_trigger(body: Node, hacker_pos: Vector3) -> void:
+	if not (body is CharacterBody3D):
+		return
+	if GameState.has_flag("atmEventDone"):
+		return
+	GameState.set_flag("atmEventDone")
+	# Despawn the tableau — they've fled. Keep the despawn punchy: free
+	# the pivots immediately rather than try a fade out (sprite billboards
+	# don't tween nicely with the current shader).
+	if _atm_hacker_pivot:
+		_atm_hacker_pivot.queue_free()
+		_atm_hacker_pivot = null
+	if _atm_cop_pivot:
+		_atm_cop_pivot.queue_free()
+		_atm_cop_pivot = null
+	if _atm_beam:
+		_atm_beam.queue_free()
+		_atm_beam = null
+	if _atm_siren:
+		_atm_siren.queue_free()
+		_atm_siren = null
+	_spawn_cyberdeck_pickup(hacker_pos)
+	_set_status("the hacker bolted. she dropped something.")
+
+
+# CyberDeck pickup — a glowing magenta deck on the sidewalk, [E] to grab.
+func _spawn_cyberdeck_pickup(at: Vector3) -> void:
+	if _cyberdeck_pivot:
+		return
+	_cyberdeck_pivot = Node3D.new()
+	_cyberdeck_pivot.position = at + Vector3(0, 0.05, 0)
+	add_child(_cyberdeck_pivot)
+	# Deck body — thin laptop-shaped slab
+	var body := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.55, 0.08, 0.40)
+	body.mesh = bm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.08, 0.04, 0.12)
+	mat.metallic = 0.6
+	mat.roughness = 0.3
+	body.material_override = mat
+	body.position = Vector3(0, 0.04, 0)
+	_cyberdeck_pivot.add_child(body)
+	# Screen-side glow strip (top face)
+	var glow_strip := MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(0.40, 0.02, 0.05)
+	glow_strip.mesh = gm
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.20, 0.05, 0.30)
+	gmat.emission_enabled = true
+	gmat.emission = Color(1.0, 0.20, 0.85)
+	gmat.emission_energy_multiplier = 2.4
+	glow_strip.material_override = gmat
+	glow_strip.position = Vector3(0, 0.09, -0.10)
+	_cyberdeck_pivot.add_child(glow_strip)
+	# Soft magenta point light so the player notices it
+	_cyberdeck_glow = OmniLight3D.new()
+	_cyberdeck_glow.position = Vector3(0, 0.6, 0)
+	_cyberdeck_glow.light_color = Color(1.0, 0.25, 0.95)
+	_cyberdeck_glow.light_energy = 1.8
+	_cyberdeck_glow.omni_range = 3.0
+	_cyberdeck_glow.omni_attenuation = 2.0
+	_cyberdeck_pivot.add_child(_cyberdeck_glow)
+	# Proximity area for [E] pickup
+	var area := Area3D.new()
+	area.position = Vector3(0, 0.6, 0)
+	var ac := CollisionShape3D.new()
+	var as_ := BoxShape3D.new()
+	as_.size = Vector3(2.0, 2.0, 2.0)
+	ac.shape = as_
+	area.add_child(ac)
+	area.body_entered.connect(func(b): _on_cyberdeck_near(b))
+	area.body_exited.connect(func(b): _on_cyberdeck_far(b))
+	_cyberdeck_pivot.add_child(area)
+
+
+func _on_cyberdeck_near(body: Node) -> void:
+	if body is CharacterBody3D:
+		_near_cyberdeck = true
+		_set_status("[E] grab the CyberDeck")
+
+
+func _on_cyberdeck_far(body: Node) -> void:
+	if body is CharacterBody3D:
+		_near_cyberdeck = false
+		_set_status("")
+
+
+func _pickup_cyberdeck() -> void:
+	if _cyberdeck_pivot == null:
+		return
+	GameState.add_item("cyberDeck")
+	GameState.set_flag("hasCyberDeck")
+	_cyberdeck_pivot.queue_free()
+	_cyberdeck_pivot = null
+	_cyberdeck_glow = null
+	_near_cyberdeck = false
+	_set_status("got the CyberDeck. it pulses warm in your hand.")
+
 
 func _build_food_cart() -> void:
 	# Food cart at x=+34 on the sidewalk
@@ -1423,7 +1561,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("phone_toggle"):
 		Phone.toggle()
 	elif event.is_action_pressed("interact"):
-		if not _near_store.is_empty():
+		# CyberDeck pickup wins over storefronts — they overlap geographically
+		# at the ATM end of the block.
+		if _near_cyberdeck:
+			_pickup_cyberdeck()
+		elif not _near_store.is_empty():
 			_on_storefront_interact(_near_store)
 
 
