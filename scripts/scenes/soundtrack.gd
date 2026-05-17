@@ -505,12 +505,11 @@ func _make_sky_sprite(tex_path: String, world_size: float) -> Node3D:
 	# convert to Sprite3D's pixel_size (size per texture pixel).
 	var root := Node3D.new()
 	var sprite := Sprite3D.new()
-	var img := Image.new()
-	if img.load(tex_path) != OK:
+	var tex := load(tex_path) as Texture2D
+	if tex == null:
 		push_warning("Soundtrack: sprite tex missing: " + tex_path)
 		root.add_child(sprite)
 		return root
-	var tex := ImageTexture.create_from_image(img)
 	sprite.texture = tex
 	# Image is 1024x1024; pixel_size = world_size / image_width
 	sprite.pixel_size = world_size / float(img.get_width())
@@ -563,13 +562,10 @@ func _make_textured_disc(shader: Shader, tex_path: String,
 	mi.custom_aabb = AABB(Vector3(-disc_size, -disc_size, -disc_size),
 		Vector3(disc_size * 2.0, disc_size * 2.0, disc_size * 2.0))
 	mi.extra_cull_margin = 200.0
-	var img := Image.new()
-	var err: int = img.load(tex_path)
-	if err != OK:
-		push_warning("Soundtrack: disc texture missing: %s (err %d)" % [tex_path, err])
+	var tex := load(tex_path) as Texture2D
+	if tex == null:
+		push_warning("Soundtrack: disc texture missing: " + tex_path)
 		return mi
-	print("Soundtrack: loaded %s (%dx%d)" % [tex_path, img.get_width(), img.get_height()])
-	var tex := ImageTexture.create_from_image(img)
 	var mat := ShaderMaterial.new()
 	mat.shader = shader
 	mat.set_shader_parameter("disc_tex", tex)
@@ -1136,18 +1132,14 @@ func _build_flora() -> void:
 	# they read clean against the night without needing 3D models.
 	var rng := RandomNumberGenerator.new()
 	rng.set_seed(57)
-	var cactus_img := Image.new()
-	var palm_img := Image.new()
-	var have_cactus: bool = (cactus_img.load(
-		"res://assets/textures/cactus_alpha.png") == OK)
-	var have_palm: bool = (palm_img.load(
-		"res://assets/textures/palm_alpha.png") == OK)
+	var cactus_tex := load(
+		"res://assets/textures/cactus_alpha.png") as Texture2D
+	var palm_tex := load(
+		"res://assets/textures/palm_alpha.png") as Texture2D
+	var have_cactus: bool = (cactus_tex != null)
+	var have_palm: bool = (palm_tex != null)
 	if not have_cactus and not have_palm:
 		return
-	var cactus_tex: Texture2D = (ImageTexture.create_from_image(cactus_img)
-		if have_cactus else null)
-	var palm_tex: Texture2D = (ImageTexture.create_from_image(palm_img)
-		if have_palm else null)
 
 	# Very sparse — desolate desert highway, mostly empty.
 	for i in range(2):
@@ -1251,10 +1243,12 @@ func _build_hud() -> void:
 	dash.offset_right = 0
 	dash.offset_top = 0
 	dash.offset_bottom = 0
-	var img := Image.new()
-	var ok := img.load("res://assets/textures/dashboard.png")
-	if ok == OK:
-		dash.texture = ImageTexture.create_from_image(img)
+	# Use the imported Texture2D resource (works in both editor and web
+	# export). Image.load() fails on export because the raw PNG isn't
+	# included in the .pck — only its imported counterpart is.
+	var dash_tex := load("res://assets/textures/dashboard.png") as Texture2D
+	if dash_tex != null:
+		dash.texture = dash_tex
 	dash.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	dash.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	dash.mouse_filter = Control.MOUSE_FILTER_IGNORE
