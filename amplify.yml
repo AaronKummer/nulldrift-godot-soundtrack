@@ -16,14 +16,14 @@ frontend:
         - unzip -q /tmp/templates.tpz -d /tmp/tpls
         - mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VER}"
         - mv /tmp/tpls/templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VER}/"
-        - "$HOME/bin/godot" --version
+        - '$HOME/bin/godot --version'
     build:
       commands:
-        - export PATH="$HOME/bin:$PATH"
+        - 'export PATH="$HOME/bin:$PATH"'
         # Import the project once so asset GUIDs resolve before the export
-        - "$HOME/bin/godot" --headless --import || true
+        - '$HOME/bin/godot --headless --import || true'
         - mkdir -p build
-        - "$HOME/bin/godot" --headless --export-release "Web" build/index.html
+        - '$HOME/bin/godot --headless --export-release "Web" build/index.html'
         - /bin/ls -la build/
   artifacts:
     baseDirectory: build
