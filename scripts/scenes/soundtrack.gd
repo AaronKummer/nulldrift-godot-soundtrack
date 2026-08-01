@@ -1296,19 +1296,6 @@ void fragment() {
 	ctrls.offset_bottom = 24
 	root.add_child(ctrls)
 
-	# Back link — top-left, away from the dashboard.
-	var back := Button.new()
-	back.text = "◂ BACK"
-	back.flat = true
-	back.position = Vector2(22, 18)
-	back.add_theme_font_size_override("font_size", 14)
-	back.add_theme_color_override("font_color", NEON_CYAN)
-	back.add_theme_color_override("font_hover_color", HOT_PINK)
-	back.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	back.add_theme_constant_override("outline_size", 4)
-	back.pressed.connect(_back_to_title)
-	root.add_child(back)
-
 	# Station ID — top-right, small.
 	var station := Label.new()
 	station.text = "NULL//DRIFT FM · 95.3"
@@ -1881,6 +1868,9 @@ func _process(delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if _exiting:
 		return
+	if event is InputEventMouseButton and event.pressed 			and event.button_index == MOUSE_BUTTON_LEFT and _moon_clicked(event.position):
+		_goto_retro_player()
+		return
 	if event.is_action_pressed("ui_cancel"):
 		if _tracklist_modal.visible:
 			_close_tracklist()
@@ -1889,6 +1879,19 @@ func _input(event: InputEvent) -> void:
 	elif event.is_action_pressed("ui_accept"):
 		if not _tracklist_modal.visible:
 			_toggle_play()
+
+func _moon_clicked(screen_pos: Vector2) -> bool:
+	# Secret: clicking the moon jumps to the retro soundtrack player.
+	if _moon == null or _camera == null or not _moon.visible:
+		return false
+	if _camera.is_position_behind(_moon.global_position):
+		return false
+	var moon_screen := _camera.unproject_position(_moon.global_position)
+	return screen_pos.distance_to(moon_screen) < 56.0
+
+func _goto_retro_player() -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.eval("window.location.href = 'https://null-drift.com/soundtrack.html'")
 
 func _back_to_title() -> void:
 	_exiting = true
