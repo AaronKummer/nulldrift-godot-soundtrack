@@ -512,7 +512,7 @@ func _make_sky_sprite(tex_path: String, world_size: float) -> Node3D:
 		return root
 	sprite.texture = tex
 	# Image is 1024x1024; pixel_size = world_size / image_width
-	sprite.pixel_size = world_size / float(img.get_width())
+	sprite.pixel_size = world_size / float(tex.get_width())
 	sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	sprite.shaded = false
 	sprite.transparent = true
