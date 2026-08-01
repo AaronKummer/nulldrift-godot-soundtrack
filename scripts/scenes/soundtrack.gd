@@ -1415,16 +1415,16 @@ func _make_transport_row() -> HBoxContainer:
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var prev_btn := _make_ctrl_btn("⏮", NEON_CYAN, 14, 34)
+	var prev_btn := _make_ctrl_btn("<<", NEON_CYAN, 14, 34)
 	prev_btn.pressed.connect(_prev_track)
 	row.add_child(prev_btn)
-	_play_btn = _make_ctrl_btn("▶", HOT_PINK, 18, 44)
+	_play_btn = _make_ctrl_btn(">", HOT_PINK, 18, 44)
 	_play_btn.pressed.connect(_toggle_play)
 	row.add_child(_play_btn)
-	var next_btn := _make_ctrl_btn("⏭", NEON_CYAN, 14, 34)
+	var next_btn := _make_ctrl_btn(">>", NEON_CYAN, 14, 34)
 	next_btn.pressed.connect(_next_track)
 	row.add_child(next_btn)
-	var list_btn := _make_ctrl_btn("≡", NEON_PURPLE, 14, 34)
+	var list_btn := _make_ctrl_btn("=", NEON_PURPLE, 14, 34)
 	list_btn.pressed.connect(_open_tracklist)
 	row.add_child(list_btn)
 	return row
@@ -1503,7 +1503,7 @@ func _make_tracklist_modal() -> Control:
 
 	var head := HBoxContainer.new()
 	var h := Label.new()
-	h.text = "≡ TRACKLIST"
+	h.text = "TRACKLIST"
 	h.add_theme_font_size_override("font_size", 18)
 	h.add_theme_color_override("font_color", NEON_CYAN)
 	h.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
@@ -1518,7 +1518,7 @@ func _make_tracklist_modal() -> Control:
 	_tracklist_count.add_theme_color_override("font_color", NEON_PURPLE)
 	head.add_child(_tracklist_count)
 	var close_btn := Button.new()
-	close_btn.text = "✕"
+	close_btn.text = "X"
 	close_btn.add_theme_font_size_override("font_size", 14)
 	close_btn.add_theme_color_override("font_color", HOT_PINK)
 	close_btn.add_theme_color_override("font_outline_color",
@@ -1647,8 +1647,9 @@ func _scan_tracks() -> void:
 		return
 	var stems: Array[String] = []
 	for fname in dir.get_files():
-		if fname.ends_with(".mp3"):
-			stems.append(fname.get_basename())
+		var plain := fname.trim_suffix(".import").trim_suffix(".remap")
+		if plain.ends_with(".mp3") and not stems.has(plain.get_basename()):
+			stems.append(plain.get_basename())
 	stems.sort()
 	var category_of: Dictionary = {}
 	for cat in Music.CATEGORIES.keys():
@@ -1743,7 +1744,7 @@ func _refresh_now_playing() -> void:
 		_np_track_label.add_theme_color_override("font_color",
 			Color(0.4, 0.5, 0.6))
 		_np_scene_label.text = ""
-		_play_btn.text = "▶"
+		_play_btn.text = ">"
 		_np_time_label.text = "--:-- / --:--"
 		_np_progress_fill.size.x = 0
 	else:
@@ -1751,7 +1752,7 @@ func _refresh_now_playing() -> void:
 		_np_track_label.text = t["name"]
 		_np_track_label.add_theme_color_override("font_color", HOT_PINK)
 		_np_scene_label.text = t["scene"]
-		_play_btn.text = ("▶" if _is_paused else "❚❚")
+		_play_btn.text = (">" if _is_paused else "||")
 	if _tracklist_modal.visible:
 		_populate_tracklist()
 
