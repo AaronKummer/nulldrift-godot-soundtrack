@@ -126,6 +126,7 @@ func _ready() -> void:
 	# District generator disabled — visuals weren't at the bar (flat unlit
 	# slabs). Rebuild properly with real facade detail before re-enabling.
 	#_gen_mats = CityGenSys.build(self)
+	_build_world_shell()
 	var backwall := StaticBody3D.new()
 	var bw_col := CollisionShape3D.new()
 	var bw_shape := BoxShape3D.new()
@@ -932,6 +933,161 @@ func _dismount_scooter() -> void:
 		_scooter_node.global_position.y = 0.0
 	_scooter_node = null
 	_set_status("")
+
+
+# =========================================================================
+# WORLD SHELL - open-world rules: ground everywhere, a two-sided street,
+# a VISIBLE southern boundary (canal), and a skyline backdrop. Never void,
+# never a bare invisible wall.
+# =========================================================================
+
+func _build_world_shell() -> void:
+	# 1) Ground plane under everything reachable or visible
+	var ground := MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(900.0, 0.08, 700.0)
+	ground.mesh = gm
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.045, 0.045, 0.06)
+	gmat.roughness = 0.9
+	ground.material_override = gmat
+	ground.position = Vector3(0, -0.06, 0)
+	add_child(ground)
+
+	# 2) South frontage: low single-story strip across the street so the
+	# road reads two-sided. Low = never blocks the iso camera.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x50F7
+	var sx := -BLOCK_HALF_W
+	while sx < BLOCK_HALF_W:
+		var w: float = rng.randf_range(8.0, 16.0)
+		var body := Color(0.10, 0.09, 0.13) * rng.randf_range(0.8, 1.2)
+		_add_box(Vector3(sx + w * 0.5, 1.4, ROAD_WIDTH + 4.0),
+			Vector3(w, 2.8, 6.0), body, 0.2, 0.8)
+		# Rooftop edge + occasional low sign glow
+		_add_box(Vector3(sx + w * 0.5, 2.9, ROAD_WIDTH + 4.0),
+			Vector3(w + 0.3, 0.15, 6.3), body * 1.5, 0.2, 0.7)
+		if rng.randf() < 0.4:
+			var sc: Color = [Color(1.5, 0.3, 0.8), Color(0.3, 1.4, 1.5),
+				Color(1.5, 1.1, 0.2)][rng.randi() % 3]
+			_add_box(Vector3(sx + w * 0.5, 2.2, ROAD_WIDTH + 0.9),
+				Vector3(minf(w - 3.0, 6.0), 0.5, 0.08),
+				sc * Color(0.25, 0.25, 0.25, 1.0), 0.0, 0.3, true, sc, 1.6)
+		sx += w + rng.randf_range(1.0, 4.0)
+
+	# 3) The canal: visible southern boundary. Dark water with neon sheen.
+	var water := MeshInstance3D.new()
+	var wm := BoxMesh.new()
+	wm.size = Vector3(900.0, 0.06, 26.0)
+	water.mesh = wm
+	var wmat := StandardMaterial3D.new()
+	wmat.albedo_color = Color(0.02, 0.05, 0.09)
+	wmat.metallic = 0.9
+	wmat.roughness = 0.08
+	water.material_override = wmat
+	water.position = Vector3(0, -0.02, ROAD_WIDTH + 21.0)
+	add_child(water)
+	# Canal guard rail - the readable "no further" line
+	_add_box(Vector3(0, 0.55, ROAD_WIDTH + 8.2), Vector3(900.0, 0.08, 0.08),
+		Color(0.1, 0.3, 0.35), 0.6, 0.3, true, Color(0.1, 0.9, 1.0), 1.2)
+	for px in range(-440, 460, 20):
+		_add_box(Vector3(px, 0.3, ROAD_WIDTH + 8.2), Vector3(0.1, 0.6, 0.1),
+			Color(0.16, 0.16, 0.2), 0.6, 0.4)
+	var rail := StaticBody3D.new()
+	var rail_col := CollisionShape3D.new()
+	var rail_shape := BoxShape3D.new()
+	rail_shape.size = Vector3(900.0, 4.0, 0.5)
+	rail_col.shape = rail_shape
+	rail.position = Vector3(0, 2.0, ROAD_WIDTH + 8.4)
+	rail.add_child(rail_col)
+	add_child(rail)
+
+	# 4) Skyline backdrop: emissive tower silhouettes across the canal and
+	# far behind the home block. Unreachable, always drawn, kills the void.
+	_build_backdrop_row(ROAD_WIDTH + 46.0, 0x51CA, 10.0, 22.0)
+	_build_backdrop_row(ROAD_WIDTH + 78.0, 0x51CB, 18.0, 38.0)
+	_build_backdrop_row(-46.0, 0x51CC, 16.0, 30.0)
+	_build_backdrop_row(-80.0, 0x51CD, 24.0, 48.0)
+	# End caps east/west so the street doesn't end in nothing
+	for ex in [-BLOCK_HALF_W - 26.0, BLOCK_HALF_W + 26.0]:
+		_build_backdrop_column(ex, 0x51CE + int(ex))
+
+func _build_backdrop_row(z: float, seed_v: int, h_min: float, h_max: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = BoxMesh.new()
+	var items: Array = []
+	var x := -430.0
+	while x < 430.0:
+		var w: float = rng.randf_range(14.0, 30.0)
+		var h: float = rng.randf_range(h_min, h_max)
+		items.append({ "xform": Transform3D(
+			Basis.from_scale(Vector3(w, h, 12.0)),
+			Vector3(x + w * 0.5, h * 0.5, z)),
+			"color": Color(0.05, 0.045, 0.09) * rng.randf_range(0.7, 1.2) })
+		x += w + rng.randf_range(2.0, 8.0)
+	mm.instance_count = items.size()
+	for i in items.size():
+		mm.set_instance_transform(i, items[i].xform)
+		mm.set_instance_color(i, items[i].color)
+	var mmi := MultiMeshInstance3D.new()
+	mmi.multimesh = mm
+	var mat := StandardMaterial3D.new()
+	mat.vertex_color_use_as_albedo = true
+	mat.roughness = 0.9
+	mmi.material_override = mat
+	mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mmi)
+	# Lit windows sprinkled on the row (one glow multimesh)
+	var wmm := MultiMesh.new()
+	wmm.transform_format = MultiMesh.TRANSFORM_3D
+	wmm.use_colors = true
+	var quad := QuadMesh.new()
+	quad.size = Vector2(1.2, 1.6)
+	wmm.mesh = quad
+	var wins: Array = []
+	for it in items:
+		var bx: float = it.xform.origin.x
+		var bw: float = it.xform.basis.x.length()
+		var bh: float = it.xform.basis.y.length()
+		var count := int(bw * bh * 0.04)
+		for i in count:
+			wins.append({ "pos": Vector3(
+				bx + rng.randf_range(-bw * 0.4, bw * 0.4),
+				rng.randf_range(2.0, bh - 1.5),
+				z - 6.2),
+				"color": [Color(1.3, 1.0, 0.5), Color(0.5, 1.1, 1.3),
+					Color(1.2, 0.5, 1.0)][rng.randi() % 3] })
+	wmm.instance_count = wins.size()
+	for i in wins.size():
+		wmm.set_instance_transform(i, Transform3D(Basis.IDENTITY, wins[i].pos))
+		wmm.set_instance_color(i, wins[i].color)
+	var wmi := MultiMeshInstance3D.new()
+	wmi.multimesh = wmm
+	var wmat := StandardMaterial3D.new()
+	wmat.vertex_color_use_as_albedo = true
+	wmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	wmat.emission_enabled = true
+	wmat.emission = Color(0.9, 0.9, 0.9)
+	wmat.emission_energy_multiplier = 1.2
+	wmi.material_override = wmat
+	wmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(wmi)
+
+func _build_backdrop_column(x: float, seed_v: int) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_v
+	var z := -60.0
+	while z < 60.0:
+		var d: float = rng.randf_range(12.0, 22.0)
+		var h: float = rng.randf_range(10.0, 30.0)
+		_add_box(Vector3(x, h * 0.5, z + d * 0.5),
+			Vector3(16.0, h, d),
+			Color(0.05, 0.045, 0.09) * rng.randf_range(0.7, 1.2), 0.2, 0.9)
+		z += d + rng.randf_range(3.0, 9.0)
 
 
 func _build_weapon_shop() -> void:
