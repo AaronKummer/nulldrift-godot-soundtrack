@@ -81,37 +81,9 @@ const DISTRICTS := {
 	},
 }
 
-# See-through mask: fragments near the camera-to-player sight line dissolve
-# with a dithered soft edge. No whole-building pops — only the exact spot
-# hiding the player opens up, and it fades as you move.
-const CUTAWAY_FN := "
-uniform vec3 player_pos = vec3(0.0, 0.0, -9999.0);
-varying vec3 world_pos;
-void vertex() {
-	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-}
-float sight_fade(vec3 wp, vec3 cam, vec2 frag) {
-	vec3 a = player_pos + vec3(0.0, 1.0, 0.0);
-	vec3 ab = cam - a;
-	float t = clamp(dot(wp - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
-	float d = distance(wp, a + ab * t);
-	float hole = 6.5;
-	if (d >= hole) {
-		return 1.0;
-	}
-	float fade = smoothstep(hole * 0.45, hole, d);
-	float dither = fract(sin(dot(frag, vec2(12.9898, 78.233))) * 43758.5453);
-	return fade - dither;
-}
-"
-
 const BODY_SHADER := "
 shader_type spatial;
-CUTAWAY
 void fragment() {
-	if (sight_fade(world_pos, CAMERA_POSITION_WORLD, FRAGCOORD.xy) < 0.0) {
-		discard;
-	}
 	ALBEDO = COLOR.rgb;
 	ROUGHNESS = 0.85;
 	METALLIC = 0.0;
@@ -121,11 +93,7 @@ void fragment() {
 const GLOW_SHADER := "
 shader_type spatial;
 render_mode unshaded;
-CUTAWAY
 void fragment() {
-	if (sight_fade(world_pos, CAMERA_POSITION_WORLD, FRAGCOORD.xy) < 0.0) {
-		discard;
-	}
 	ALBEDO = COLOR.rgb * 0.2;
 	EMISSION = COLOR.rgb;
 }
@@ -136,11 +104,11 @@ static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> Array:
 	rng.seed = rng_seed
 	var body_mat := ShaderMaterial.new()
 	var body_sh := Shader.new()
-	body_sh.code = BODY_SHADER.replace("CUTAWAY", CUTAWAY_FN)
+	body_sh.code = BODY_SHADER
 	body_mat.shader = body_sh
 	var glow_mat := ShaderMaterial.new()
 	var glow_sh := Shader.new()
-	glow_sh.code = GLOW_SHADER.replace("CUTAWAY", CUTAWAY_FN)
+	glow_sh.code = GLOW_SHADER
 	glow_mat.shader = glow_sh
 
 	var bodies: Array = []      # {xform: Transform3D, color: Color}
@@ -157,6 +125,7 @@ static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> Array:
 		_build_band_buildings(parent, collision_parent, band, district, z0,
 			rng, bodies, windows, glows)
 	_build_avenues(parent, glows)
+	_build_void_fences(collision_parent)
 
 	# Bake the batches — three draw calls for the entire generated city
 	_bake_multimesh(parent, bodies, BoxMesh.new(), body_mat, "GenBodies")
@@ -165,6 +134,48 @@ static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> Array:
 	_bake_multimesh(parent, windows, quad, glow_mat, "GenWindows")
 	_bake_multimesh(parent, glows, BoxMesh.new(), glow_mat, "GenGlows")
 	return [body_mat, glow_mat]
+
+static func _build_void_fences(col_parent: StaticBody3D) -> void:
+	# Seal the dead strips between a band's road and the NEXT band's
+	# building backs, so the player can never stand south-adjacent to tall
+	# geometry. The walkable network = each band's sidewalk + road, plus
+	# the two avenues. Avenue crossings stay open, with side rails along
+	# the sealed strips so you can't sidestep into them.
+	var ks: Array = [-3, -2, -1, 0, 1, 2, 3]
+	for k in ks:
+		var z0: float = k * BAND_PITCH
+		var road_south: float = z0 + ROAD_W + 1.0        # south edge of this road
+		var next_backs: float = z0 + BAND_PITCH - SIDEWALK_W * 2.0 - 0.5 - 14.0
+		# Long fences (with avenue gaps) on both sides of the dead strip
+		for fence_z in [road_south, next_backs - 1.0]:
+			var seg_start: float = -X_EXTENT
+			var spans: Array = []
+			for ax in AVENUE_XS:
+				spans.append([seg_start, ax - AVENUE_W * 0.5])
+				seg_start = ax + AVENUE_W * 0.5
+			spans.append([seg_start, X_EXTENT])
+			for span in spans:
+				var length: float = span[1] - span[0]
+				if length <= 1.0:
+					continue
+				var cs := CollisionShape3D.new()
+				var box := BoxShape3D.new()
+				box.size = Vector3(length, 8.0, 1.0)
+				cs.shape = box
+				cs.position = Vector3((span[0] + span[1]) * 0.5, 4.0, fence_z)
+				col_parent.add_child(cs)
+		# Avenue side rails across the dead strip
+		var strip_len: float = (next_backs - 1.0) - road_south
+		if strip_len > 1.0:
+			for ax in AVENUE_XS:
+				for side in [-1.0, 1.0]:
+					var cs2 := CollisionShape3D.new()
+					var box2 := BoxShape3D.new()
+					box2.size = Vector3(1.0, 8.0, strip_len)
+					cs2.shape = box2
+					cs2.position = Vector3(ax + side * (AVENUE_W * 0.5),
+						4.0, (road_south + next_backs - 1.0) * 0.5)
+					col_parent.add_child(cs2)
 
 static func _build_band_ground(parent: Node3D, band: Dictionary, z0: float) -> void:
 	# Road + sidewalks for this band (home band already has its own)
@@ -208,6 +219,13 @@ static func _build_band_buildings(parent: Node3D, col_parent: StaticBody3D,
 			x += 6.0
 			continue
 		var h: float = rng.randf_range(district.heights[0], district.heights[1])
+		var near_avenue := false
+		for ax in AVENUE_XS:
+			if absf((x + w * 0.5) - ax) < 30.0:
+				near_avenue = true
+				break
+		if near_avenue:
+			h = minf(h, 5.5)
 		var depth := 14.0
 		var cx: float = x + w * 0.5
 		var body_color: Color = district.bodies[rng.randi() % district.bodies.size()]

@@ -2116,9 +2116,7 @@ func _apply_pending_spawn() -> void:
 func _process(delta: float) -> void:
 	_tick_player(delta)
 	_check_scooter_proximity()
-	if _player:
-		for m in _gen_mats:
-			m.set_shader_parameter("player_pos", _player.global_position)
+
 	_tick_camera(delta)
 	_tick_walking_npcs(delta)
 	_tick_cars(delta)
