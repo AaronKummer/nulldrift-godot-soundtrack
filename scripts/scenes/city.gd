@@ -83,6 +83,7 @@ var _riding_scooter := false
 var _scooter_node: Node3D
 var _near_scooter_idx := -1
 var _scooters: Array = []   # {node, pos}
+var _gen_mats: Array = []   # cutaway shader materials (player_pos uniform)
 var _store_glows: Dictionary = {}   # def.id -> DoorGlow
 var _store_zones: Array = []
 var _camera_locked_rotation: Vector3 = Vector3.ZERO
@@ -115,7 +116,7 @@ func _ready() -> void:
 	_build_elevator_back()
 	_build_arcade_entrance()
 	_build_weapon_shop()
-	CityGenSys.build(self)
+	_gen_mats = CityGenSys.build(self)
 	_build_ridenet()
 	_build_scooters()
 	_build_food_cart()
@@ -1764,14 +1765,25 @@ func _build_cars() -> void:
 		var fwd: float = 1.0 if spec.speed > 0 else -1.0
 		var sz: Vector3
 		match spec.type:
-			"boxtruck": sz = Vector3(10.5, 4.4, 4.8)
-			"pickup":   sz = Vector3(8.4, 2.7, 4.3)
-			_:          sz = Vector3(8.0, 2.5, 4.2)
+			"boxtruck": sz = Vector3(7.9, 3.4, 3.7)
+			"pickup":   sz = Vector3(6.4, 2.1, 3.3)
+			_:          sz = Vector3(6.1, 1.9, 3.2)
 		car.position = Vector3(spec.x, 0.0, spec.lane_z)
 		add_child(car)
 		_build_vehicle_body(car, spec, sz, fwd)
 		_add_vehicle_lights(car, spec, sz, fwd)
-		_cars.append({ "node": car, "speed": spec.speed, "side_facing": fwd })
+		var hitbox := Area3D.new()
+		hitbox.position = Vector3(0, 1.0, 0)
+		var hcol := CollisionShape3D.new()
+		var hshape := BoxShape3D.new()
+		hshape.size = Vector3(sz.x * 0.95, 2.0, sz.z * 0.95)
+		hcol.shape = hshape
+		hitbox.add_child(hcol)
+		var car_entry := { "node": car, "speed": spec.speed, "side_facing": fwd,
+			"hit_cd": 0.0 }
+		hitbox.body_entered.connect(func(b): _on_car_hit(car_entry, b))
+		car.add_child(hitbox)
+		_cars.append(car_entry)
 
 func _build_vehicle_body(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float) -> void:
 	# Local Y is up-from-road (car node sits on the road plane).
@@ -1824,7 +1836,7 @@ func _build_vehicle_body(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float)
 				_add_box_local(car, Vector3(mx, sz.y + 0.06, sz.z * 0.44),
 					Vector3(0.10, 0.10, 0.10),
 					Color(0.5, 0.3, 0.05), 0.0, 0.3, true, Color(1.0, 0.55, 0.1), 3.0)
-			_add_wheels(car, sz, 0.70, 0.38)
+			_add_wheels(car, sz, 0.55, 0.32)
 		"pickup":
 			var cab_len: float = sz.x * 0.42
 			var cab_x: float = fwd * sz.x * 0.12
@@ -1840,7 +1852,7 @@ func _build_vehicle_body(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float)
 			# Bed rails
 			_add_box_local(car, Vector3(-fwd * sz.x * 0.28, 1.66, 0),
 				Vector3(sz.x * 0.40, 0.10, sz.z * 0.9), body_col * 0.9, 0.7, 0.3)
-			_add_wheels(car, sz, 0.55, 0.32)
+			_add_wheels(car, sz, 0.45, 0.28)
 		_:
 			# Sedan — raised body + cabin + lit side windows
 			_car_shell(car, Vector3(0, 0.95, 0), Vector3(sz.x, 1.2, sz.z), body_col)
@@ -1850,7 +1862,7 @@ func _build_vehicle_body(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float)
 				Vector3(sz.x * 0.48, (sz.y - 1.55) * 0.5, 0.05),
 				Color(0.25, 0.45, 0.55), 0.2, 0.1,
 				true, Color(0.5, 1.1, 1.3), 1.4)
-			_add_wheels(car, sz, 0.50, 0.30)
+			_add_wheels(car, sz, 0.40, 0.26)
 	# Underglow strip — neon-drenched feel
 	_add_box_local(car, Vector3(0, 0.18, 0),
 		Vector3(sz.x * 0.9, 0.06, sz.z * 0.95),
@@ -2096,11 +2108,28 @@ func _apply_pending_spawn() -> void:
 func _process(delta: float) -> void:
 	_tick_player(delta)
 	_check_scooter_proximity()
+	if _player:
+		for m in _gen_mats:
+			m.set_shader_parameter("player_pos", _player.global_position)
 	_tick_camera(delta)
 	_tick_walking_npcs(delta)
 	_tick_cars(delta)
 
+func _on_car_hit(car_entry: Dictionary, body: Node3D) -> void:
+	if not (body is CharacterBody3D) or car_entry.hit_cd > 0.0:
+		return
+	car_entry.hit_cd = 1.2
+	GameState.hp = maxi(1, GameState.hp - 8)
+	# Shove the player off the bumper
+	var away: float = signf(body.global_position.z - car_entry.node.global_position.z)
+	if away == 0.0:
+		away = 1.0
+	body.global_position.z += away * 2.2
+	_set_status("clipped by traffic! watch the road. (-8 HP)")
+
 func _tick_cars(delta: float) -> void:
+	for car in _cars:
+		car.hit_cd = maxf(0.0, car.hit_cd - delta)
 	for car in _cars:
 		var n: Node3D = car.node
 		n.position.x += car.speed * delta

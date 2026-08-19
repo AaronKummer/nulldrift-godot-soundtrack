@@ -81,9 +81,20 @@ const DISTRICTS := {
 	},
 }
 
+# Cutaway: anything clearly SOUTH of the player (between them and the
+# camera) gets its upper floors discarded so the player is never hidden.
+# This clips fragments instead of culling whole buildings.
 const BODY_SHADER := "
 shader_type spatial;
+uniform vec3 player_pos = vec3(0.0, 0.0, -9999.0);
+varying vec3 world_pos;
+void vertex() {
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
 void fragment() {
+	if (world_pos.z > player_pos.z + 7.0 && world_pos.y > 3.2) {
+		discard;
+	}
 	ALBEDO = COLOR.rgb;
 	ROUGHNESS = 0.85;
 	METALLIC = 0.0;
@@ -93,13 +104,21 @@ void fragment() {
 const GLOW_SHADER := "
 shader_type spatial;
 render_mode unshaded;
+uniform vec3 player_pos = vec3(0.0, 0.0, -9999.0);
+varying vec3 world_pos;
+void vertex() {
+	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
 void fragment() {
+	if (world_pos.z > player_pos.z + 7.0 && world_pos.y > 3.2) {
+		discard;
+	}
 	ALBEDO = COLOR.rgb * 0.2;
 	EMISSION = COLOR.rgb;
 }
 "
 
-static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> void:
+static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> Array:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = rng_seed
 	var body_mat := ShaderMaterial.new()
@@ -132,6 +151,7 @@ static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> void:
 	quad.size = Vector2(1, 1)
 	_bake_multimesh(parent, windows, quad, glow_mat, "GenWindows")
 	_bake_multimesh(parent, glows, BoxMesh.new(), glow_mat, "GenGlows")
+	return [body_mat, glow_mat]
 
 static func _build_band_ground(parent: Node3D, band: Dictionary, z0: float) -> void:
 	# Road + sidewalks for this band (home band already has its own)
