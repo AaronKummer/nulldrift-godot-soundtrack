@@ -52,6 +52,13 @@ var _pal: Dictionary = {}
 var _gen: Dictionary = {}
 var _sheets := {}
 var _player_sheet: Texture2D
+var _floor_board
+var _water_board
+var _torch: PointLight2D
+var _relay_light: PointLight2D
+var _light_tex: GradientTexture2D
+const TEX_FLOOR := preload("res://assets/world/textures/concrete/albedo.png")
+const TEX_WALL := preload("res://assets/world/textures/metal_rust/albedo.png")
 
 var _walls: Array = []         # Rect2 (collision + draw)
 var _waters: Array = []        # Rect2 (collision, drawn as water)
@@ -107,6 +114,9 @@ func _ready() -> void:
 		"thug": load("res://assets/sprites/npc-thug.png"),
 		"cop": load("res://assets/sprites/npc-cop.png"),
 		"cat": load("res://assets/sprites/cyberCat.png"),
+		"rat": load("res://assets/sprites/creature-rat.png"),
+		"gator": load("res://assets/sprites/creature-gator.png"),
+		"mutant": load("res://assets/sprites/creature-mutant.png"),
 	}
 	_player_sheet = load("res://assets/sprites/player-pizza.png")
 	# Fresh maze every visit
@@ -125,9 +135,25 @@ func _ready() -> void:
 	_cam.position = _pos
 	add_child(_cam)
 	_cam.make_current()
+	_floor_board = _FloorBoard.new()
+	_floor_board.game = self
+	_floor_board.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	add_child(_floor_board)
+	_water_board = _WaterBoard.new()
+	_water_board.game = self
+	var wmat := ShaderMaterial.new()
+	wmat.shader = load("res://assets/world/sewer_water.gdshader")
+	wmat.set_shader_parameter("deep", _pal.water * 0.45)
+	wmat.set_shader_parameter("shallow", _pal.water * 1.35)
+	wmat.set_shader_parameter("glint", _pal.water_shine * 2.0)
+	wmat.set_shader_parameter("scum", _pal.floor_flavor * 1.2)
+	_water_board.material = wmat
+	add_child(_water_board)
 	_board = _Board.new()
 	_board.game = self
+	_board.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	add_child(_board)
+	_build_lights()
 	_build_hud()
 	SceneTransition.consume_spawn()
 	Music.play_category("city")
@@ -138,6 +164,16 @@ class _Board extends Node2D:
 		queue_redraw()
 	func _draw() -> void:
 		game._draw_world(self)
+
+class _FloorBoard extends Node2D:
+	var game
+	func _draw() -> void:
+		game._draw_floor(self)
+
+class _WaterBoard extends Node2D:
+	var game
+	func _draw() -> void:
+		game._draw_water(self)
 
 func _cell_center(c: Vector2i) -> Vector2:
 	return Vector2((c.x + 0.5) * CELL, (c.y + 0.5) * CELL)
@@ -208,6 +244,7 @@ func _process(delta: float) -> void:
 	_tick_enemies(delta)
 	_tick_spawners(delta)
 	_tick_loot(delta)
+	_tick_lights()
 	_cam.position = _pos
 	_refresh_hud()
 
@@ -540,44 +577,124 @@ func _use_item(id: String) -> void:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# LIGHTS — CanvasModulate darkness + dynamic PointLight2D
+# ═══════════════════════════════════════════════════════════════════════
+
+func _build_lights() -> void:
+	var cm := CanvasModulate.new()
+	cm.color = Color(0.38, 0.41, 0.54)   # deep underground dark
+	add_child(cm)
+	var grad := Gradient.new()
+	grad.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
+	grad.colors = PackedColorArray([Color(1, 1, 1, 1.0),
+		Color(1, 1, 1, 0.42), Color(1, 1, 1, 0.0)])
+	_light_tex = GradientTexture2D.new()
+	_light_tex.gradient = grad
+	_light_tex.width = 256
+	_light_tex.height = 256
+	_light_tex.fill = GradientTexture2D.FILL_RADIAL
+	_light_tex.fill_from = Vector2(0.5, 0.5)
+	_light_tex.fill_to = Vector2(0.5, 0.0)
+	# Player torch
+	_torch = _add_light(_pos, Color(1.0, 0.82, 0.58), 3.4, 1.25)
+	# Sconces + moss glow (same deterministic spots the draw pass dresses)
+	var tiles: Array = _gen.tiles
+	for y in _gen.h:
+		for x in _gen.w:
+			if tiles[y][x] != DungeonGenSys.T_FLOOR:
+				continue
+			if not (y > 0 and tiles[y - 1][x] == DungeonGenSys.T_WALL):
+				continue
+			var p := Vector2((x + 0.5) * CELL, y * CELL + 8.0)
+			if _gen.flavor.has(Vector2i(x, y)):
+				_add_light(p, Color(0.35, 1.0, 0.5), 1.6, 0.7)
+			elif (x * 3 + y * 5) % 4 == 0:
+				_add_light(p, Color(1.0, 0.68, 0.3), 1.5, 0.8)
+	# Faint glow off the water
+	for r in _waters:
+		_add_light(r.get_center(), Color(0.3, 0.8, 1.0),
+			clampf(maxf(r.size.x, r.size.y) / 200.0, 1.0, 4.0), 0.3)
+	# Grates pulse red until sealed
+	for g in _grates:
+		g["light"] = _add_light(g.pos, Color(1.0, 0.25, 0.2), 1.0, 0.5)
+	_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 1.8, 1.0)
+	# Street light spilling down the entrance shaft
+	_add_light(_spawn_point, Color(0.7, 0.8, 1.0), 1.8, 0.9)
+
+func _add_light(pos: Vector2, color: Color, tex_scale: float,
+		energy: float) -> PointLight2D:
+	var l := PointLight2D.new()
+	l.texture = _light_tex
+	l.position = pos
+	l.color = color
+	l.texture_scale = tex_scale
+	l.energy = energy
+	add_child(l)
+	return l
+
+func _tick_lights() -> void:
+	if _torch:
+		_torch.position = _pos
+	for g in _grates:
+		if not g.has("light"):
+			continue
+		if g.sealed:
+			g.light.color = Color(1.0, 0.7, 0.3)
+			g.light.energy = 0.25
+		else:
+			g.light.energy = 0.40 + 0.22 * sin(_anim_t * 5.0 + g.t)
+	if _relay_light:
+		var hacked: bool = GameState.has_flag(_def.objective_flag)
+		_relay_light.color = Color(0.3, 1.0, 0.5) if hacked else Color(1.0, 0.2, 0.85)
+		_relay_light.energy = 0.7 + 0.35 * sin(_anim_t * 3.0)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # DRAW — palette-driven: rooms, water + bridges, flavor lighting, props
 # ═══════════════════════════════════════════════════════════════════════
 
-func _draw_world(b: Node2D) -> void:
+func _draw_floor(b: Node2D) -> void:
 	var ws := _world_size()
 	var tiles: Array = _gen.tiles
-	b.draw_rect(Rect2(Vector2.ZERO, ws), _pal.floor, true)
-	# Per-cell floors: flavor tint, bridges, faint room grime variation
+	# Tiled concrete, palette-modulated (repeat enabled on the board)
+	b.draw_texture_rect_region(TEX_FLOOR, Rect2(Vector2.ZERO, ws),
+		Rect2(Vector2.ZERO, ws * 3.2), _pal.floor * 2.8)
 	for y in _gen.h:
 		for x in _gen.w:
-			var t: int = tiles[y][x]
+			if tiles[y][x] != DungeonGenSys.T_FLOOR:
+				continue
 			var cell_rect := Rect2(x * CELL, y * CELL, CELL, CELL)
-			if t == DungeonGenSys.T_BRIDGE:
-				# Planks over the water
-				b.draw_rect(cell_rect, _pal.water, true)
+			if _gen.flavor.has(Vector2i(x, y)):
+				b.draw_rect(cell_rect, Color(_pal.floor_flavor.r,
+					_pal.floor_flavor.g, _pal.floor_flavor.b, 0.55), true)
+			elif (x * 7 + y * 13) % 5 == 0:
+				b.draw_rect(cell_rect, Color(0, 0, 0, 0.12), true)
+
+func _draw_water(b: Node2D) -> void:
+	# Plain white rects — the sewer_water shader paints them
+	for r in _waters:
+		b.draw_rect(r, Color.WHITE, true)
+	var tiles: Array = _gen.tiles
+	for y in _gen.h:
+		for x in _gen.w:
+			if tiles[y][x] == DungeonGenSys.T_BRIDGE:
+				b.draw_rect(Rect2(x * CELL, y * CELL, CELL, CELL), Color.WHITE, true)
+
+func _draw_world(b: Node2D) -> void:
+	var tiles: Array = _gen.tiles
+	# Bridge planks (the water shader runs underneath)
+	for y in _gen.h:
+		for x in _gen.w:
+			if tiles[y][x] == DungeonGenSys.T_BRIDGE:
+				var cell_rect := Rect2(x * CELL, y * CELL, CELL, CELL)
 				for i in 4:
 					b.draw_rect(Rect2(cell_rect.position + Vector2(6, 10 + i * 42),
 						Vector2(CELL - 12, 30)), _pal.bridge, true)
-			elif t == DungeonGenSys.T_FLOOR:
-				if _gen.flavor.has(Vector2i(x, y)):
-					b.draw_rect(cell_rect, _pal.floor_flavor, true)
-				elif (x * 7 + y * 13) % 5 == 0:
-					b.draw_rect(cell_rect, _pal.floor * 1.15, true)
-	# Water — animated shimmer
-	for r in _waters:
-		b.draw_rect(r, _pal.water, true)
-		var sy: float = r.position.y + 14.0
-		while sy < r.end.y - 8.0:
-			var wave: float = sin(_anim_t * 1.4 + sy * 0.05) * 14.0
-			b.draw_rect(Rect2(Vector2(r.position.x + 20.0 + wave, sy),
-				Vector2(maxf(30.0, r.size.x * 0.35), 4.0)),
-				Color(_pal.water_shine.r, _pal.water_shine.g, _pal.water_shine.b,
-					0.35 + 0.2 * sin(_anim_t * 2.0 + sy)), true)
-			sy += 34.0
-	# Walls
+	# Walls — rusted metal, pattern continuous across rects
 	for r in _walls:
-		b.draw_rect(r, _pal.wall, true)
-		b.draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), _pal.wall_rim, true)
+		b.draw_texture_rect_region(TEX_WALL, r,
+			Rect2(r.position * 2.6, r.size * 2.6), _pal.wall * 3.4)
+		b.draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), _pal.wall_rim * 2.0, true)
 		b.draw_rect(Rect2(Vector2(r.position.x, r.end.y - 5.0),
 			Vector2(r.size.x, 5.0)), _pal.wall_rim * 0.8, true)
 	# Lighting dressing: flavor glow in flavor rooms, sconces elsewhere
