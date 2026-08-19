@@ -48,14 +48,26 @@ func _build_street() -> void:
 	m.position = Vector3(-4.0, 0.0, -2.5)
 	add_child(m)
 
+const RESERVED_LOTS := [[-45.0, -22.0], [14.0, 30.0]]   # dump, chop shop
+
+func _lot_reserved(x0: float, x1: float) -> bool:
+	for lot in RESERVED_LOTS:
+		if x1 > lot[0] and x0 < lot[1]:
+			return true
+	return false
+
 func _build_ruins() -> void:
 	# North side: burnt husks — varied heights, broken rooflines, boarded
-	# windows, one collapsed lot with rubble
+	# windows, one collapsed lot with rubble. Skips the reserved lots so
+	# nothing generates on top of the chop shop or the dump.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xDEAD1
 	var x := -block_half_w + 2.0
 	while x < block_half_w - 10.0:
 		var w: float = rng.randf_range(9.0, 16.0)
+		if _lot_reserved(x, x + w):
+			x += 3.0
+			continue
 		var h: float = rng.randf_range(6.0, 13.0)
 		var cx := x + w * 0.5
 		if rng.randf() < 0.18:
@@ -211,9 +223,12 @@ func _build_wrecks() -> void:
 	# Burnt car husks on the road — dark shells, no lights, no wheels
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x312EC
-	for wx in [-52.0, -2.0, 33.0, 52.0]:
+	var lane_picks := [0.3, 0.62, 0.42, 0.68]
+	var widx := 0
+	for wx in [-54.0, -6.0, 35.0, 52.0]:
 		var wreck := Node3D.new()
-		wreck.position = Vector3(wx, 0, ROAD_WIDTH * rng.randf_range(0.25, 0.7))
+		wreck.position = Vector3(wx, 0, ROAD_WIDTH * lane_picks[widx])
+		widx += 1
 		wreck.rotation.y = rng.randf_range(-0.4, 0.4)
 		add_child(wreck)
 		var body := MeshInstance3D.new()

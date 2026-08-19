@@ -2342,7 +2342,29 @@ func _tick_cars(delta: float) -> void:
 		car.hit_cd = maxf(0.0, car.hit_cd - delta)
 	for car in _cars:
 		var n: Node3D = car.node
-		n.position.x += car.speed * delta
+		# Car-following: match the car ahead in the same lane, never phase
+		# through it. Hard stop inside 9m, match speed inside 16m.
+		var gap_ahead := 1.0e9
+		var leader_speed := 0.0
+		for other in _cars:
+			if other == car or other.speed * car.speed <= 0.0:
+				continue
+			if absf(other.node.position.z - n.position.z) > 2.5:
+				continue
+			var gap: float
+			if car.speed > 0.0:
+				gap = other.node.position.x - n.position.x
+			else:
+				gap = n.position.x - other.node.position.x
+			if gap > 0.5 and gap < gap_ahead:
+				gap_ahead = gap
+				leader_speed = absf(other.speed)
+		var eff: float = absf(car.speed)
+		if gap_ahead < 9.0:
+			eff = 0.0
+		elif gap_ahead < 16.0:
+			eff = minf(eff, leader_speed)
+		n.position.x += signf(car.speed) * eff * delta
 		# Wrap around block extent so cars don't disappear
 		if car.speed > 0 and n.position.x > BLOCK_HALF_W + 12.0:
 			n.position.x = -BLOCK_HALF_W - 12.0
