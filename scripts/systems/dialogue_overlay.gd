@@ -84,6 +84,18 @@ func play(npc_id: String) -> void:
 	_layer.visible = true
 	_advance()
 
+## Play arbitrary lines (rumors, barks) without a Dialogue.TREES entry.
+## Lines use the same shape: { speaker, text, color }.
+func play_lines(lines: Array, id: String = "_adhoc_") -> void:
+	if lines.is_empty():
+		return
+	_lines = lines
+	_idx = -1
+	_npc_id = id
+	_active = true
+	_layer.visible = true
+	_advance()
+
 func is_active() -> bool:
 	return _active
 

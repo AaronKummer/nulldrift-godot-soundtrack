@@ -1192,6 +1192,11 @@ func _build_arcade_entrance() -> void:
 	m.name = "from_arcade"
 	m.position = Vector3(ax, 0.0, door_z + 1.8)
 	add_child(m)
+	# Return marker from the bar (storefront at x=22)
+	var mb := Node3D.new()
+	mb.name = "from_bar"
+	mb.position = Vector3(22.0, 0.0, -2.0)
+	add_child(mb)
 
 func _build_elevator_back() -> void:
 	# The way home — elevator entrance on the north facade at the west end,
@@ -2458,6 +2463,9 @@ func _on_storefront_interact(def: Dictionary) -> void:
 	var id: String = def.get("id", "")
 	if id == "guns":
 		_open_shop()
+		return
+	if id == "bar":
+		SceneTransition.go("bar", "from_street")
 		return
 	if id == "pet":
 		if not GameState.has_item("fish_food"):

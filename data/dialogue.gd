@@ -7,6 +7,36 @@ class_name Dialogue
 extends Object
 
 const TREES := {
+	"roz": [
+		# After the sewer relay: Roz knows things
+		{
+			"condition": { "flag": "sewerRelayFound" },
+			"lines": [
+				{ "speaker": "ROZ", "text": "you went down there. i can smell it. don't sit on the good stool.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "ROZ", "text": "that relay you cracked wasn't city property. somebody paid to keep it humming.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "ROZ", "text": "somebody's going to notice. drink while it's quiet.", "color": Color(1.0, 0.55, 0.3) },
+			],
+		},
+		# After beating Chad
+		{
+			"condition": { "flag": "chadBeaten" },
+			"lines": [
+				{ "speaker": "ROZ", "text": "heard you took the survivors crown off that kid chad.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "ROZ", "text": "he came in after. ordered a volt cola. didn't finish it.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "", "text": "She almost smiles. The neon flickers.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+		# Default
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "ROZ", "text": "pizza kid. you drinking or loitering? both is extra.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "ROZ", "text": "the suit's on his fourth. the regular never orders. the shark cheats.", "color": Color(1.0, 0.55, 0.3) },
+				{ "speaker": "ROZ", "text": "everything worth knowing in this city gets said at this counter eventually.", "color": Color(1.0, 0.55, 0.3) },
+			],
+		},
+	],
+
 	"apartment_cat": [
 		{
 			"condition": null,
