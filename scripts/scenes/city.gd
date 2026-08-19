@@ -84,6 +84,13 @@ var _scooter_node: Node3D
 var _near_scooter_idx := -1
 var _scooters: Array = []   # {node, pos}
 var _gen_mats: Array = []   # cutaway shader materials (player_pos uniform)
+# Dynamic culling: buildings always draw; LIGHTS, CARS, and NPCs activate
+# by distance (they're the per-frame cost, not the geometry)
+var _all_lights: Array = []
+var _cull_t := 0.0
+const LIGHT_CULL_DIST := 65.0
+const CAR_CULL_DIST := 95.0
+const NPC_CULL_DIST := 75.0
 var _store_glows: Dictionary = {}   # def.id -> DoorGlow
 var _store_zones: Array = []
 var _camera_locked_rotation: Vector3 = Vector3.ZERO
@@ -116,7 +123,9 @@ func _ready() -> void:
 	_build_elevator_back()
 	_build_arcade_entrance()
 	_build_weapon_shop()
-	_gen_mats = CityGenSys.build(self)
+	# District generator disabled — visuals weren't at the bar (flat unlit
+	# slabs). Rebuild properly with real facade detail before re-enabling.
+	#_gen_mats = CityGenSys.build(self)
 	var backwall := StaticBody3D.new()
 	var bw_col := CollisionShape3D.new()
 	var bw_shape := BoxShape3D.new()
@@ -127,6 +136,7 @@ func _ready() -> void:
 	add_child(backwall)
 	_build_ridenet()
 	_build_scooters()
+	_collect_lights(self)
 	_build_food_cart()
 	_build_puddles_and_manholes()
 	# Steam puff particles temporarily disabled — they were rendering as
@@ -739,14 +749,12 @@ func _close_shop() -> void:
 const RIDENET_STOPS := [
 	{ "name": "HOME STREET", "pos": Vector3(0, 0.85, 2.0), "price": 0 },
 	{ "name": "THE ARCADE", "pos": Vector3(46.0, 0.85, -2.0), "price": 10 },
-	{ "name": "OLD SUBURBS", "pos": Vector3(0, 0.85, -62.0), "price": 15 },
-	{ "name": "CORPO PLAZA", "pos": Vector3(0, 0.85, -122.0), "price": 25 },
-	{ "name": "THE WASTES", "pos": Vector3(0, 0.85, 118.0), "price": 25 },
+	{ "name": "IRON ORCHID ARMS", "pos": Vector3(34.0, 0.85, -2.0), "price": 5 },
+	{ "name": "WEST END", "pos": Vector3(-52.0, 0.85, -2.0), "price": 5 },
 ]
 
 func _build_ridenet() -> void:
-	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(2.0, 0, -63.0),
-			Vector3(2.0, 0, -123.0), Vector3(2.0, 0, 117.0)]:
+	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(40.0, 0, -3.0)]:
 		_build_ridenet_terminal(tpos)
 
 func _build_ridenet_terminal(pos: Vector3) -> void:
@@ -821,7 +829,7 @@ func _open_ridenet() -> void:
 	credits_l.position = Vector2(24, 300)
 	panel.add_child(credits_l)
 	var hint := Label.new()
-	hint.text = "1-5 to ride, ESC to walk away"
+	hint.text = "1-4 to ride, ESC to walk away"
 	hint.add_theme_font_size_override("font_size", 14)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.6, 0.65))
 	hint.position = Vector2(24, 340)
@@ -861,8 +869,7 @@ func _close_ridenet() -> void:
 		_ride_layer = null
 
 func _build_scooters() -> void:
-	for spos in [Vector3(-14.0, 0, 3.5), Vector3(30.0, 0, -62.0),
-			Vector3(-30.0, 0, 118.0)]:
+	for spos in [Vector3(-14.0, 0, 3.5), Vector3(52.0, 0, 3.5)]:
 		var scooter := Node3D.new()
 		scooter.position = spos
 		add_child(scooter)
@@ -2113,8 +2120,31 @@ func _apply_pending_spawn() -> void:
 # Process — movement, camera, interact
 # ─────────────────────────────────────────────────────────────────────────
 
+func _collect_lights(node: Node) -> void:
+	for child in node.get_children():
+		if child is Light3D:
+			_all_lights.append(child)
+		_collect_lights(child)
+
+func _tick_dynamic_culling(delta: float) -> void:
+	_cull_t -= delta
+	if _cull_t > 0.0 or _player == null:
+		return
+	_cull_t = 0.3
+	var pp: Vector3 = _player.global_position
+	for l in _all_lights:
+		l.visible = l.global_position.distance_to(pp) < LIGHT_CULL_DIST
+	for car in _cars:
+		var n: Node3D = car.node
+		n.visible = n.global_position.distance_to(pp) < CAR_CULL_DIST
+	for npc in _npcs:
+		var n: Node3D = npc.node
+		npc["culled"] = n.global_position.distance_to(pp) > NPC_CULL_DIST
+		n.visible = not npc.culled
+
 func _process(delta: float) -> void:
 	_tick_player(delta)
+	_tick_dynamic_culling(delta)
 	_check_scooter_proximity()
 
 	_tick_camera(delta)
@@ -2147,6 +2177,8 @@ func _tick_cars(delta: float) -> void:
 
 func _tick_walking_npcs(delta: float) -> void:
 	for npc in _npcs:
+		if npc.get("culled", false):
+			continue
 		var n: Node3D = npc.node
 		n.position.x += npc.dir * npc.speed * delta
 		# Turn around at edges
