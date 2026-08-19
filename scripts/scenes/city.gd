@@ -645,6 +645,7 @@ const SHOP_ITEMS := [
 	{ "id": "medkit", "label": "MEDKIT", "price": 40 },
 	{ "id": "grenade", "label": "GRENADE", "price": 60 },
 	{ "id": "stim", "label": "STIM", "price": 50 },
+	{ "id": "headlamp", "label": "HEADLAMP", "price": 120 },
 ]
 
 func _open_shop() -> void:
@@ -670,6 +671,8 @@ func _shop_entries() -> Array:
 				var price: int = KATANA_PRICES[GameState.katana_level + 1]
 				out.append({ "label": "KATANA MK-%d · %d cr (more damage + reach)"
 					% [GameState.katana_level + 1, price] })
+		elif item.id == "headlamp" and GameState.has_item("headlamp"):
+			out.append({ "label": "HEADLAMP · OWNED", "dim": true })
 		else:
 			out.append({ "label": "%s · %d cr" % [item.label, item.price] })
 	return out
@@ -689,6 +692,9 @@ func _shop_buy(idx: int) -> void:
 		GameState.katana_level += 1
 		msg = "KATANA MK-%d acquired. it hums." % GameState.katana_level
 	else:
+		if item.id == "headlamp" and GameState.has_item("headlamp"):
+			_shop_menu.set_footer("shopkeep: 'one head, one lamp.'")
+			return
 		if GameState.credits < item.price:
 			_shop_menu.set_footer("shopkeep: 'no credits, no gear.'")
 			return

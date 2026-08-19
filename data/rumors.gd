@@ -32,6 +32,7 @@ const POOL := [
 	{ "text": "the jackals took the whole east end of the warzone. cops just repainted the map instead of fighting them." },
 
 	# Gear
+	{ "text": "kid went into the sewer with no light last month. the rats sent his shoes back up. guns plus sells headlamps." },
 	{ "text": "guns plus got mk-two blades in. five hundred credits. cuts twice as deep.",
 	  "check": "katana_lt_2" },
 	{ "text": "if you're swinging an mk-two, the mk-three is twelve hundred at guns plus. worth every credit.",

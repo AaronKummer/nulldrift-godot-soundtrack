@@ -156,6 +156,8 @@ func _ready() -> void:
 	_build_lights()
 	_build_hud()
 	SceneTransition.consume_spawn()
+	if not GameState.has_item("headlamp"):
+		_set_status("pitch black down here. GUNS+ sells headlamps.")
 	Music.play_category("city")
 
 class _Board extends Node2D:
@@ -341,7 +343,30 @@ func _tick_enemies(delta: float) -> void:
 	for e in _enemies:
 		var def: Dictionary = _def.enemies[e.type]
 		var dir: Vector2 = (_pos - e.pos).normalized()
-		e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
+		if def.get("lunge", false):
+			# Gator: slow stalk → freeze wind-up → explosive dash → cooldown
+			var st: int = e.get("lunge_st", 0)
+			var lt: float = e.get("lunge_t", 0.0) - delta
+			if st == 0:
+				e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
+				if lt <= 0.0 and e.pos.distance_to(_pos) < 340.0:
+					st = 1
+					lt = 0.45
+			elif st == 1:
+				e["lunge_dir"] = dir
+				if lt <= 0.0:
+					st = 2
+					lt = 0.38
+			else:
+				e.pos = _collide(e.pos + e.get("lunge_dir", dir) * def.speed * 6.5 * delta,
+					def.size * 0.7)
+				if lt <= 0.0:
+					st = 0
+					lt = 2.6
+			e["lunge_st"] = st
+			e["lunge_t"] = lt
+		else:
+			e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
 		e.contact_t = maxf(0.0, e.contact_t - delta)
 		e.flash = maxf(0.0, e.flash - delta)
 		if e.hp <= 0:
@@ -582,7 +607,7 @@ func _use_item(id: String) -> void:
 
 func _build_lights() -> void:
 	var cm := CanvasModulate.new()
-	cm.color = Color(0.20, 0.22, 0.32)   # deep underground dark
+	cm.color = Color(0.145, 0.16, 0.245)   # deep underground dark
 	add_child(cm)
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
@@ -595,8 +620,12 @@ func _build_lights() -> void:
 	_light_tex.fill = GradientTexture2D.FILL_RADIAL
 	_light_tex.fill_from = Vector2(0.5, 0.5)
 	_light_tex.fill_to = Vector2(0.5, 0.0)
-	# Player torch
-	_torch = _add_light(_pos, Color(1.0, 0.82, 0.58), 3.4, 1.25)
+	# No light of your own unless you bought a headlamp at GUNS+
+	if GameState.has_item("headlamp"):
+		_torch = _add_light(_pos, Color(1.0, 0.85, 0.6), 3.6, 1.3)
+	else:
+		# eyes adjusting to the dark — barely anything
+		_torch = _add_light(_pos, Color(0.75, 0.8, 0.95), 1.0, 0.22)
 	# Sconces + moss glow (same deterministic spots the draw pass dresses)
 	var tiles: Array = _gen.tiles
 	for y in _gen.h:
@@ -788,6 +817,9 @@ func _draw_world(b: Node2D) -> void:
 	# Enemies
 	for e in _enemies:
 		var def: Dictionary = _def.enemies[e.type]
+		if e.get("lunge_st", 0) == 1:
+			b.draw_circle(e.pos, def.size + 12.0, Color(1.5, 0.25, 0.15, 0.30))
+			b.draw_arc(e.pos, def.size + 12.0, 0, TAU, 24, Color(1.7, 0.3, 0.2, 0.8), 3.0)
 		var to: Vector2 = _pos - e.pos
 		var row := Facing.DOWN
 		if absf(to.x) >= absf(to.y):
