@@ -81,18 +81,35 @@ const DISTRICTS := {
 	},
 }
 
-# Cutaway: anything clearly SOUTH of the player (between them and the
-# camera) gets its upper floors discarded so the player is never hidden.
-# This clips fragments instead of culling whole buildings.
-const BODY_SHADER := "
-shader_type spatial;
+# See-through mask: fragments near the camera-to-player sight line dissolve
+# with a dithered soft edge. No whole-building pops — only the exact spot
+# hiding the player opens up, and it fades as you move.
+const CUTAWAY_FN := "
 uniform vec3 player_pos = vec3(0.0, 0.0, -9999.0);
 varying vec3 world_pos;
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
+float sight_fade(vec3 wp, vec3 cam, vec2 frag) {
+	vec3 a = player_pos + vec3(0.0, 1.0, 0.0);
+	vec3 ab = cam - a;
+	float t = clamp(dot(wp - a, ab) / max(dot(ab, ab), 0.001), 0.0, 1.0);
+	float d = distance(wp, a + ab * t);
+	float hole = 6.5;
+	if (d >= hole) {
+		return 1.0;
+	}
+	float fade = smoothstep(hole * 0.45, hole, d);
+	float dither = fract(sin(dot(frag, vec2(12.9898, 78.233))) * 43758.5453);
+	return fade - dither;
+}
+"
+
+const BODY_SHADER := "
+shader_type spatial;
+CUTAWAY
 void fragment() {
-	if (world_pos.z > player_pos.z + 2.5 && world_pos.y > 2.4) {
+	if (sight_fade(world_pos, CAMERA_POSITION_WORLD, FRAGCOORD.xy) < 0.0) {
 		discard;
 	}
 	ALBEDO = COLOR.rgb;
@@ -104,13 +121,9 @@ void fragment() {
 const GLOW_SHADER := "
 shader_type spatial;
 render_mode unshaded;
-uniform vec3 player_pos = vec3(0.0, 0.0, -9999.0);
-varying vec3 world_pos;
-void vertex() {
-	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-}
+CUTAWAY
 void fragment() {
-	if (world_pos.z > player_pos.z + 2.5 && world_pos.y > 2.4) {
+	if (sight_fade(world_pos, CAMERA_POSITION_WORLD, FRAGCOORD.xy) < 0.0) {
 		discard;
 	}
 	ALBEDO = COLOR.rgb * 0.2;
@@ -123,11 +136,11 @@ static func build(parent: Node3D, rng_seed: int = 0xC177B16) -> Array:
 	rng.seed = rng_seed
 	var body_mat := ShaderMaterial.new()
 	var body_sh := Shader.new()
-	body_sh.code = BODY_SHADER
+	body_sh.code = BODY_SHADER.replace("CUTAWAY", CUTAWAY_FN)
 	body_mat.shader = body_sh
 	var glow_mat := ShaderMaterial.new()
 	var glow_sh := Shader.new()
-	glow_sh.code = GLOW_SHADER
+	glow_sh.code = GLOW_SHADER.replace("CUTAWAY", CUTAWAY_FN)
 	glow_mat.shader = glow_sh
 
 	var bodies: Array = []      # {xform: Transform3D, color: Color}
