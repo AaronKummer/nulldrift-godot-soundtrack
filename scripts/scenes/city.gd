@@ -17,6 +17,7 @@ const SceneGraphData            := preload("res://data/scene_graph.gd")
 const InteractableDoorScript    := preload("res://scripts/systems/interactable_door.gd")
 const AnimatedBillboardScript   := preload("res://scripts/systems/animated_billboard.gd")
 const DoorGlowScript            := preload("res://scripts/systems/door_glow.gd")
+const CityGenSys                := preload("res://scripts/systems/city_gen.gd")
 
 # ─── Camera: 3/4 view, lower-pitch than apartment iso ────────────────────
 const CAMERA_OFFSET      := Vector3(0.0, 14.0, 24.0)
@@ -75,6 +76,13 @@ var _shop_layer: CanvasLayer
 var _shop_open := false
 var _shop_labels: Array = []
 var _shop_credits_label: Label
+var _near_terminal := false
+var _ride_layer: CanvasLayer
+var _ride_open := false
+var _riding_scooter := false
+var _scooter_node: Node3D
+var _near_scooter_idx := -1
+var _scooters: Array = []   # {node, pos}
 var _store_glows: Dictionary = {}   # def.id -> DoorGlow
 var _store_zones: Array = []
 var _camera_locked_rotation: Vector3 = Vector3.ZERO
@@ -107,6 +115,9 @@ func _ready() -> void:
 	_build_elevator_back()
 	_build_arcade_entrance()
 	_build_weapon_shop()
+	CityGenSys.build(self)
+	_build_ridenet()
+	_build_scooters()
 	_build_food_cart()
 	_build_puddles_and_manholes()
 	# Steam puff particles temporarily disabled — they were rendering as
@@ -709,6 +720,201 @@ func _close_shop() -> void:
 	if _shop_layer:
 		_shop_layer.queue_free()
 		_shop_layer = null
+	_set_status("")
+
+
+# =========================================================================
+# RIDENET + SCOOTERS - getting around Signal Hollow
+# =========================================================================
+
+const RIDENET_STOPS := [
+	{ "name": "HOME STREET", "pos": Vector3(0, 0.85, 2.0), "price": 0 },
+	{ "name": "THE ARCADE", "pos": Vector3(46.0, 0.85, -2.0), "price": 10 },
+	{ "name": "OLD SUBURBS", "pos": Vector3(0, 0.85, -62.0), "price": 15 },
+	{ "name": "CORPO PLAZA", "pos": Vector3(0, 0.85, -122.0), "price": 25 },
+	{ "name": "THE WASTES", "pos": Vector3(0, 0.85, 118.0), "price": 25 },
+]
+
+func _build_ridenet() -> void:
+	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(2.0, 0, -63.0),
+			Vector3(2.0, 0, -123.0), Vector3(2.0, 0, 117.0)]:
+		_build_ridenet_terminal(tpos)
+
+func _build_ridenet_terminal(pos: Vector3) -> void:
+	var cyan := Color(0.2, 1.2, 1.5)
+	_add_box(pos + Vector3(0, 1.3, 0), Vector3(0.7, 2.6, 0.5),
+		Color(0.05, 0.07, 0.09), 0.6, 0.3, true, cyan * Color(0.2, 0.2, 0.2, 1.0), 0.8)
+	_add_box(pos + Vector3(0, 1.7, 0.27), Vector3(0.5, 0.7, 0.03),
+		Color(0.04, 0.10, 0.12), 0.2, 0.2, true, cyan, 1.6)
+	var label := Label3D.new()
+	label.text = "RIDENET"
+	label.font_size = 64
+	label.pixel_size = 0.01
+	label.modulate = cyan
+	label.outline_size = 16
+	label.outline_modulate = Color(0, 0, 0)
+	label.position = pos + Vector3(0, 2.9, 0)
+	add_child(label)
+	var area := Area3D.new()
+	area.position = pos + Vector3(0, 1.2, 0.8)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(2.4, 2.4, 2.4)
+	col.shape = shape
+	area.add_child(col)
+	area.body_entered.connect(func(b):
+		if b is CharacterBody3D:
+			_near_terminal = true
+			_set_status("[E] RIDENET - ride across town"))
+	area.body_exited.connect(func(b):
+		if b is CharacterBody3D:
+			_near_terminal = false
+			_set_status(""))
+	add_child(area)
+
+func _open_ridenet() -> void:
+	_ride_open = true
+	_ride_layer = CanvasLayer.new()
+	_ride_layer.layer = 70
+	add_child(_ride_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_ride_layer.add_child(dim)
+	var panel := Panel.new()
+	panel.position = Vector2(400, 160)
+	panel.size = Vector2(480, 380)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.01, 0.04, 0.05, 0.96)
+	sb.border_color = Color(0.2, 1.0, 1.2)
+	sb.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", sb)
+	_ride_layer.add_child(panel)
+	var title := Label.new()
+	title.text = "RIDENET - where to?"
+	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_color_override("font_color", Color(0.3, 1.0, 1.1))
+	title.position = Vector2(24, 16)
+	panel.add_child(title)
+	for i in RIDENET_STOPS.size():
+		var stop: Dictionary = RIDENET_STOPS[i]
+		var l := Label.new()
+		var price_txt: String = "free" if stop.price == 0 else "%d cr" % stop.price
+		l.text = "[%d]  %s - %s" % [i + 1, stop.name, price_txt]
+		l.add_theme_font_size_override("font_size", 20)
+		l.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+		l.position = Vector2(24, 66 + i * 46)
+		panel.add_child(l)
+	var credits_l := Label.new()
+	credits_l.text = "credits: $%d" % GameState.credits
+	credits_l.add_theme_font_size_override("font_size", 18)
+	credits_l.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
+	credits_l.position = Vector2(24, 300)
+	panel.add_child(credits_l)
+	var hint := Label.new()
+	hint.text = "1-5 to ride, ESC to walk away"
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", Color(0.5, 0.6, 0.65))
+	hint.position = Vector2(24, 340)
+	panel.add_child(hint)
+
+func _ride_to(idx: int) -> void:
+	var stop: Dictionary = RIDENET_STOPS[idx]
+	if GameState.credits < stop.price:
+		_set_status("RIDENET: insufficient credits, choom.")
+		return
+	GameState.add_credits(-stop.price)
+	_close_ridenet()
+	var fade := ColorRect.new()
+	fade.color = Color(0, 0, 0, 0)
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var cl := CanvasLayer.new()
+	cl.layer = 90
+	add_child(cl)
+	cl.add_child(fade)
+	var tw := create_tween()
+	tw.tween_property(fade, "color:a", 1.0, 0.35)
+	tw.tween_callback(func():
+		if _riding_scooter:
+			_dismount_scooter()
+		_player.global_position = stop.pos
+		_camera.global_position = stop.pos + CAMERA_OFFSET)
+	tw.tween_interval(0.25)
+	tw.tween_property(fade, "color:a", 0.0, 0.35)
+	tw.tween_callback(func():
+		cl.queue_free()
+		_set_status("RIDENET drop-off: %s." % stop.name))
+
+func _close_ridenet() -> void:
+	_ride_open = false
+	if _ride_layer:
+		_ride_layer.queue_free()
+		_ride_layer = null
+
+func _build_scooters() -> void:
+	for spos in [Vector3(-14.0, 0, 3.5), Vector3(30.0, 0, -62.0),
+			Vector3(-30.0, 0, 118.0)]:
+		var scooter := Node3D.new()
+		scooter.position = spos
+		add_child(scooter)
+		_add_scooter_visual(scooter)
+		_scooters.append({ "node": scooter })
+
+func _add_scooter_visual(parent: Node3D) -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.12, 0.35, 0.40)
+	mat.emission_enabled = true
+	mat.emission = Color(0.2, 1.0, 1.2)
+	mat.emission_energy_multiplier = 0.6
+	var deck := MeshInstance3D.new()
+	var dm := BoxMesh.new()
+	dm.size = Vector3(1.5, 0.14, 0.5)
+	deck.mesh = dm
+	deck.material_override = mat
+	deck.position = Vector3(0, 0.75, 0)
+	parent.add_child(deck)
+	var stem := MeshInstance3D.new()
+	var sm := BoxMesh.new()
+	sm.size = Vector3(0.1, 1.1, 0.1)
+	stem.mesh = sm
+	stem.material_override = mat
+	stem.position = Vector3(0.65, 1.3, 0)
+	parent.add_child(stem)
+	for wx in [-0.6, 0.6]:
+		var wheel := MeshInstance3D.new()
+		var wm := CylinderMesh.new()
+		wm.top_radius = 0.22
+		wm.bottom_radius = 0.22
+		wm.height = 0.12
+		wheel.mesh = wm
+		wheel.rotation.x = PI / 2.0
+		var wmat := StandardMaterial3D.new()
+		wmat.albedo_color = Color(0.05, 0.05, 0.06)
+		wheel.material_override = wmat
+		wheel.position = Vector3(wx, 0.55, 0)
+		parent.add_child(wheel)
+
+func _check_scooter_proximity() -> void:
+	_near_scooter_idx = -1
+	if _riding_scooter or _player == null:
+		return
+	for i in _scooters.size():
+		if _scooters[i].node.global_position.distance_to(_player.global_position) < 2.4:
+			_near_scooter_idx = i
+			_set_status("[E] ride the scooter")
+			return
+
+func _mount_scooter(idx: int) -> void:
+	_riding_scooter = true
+	_scooter_node = _scooters[idx].node
+	_set_status("scooter humming. E to hop off.")
+
+func _dismount_scooter() -> void:
+	_riding_scooter = false
+	if _scooter_node:
+		_scooter_node.global_position = _player.global_position + Vector3(1.0, 0, 0.5)
+		_scooter_node.global_position.y = 0.0
+	_scooter_node = null
 	_set_status("")
 
 
@@ -1889,6 +2095,7 @@ func _apply_pending_spawn() -> void:
 
 func _process(delta: float) -> void:
 	_tick_player(delta)
+	_check_scooter_proximity()
 	_tick_camera(delta)
 	_tick_walking_npcs(delta)
 	_tick_cars(delta)
@@ -1924,7 +2131,9 @@ func _tick_player(_delta: float) -> void:
 		Input.get_axis("move_up",   "move_down"),
 	)
 	var speed := 6.0
-	if Input.is_action_pressed("sprint"):
+	if _riding_scooter:
+		speed = 19.0
+	elif Input.is_action_pressed("sprint"):
 		speed *= 1.7
 	# 3/4 view: direct screen→world mapping (W → -Z, S → +Z).
 	# Z motion is foreshortened by the camera angle, so multiply Z speed
@@ -1934,6 +2143,8 @@ func _tick_player(_delta: float) -> void:
 	_player.velocity.z = world_dir.z * speed * 1.5
 	_player.velocity.y = 0.0
 	_player.move_and_slide()
+	if _riding_scooter and _scooter_node:
+		_scooter_node.global_position = _player.global_position + Vector3(0, -0.7, 0.15)
 	if _player_anim:
 		_player_anim.update_facing_from_input(input)
 		_player_anim.set_moving(input.length() > 0.1)
@@ -1950,6 +2161,14 @@ func _tick_camera(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# phone_toggle is handled by the Phone autoload — toggling here too made
 	# one keypress open+close the phone in the same frame.
+	if _ride_open:
+		for i in RIDENET_STOPS.size():
+			if event.is_action_pressed("hotbar_%d" % (i + 1)):
+				_ride_to(i)
+				return
+		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
+			_close_ridenet()
+		return
 	if _shop_open:
 		if event.is_action_pressed("hotbar_1"):
 			_shop_buy(0)
@@ -1963,6 +2182,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			_close_shop()
 		return
 	if event.is_action_pressed("interact"):
+		if _riding_scooter:
+			_dismount_scooter()
+			return
+		if _near_scooter_idx >= 0:
+			_mount_scooter(_near_scooter_idx)
+			return
+		if _near_terminal:
+			_open_ridenet()
+			return
 		if _near_weapon_shop:
 			_open_shop()
 			return
