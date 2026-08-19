@@ -22,8 +22,8 @@ const CityGenSys                := preload("res://scripts/systems/city_gen.gd")
 # ─── Camera: 3/4 view, lower-pitch than apartment iso ────────────────────
 const CAMERA_OFFSET      := Vector3(0.0, 14.0, 24.0)
 const CAMERA_AIM_OFFSET  := Vector3(0.0, 2.0, -2.0)
-const CAMERA_FOLLOW_LERP := 6.0
-const CAMERA_ORTHO_SIZE  := 40.0
+const CAMERA_FOLLOW_LERP := 9.0
+const CAMERA_ORTHO_SIZE  := 22.0
 
 # ─── Block layout ────────────────────────────────────────────────────────
 # Long block running east-west. Player walks ~120m to reach the end.
@@ -117,6 +117,14 @@ func _ready() -> void:
 	_build_arcade_entrance()
 	_build_weapon_shop()
 	_gen_mats = CityGenSys.build(self)
+	var backwall := StaticBody3D.new()
+	var bw_col := CollisionShape3D.new()
+	var bw_shape := BoxShape3D.new()
+	bw_shape.size = Vector3(126.0, 8.0, 1.0)
+	bw_col.shape = bw_shape
+	backwall.position = Vector3(0, 4.0, -13.5)
+	backwall.add_child(bw_col)
+	add_child(backwall)
 	_build_ridenet()
 	_build_scooters()
 	_build_food_cart()

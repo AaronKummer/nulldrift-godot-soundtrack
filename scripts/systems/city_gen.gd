@@ -92,7 +92,7 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
-	if (world_pos.z > player_pos.z + 7.0 && world_pos.y > 3.2) {
+	if (world_pos.z > player_pos.z + 2.5 && world_pos.y > 2.4) {
 		discard;
 	}
 	ALBEDO = COLOR.rgb;
@@ -110,7 +110,7 @@ void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
 }
 void fragment() {
-	if (world_pos.z > player_pos.z + 7.0 && world_pos.y > 3.2) {
+	if (world_pos.z > player_pos.z + 2.5 && world_pos.y > 2.4) {
 		discard;
 	}
 	ALBEDO = COLOR.rgb * 0.2;
