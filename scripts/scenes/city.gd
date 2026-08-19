@@ -748,15 +748,21 @@ func _close_shop() -> void:
 # =========================================================================
 
 const RIDENET_STOPS := [
-	{ "name": "HOME STREET", "pos": Vector3(0, 0.85, 2.0), "price": 0 },
-	{ "name": "THE ARCADE", "pos": Vector3(46.0, 0.85, -2.0), "price": 10 },
+	{ "name": "THE ARCADE", "pos": Vector3(46.0, 0.85, -2.0), "price": 5 },
 	{ "name": "IRON ORCHID ARMS", "pos": Vector3(34.0, 0.85, -2.0), "price": 5 },
 	{ "name": "WEST END", "pos": Vector3(-52.0, 0.85, -2.0), "price": 5 },
+	{ "name": "THE WARZONE", "scene": "street_warzone", "price": 30 },
+	{ "name": "DOWNTOWN — [SOON]", "price": -1 },
+	{ "name": "THE STACK — [SOON]", "price": -1 },
 ]
 
 func _build_ridenet() -> void:
 	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(40.0, 0, -3.0)]:
 		_build_ridenet_terminal(tpos)
+	var rm_marker := Node3D.new()
+	rm_marker.name = "from_ridenet"
+	rm_marker.position = Vector3(-34.0, 0.0, -2.0)
+	add_child(rm_marker)
 
 func _build_ridenet_terminal(pos: Vector3) -> void:
 	var cyan := Color(0.2, 1.2, 1.5)
@@ -817,8 +823,12 @@ func _open_ridenet() -> void:
 	for i in RIDENET_STOPS.size():
 		var stop: Dictionary = RIDENET_STOPS[i]
 		var l := Label.new()
-		var price_txt: String = "free" if stop.price == 0 else "%d cr" % stop.price
-		l.text = "[%d]  %s - %s" % [i + 1, stop.name, price_txt]
+		var price_txt: String = ""
+		if stop.price == 0:
+			price_txt = " - free"
+		elif stop.price > 0:
+			price_txt = " - %d cr" % stop.price
+		l.text = "[%d]  %s%s" % [i + 1, stop.name, price_txt]
 		l.add_theme_font_size_override("font_size", 20)
 		l.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
 		l.position = Vector2(24, 66 + i * 46)
@@ -830,7 +840,7 @@ func _open_ridenet() -> void:
 	credits_l.position = Vector2(24, 300)
 	panel.add_child(credits_l)
 	var hint := Label.new()
-	hint.text = "1-4 to ride, ESC to walk away"
+	hint.text = "1-6 to ride, ESC to walk away"
 	hint.add_theme_font_size_override("font_size", 14)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.6, 0.65))
 	hint.position = Vector2(24, 340)
@@ -838,8 +848,16 @@ func _open_ridenet() -> void:
 
 func _ride_to(idx: int) -> void:
 	var stop: Dictionary = RIDENET_STOPS[idx]
+	if stop.price < 0:
+		_set_status("RIDENET: 'that route is closed for construction.'")
+		return
 	if GameState.credits < stop.price:
 		_set_status("RIDENET: insufficient credits, choom.")
+		return
+	if stop.has("scene"):
+		GameState.add_credits(-stop.price)
+		_close_ridenet()
+		SceneTransition.ride_to(stop.scene, "from_ridenet", stop.name)
 		return
 	GameState.add_credits(-stop.price)
 	_close_ridenet()

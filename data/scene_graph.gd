@@ -20,6 +20,7 @@ const SCENES := {
 	"title":     "res://scenes/title.tscn",
 	"arcade":    "res://scenes/arcade.tscn",
 	"dungeon":   "res://scenes/dungeon.tscn",
+	"street_warzone": "res://scenes/streets/warzone.tscn",
 	"snake":     "res://scenes/minigames/snake.tscn",
 	"breakout":  "res://scenes/minigames/breakout.tscn",
 	"invaders":  "res://scenes/minigames/invaders.tscn",
