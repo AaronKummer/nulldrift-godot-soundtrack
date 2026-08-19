@@ -42,7 +42,7 @@ void fragment() {
 	vec3 col = mix(deep.rgb, shallow.rgb, w);
 	// Drifting scum patches
 	float s = vnoise(p * 0.55 + vec2(t * 0.18, -t * 0.06));
-	col = mix(col, scum.rgb, smoothstep(0.66, 0.78, s) * 0.7);
+	col = mix(col, scum.rgb, smoothstep(0.68, 0.80, s) * 0.45);
 	// Ripple glints along noise ridges (feeds the glow pass)
 	float ridge = smoothstep(0.55, 0.62, w) - smoothstep(0.62, 0.70, w);
 	float sparkle = pow(vnoise(p * 6.0 + vec2(t * 1.6, t * 1.1)), 9.0);

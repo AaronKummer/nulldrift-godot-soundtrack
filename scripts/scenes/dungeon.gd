@@ -58,7 +58,7 @@ var _torch: PointLight2D
 var _relay_light: PointLight2D
 var _light_tex: GradientTexture2D
 const TEX_FLOOR := preload("res://assets/world/textures/concrete/albedo.png")
-const TEX_WALL := preload("res://assets/world/textures/metal_rust/albedo.png")
+const TEX_WALL := preload("res://assets/world/textures/metal_brushed/albedo.png")
 
 var _walls: Array = []         # Rect2 (collision + draw)
 var _waters: Array = []        # Rect2 (collision, drawn as water)
@@ -143,10 +143,10 @@ func _ready() -> void:
 	_water_board.game = self
 	var wmat := ShaderMaterial.new()
 	wmat.shader = load("res://assets/world/sewer_water.gdshader")
-	wmat.set_shader_parameter("deep", _pal.water * 0.45)
-	wmat.set_shader_parameter("shallow", _pal.water * 1.35)
-	wmat.set_shader_parameter("glint", _pal.water_shine * 2.0)
-	wmat.set_shader_parameter("scum", _pal.floor_flavor * 1.2)
+	wmat.set_shader_parameter("deep", _pal.water * 0.32)
+	wmat.set_shader_parameter("shallow", _pal.water * 0.95)
+	wmat.set_shader_parameter("glint", _pal.water_shine * 1.5)
+	wmat.set_shader_parameter("scum", _pal.floor_flavor * 0.8)
 	_water_board.material = wmat
 	add_child(_water_board)
 	_board = _Board.new()
@@ -582,7 +582,7 @@ func _use_item(id: String) -> void:
 
 func _build_lights() -> void:
 	var cm := CanvasModulate.new()
-	cm.color = Color(0.38, 0.41, 0.54)   # deep underground dark
+	cm.color = Color(0.20, 0.22, 0.32)   # deep underground dark
 	add_child(cm)
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
@@ -609,7 +609,7 @@ func _build_lights() -> void:
 			if _gen.flavor.has(Vector2i(x, y)):
 				_add_light(p, Color(0.35, 1.0, 0.5), 1.6, 0.7)
 			elif (x * 3 + y * 5) % 4 == 0:
-				_add_light(p, Color(1.0, 0.68, 0.3), 1.5, 0.8)
+				_add_light(p, Color(0.55, 0.85, 1.0), 1.5, 0.85)
 	# Faint glow off the water
 	for r in _waters:
 		_add_light(r.get_center(), Color(0.3, 0.8, 1.0),
@@ -620,6 +620,15 @@ func _build_lights() -> void:
 	_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 1.8, 1.0)
 	# Street light spilling down the entrance shaft
 	_add_light(_spawn_point, Color(0.7, 0.8, 1.0), 1.8, 0.9)
+	# Walls block light — real shadows, real dark corners
+	for r in _walls:
+		var occ := LightOccluder2D.new()
+		var poly := OccluderPolygon2D.new()
+		poly.polygon = PackedVector2Array([r.position,
+			Vector2(r.end.x, r.position.y), r.end,
+			Vector2(r.position.x, r.end.y)])
+		occ.occluder = poly
+		add_child(occ)
 
 func _add_light(pos: Vector2, color: Color, tex_scale: float,
 		energy: float) -> PointLight2D:
@@ -629,6 +638,10 @@ func _add_light(pos: Vector2, color: Color, tex_scale: float,
 	l.color = color
 	l.texture_scale = tex_scale
 	l.energy = energy
+	l.shadow_enabled = true
+	l.shadow_filter = PointLight2D.SHADOW_FILTER_PCF5
+	l.shadow_filter_smooth = 2.5
+	l.shadow_color = Color(0, 0, 0, 0.82)
 	add_child(l)
 	return l
 
@@ -690,10 +703,14 @@ func _draw_world(b: Node2D) -> void:
 				for i in 4:
 					b.draw_rect(Rect2(cell_rect.position + Vector2(6, 10 + i * 42),
 						Vector2(CELL - 12, 30)), _pal.bridge, true)
-	# Walls — rusted metal, pattern continuous across rects
+	# Walls — brushed metal, pattern continuous across rects
 	for r in _walls:
 		b.draw_texture_rect_region(TEX_WALL, r,
 			Rect2(r.position * 2.6, r.size * 2.6), _pal.wall * 3.4)
+		if _pal.has("conduit") and r.size.x >= CELL * 2.0:
+			var flick := 0.75 + 0.25 * sin(_anim_t * 9.0 + r.position.x * 0.01)
+			b.draw_rect(Rect2(r.position.x + 14.0, r.end.y - 12.0,
+				r.size.x - 28.0, 3.0), _pal.conduit * flick, true)
 		b.draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), _pal.wall_rim * 2.0, true)
 		b.draw_rect(Rect2(Vector2(r.position.x, r.end.y - 5.0),
 			Vector2(r.size.x, 5.0)), _pal.wall_rim * 0.8, true)

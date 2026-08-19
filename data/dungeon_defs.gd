@@ -20,16 +20,17 @@ const DEFS := {
 		"flavor_chance": 0.35,               # some rooms get the moss look
 		# Look
 		"pal": {
-			"floor": Color(0.115, 0.105, 0.092),
+			"floor": Color(0.098, 0.104, 0.118),          # cold concrete
 			"floor_flavor": Color(0.060, 0.135, 0.085),   # mossy rooms
-			"wall": Color(0.175, 0.165, 0.145),
-			"wall_rim": Color(0.270, 0.250, 0.220),
+			"wall": Color(0.130, 0.142, 0.165),           # brushed steel
+			"wall_rim": Color(0.22, 0.26, 0.32),
 			"water": Color(0.050, 0.110, 0.160),
 			"water_shine": Color(0.15, 0.40, 0.55),
-			"bridge": Color(0.32, 0.21, 0.11),
-			"sconce": Color(1.6, 1.0, 0.4),               # amber wall lights
+			"bridge": Color(0.19, 0.21, 0.25),            # metal treads
+			"sconce": Color(0.6, 1.3, 1.7),               # cyan tube lights
 			"flavor_light": Color(0.35, 1.5, 0.55),       # moss glow
 			"accent": Color(0.3, 1.4, 0.5),
+			"conduit": Color(0.25, 1.4, 1.7),             # wall cable runs
 		},
 		# Roster (Phaser dungeonDefs stats)
 		"enemies": {
