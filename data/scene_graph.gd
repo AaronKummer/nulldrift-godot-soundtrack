@@ -18,6 +18,13 @@ const SCENES := {
 	"balcony":   "res://scenes/balcony.tscn",
 	"city":      "res://scenes/city.tscn",
 	"title":     "res://scenes/title.tscn",
+	"arcade":    "res://scenes/arcade.tscn",
+	"dungeon":   "res://scenes/dungeon.tscn",
+	"snake":     "res://scenes/minigames/snake.tscn",
+	"breakout":  "res://scenes/minigames/breakout.tscn",
+	"invaders":  "res://scenes/minigames/invaders.tscn",
+	"survivors": "res://scenes/minigames/survivors.tscn",
+	"pong":      "res://scenes/minigames/pong.tscn",
 }
 
 const DOORS := {
@@ -58,6 +65,13 @@ const DOORS := {
 		# instead so the elevator is the canonical entry/exit.
 		{ "id": "elevator_back", "target": "hallway", "spawn": "from_elevator",
 		  "label": "elevator → apartment 404" },
+		{ "id": "arcade_door", "target": "arcade", "spawn": "from_city",
+		  "label": "ARCADE" },
+	],
+
+	"arcade": [
+		{ "id": "exit_door", "target": "city", "spawn": "from_arcade",
+		  "label": "exit to street" },
 	],
 }
 

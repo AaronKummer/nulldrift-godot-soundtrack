@@ -1,0 +1,761 @@
+## Dungeon — the REUSABLE dungeon runtime. Which dungeon you're in comes
+## from GameState.pending_dungeon (set by the entrance: city manhole =
+## "sewer"; office towers and corpo complexes plug in the same way).
+##
+## The maze is PROCEDURAL — DungeonGen rolls a fresh layout every visit:
+## rooms, corridors, flooded halls with plank bridges, flavor rooms (moss /
+## servers / labs), spawner grates, rat holes, randomized pickups.
+##
+## Combat is the NEON SURVIVORS style with real stakes: GameState HP,
+## credit drops, items (1 medkit / 2 grenade / 3 stim), SPACE dash, F nova.
+## Every lock runs through the reusable PuzzleOverlay: grates spawn forever
+## until you solve the PIPE VALVE puzzle at them (mouse, while the horde
+## closes in — damage kicks you off), chests take a LOCKPICK, and the relay
+## node takes a WIRE-MATCH hack. Seal every grate for a payout.
+extends Node2D
+
+const DungeonDefsData := preload("res://data/dungeon_defs.gd")
+const DungeonGenSys := preload("res://scripts/systems/dungeon_gen.gd")
+const PuzzleOverlayScript := preload("res://scripts/systems/puzzle_overlay.gd")
+
+const CELL := 180.0
+const PLAYER_SPEED := 175.0
+const INVULN := 0.5
+const CONTACT_CD := 0.7
+const DASH_TIME := 0.16
+const DASH_SPEED := 3.4
+const DASH_CD := 2.5
+const NOVA_CD := 8.0
+const NOVA_RADIUS := 140.0
+const NOVA_DMG := 10
+const KATANA_REACH := 84.0
+const KATANA_DMG := 4
+const KATANA_CD := 0.55
+const MEDKIT_HEAL := 35
+const MEDKIT_DROP_CHANCE := 0.08
+# Pipe puzzle (grate seal): rotate tiles to reconnect the flow
+const PIPE_COLS := 4
+const PIPE_ROWS := 3
+const PIPE_TILE := 96.0
+const GRENADE_RADIUS := 170.0
+const GRENADE_DMG := 12
+const STIM_DURATION := 5.0
+const STIM_MULT := 1.6
+const ELITE_CHANCE := 0.10
+
+const FRAME_W := 48.0
+const FRAME_H := 64.0
+enum Facing { DOWN = 0, LEFT = 1, RIGHT = 2, UP = 3 }
+
+var _def: Dictionary = {}
+var _pal: Dictionary = {}
+var _gen: Dictionary = {}
+var _sheets := {}
+var _player_sheet: Texture2D
+
+var _walls: Array = []         # Rect2 (collision + draw)
+var _waters: Array = []        # Rect2 (collision, drawn as water)
+var _grates: Array = []        # {pos, sealed, t}
+var _chests: Array = []        # {pos, opened}
+var _holes: Array = []         # {pos, t}
+var _pickups: Array = []       # {pos, kind}
+var _relay_pos := Vector2.ZERO
+var _spawn_point := Vector2.ZERO
+
+var _pos := Vector2.ZERO
+var _facing := Vector2.DOWN
+var _face_row := Facing.DOWN
+var _moving := false
+var _anim_t := 0.0
+var _invuln := 0.0
+var _dash_t := 0.0
+var _dash_cd := 0.0
+var _dash_dir := Vector2.ZERO
+var _nova_cd := 0.0
+var _nova_flash := 0.0
+var _katana_t := 0.0
+var _slash: Dictionary = {}
+var _enemies: Array = []
+var _coins: Array = []
+var _puzzle: Dictionary = {}   # active grate-seal pipe puzzle
+var _puzzle_ui: Control
+var _stim_t := 0.0
+var _dead := false
+
+var _cam: Camera2D
+var _board: Node2D
+var _hud := {}
+var _status_label: Label
+
+func _ready() -> void:
+	_def = DungeonDefsData.get_def(GameState.pending_dungeon)
+	_pal = _def.pal
+	get_viewport().use_hdr_2d = true
+	var env := Environment.new()
+	env.background_mode = Environment.BG_CANVAS
+	env.glow_enabled = true
+	env.glow_intensity = 0.9
+	env.glow_strength = 1.1
+	env.glow_bloom = 0.05
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
+	env.glow_hdr_threshold = 1.0
+	var we := WorldEnvironment.new()
+	we.environment = env
+	add_child(we)
+	_sheets = {
+		"ninja": load("res://assets/sprites/npc-ninja.png"),
+		"thug": load("res://assets/sprites/npc-thug.png"),
+		"cop": load("res://assets/sprites/npc-cop.png"),
+		"cat": load("res://assets/sprites/cyberCat.png"),
+	}
+	_player_sheet = load("res://assets/sprites/player-pizza.png")
+	# Fresh maze every visit
+	_gen = DungeonGenSys.generate(_def, randi())
+	_bake_geometry()
+	_pos = _cell_center(_gen.entrance)
+	_spawn_point = _pos
+	_cam = Camera2D.new()
+	_cam.zoom = Vector2(1.35, 1.35)
+	_cam.position = _pos
+	add_child(_cam)
+	_cam.make_current()
+	_board = _Board.new()
+	_board.game = self
+	add_child(_board)
+	_build_hud()
+	SceneTransition.consume_spawn()
+	Music.play_category("city")
+
+class _Board extends Node2D:
+	var game
+	func _process(_d: float) -> void:
+		queue_redraw()
+	func _draw() -> void:
+		game._draw_world(self)
+
+func _cell_center(c: Vector2i) -> Vector2:
+	return Vector2((c.x + 0.5) * CELL, (c.y + 0.5) * CELL)
+
+func _bake_geometry() -> void:
+	# Merge horizontal runs of wall/water tiles into rects
+	var tiles: Array = _gen.tiles
+	for y in _gen.h:
+		var x := 0
+		while x < _gen.w:
+			var t: int = tiles[y][x]
+			if t == DungeonGenSys.T_WALL or t == DungeonGenSys.T_WATER:
+				var run_start := x
+				while x < _gen.w and tiles[y][x] == t:
+					x += 1
+				var rect := Rect2(run_start * CELL, y * CELL, (x - run_start) * CELL, CELL)
+				if t == DungeonGenSys.T_WALL:
+					_walls.append(rect)
+				else:
+					_waters.append(rect)
+			else:
+				x += 1
+	for g in _gen.grates:
+		_grates.append({ "pos": _cell_center(g), "sealed": false, "t": randf() * 2.0 })
+	for hcell in _gen.holes:
+		_holes.append({ "pos": _cell_center(hcell), "t": randf() * 3.0 })
+	for m in _gen.medkits:
+		_pickups.append({ "pos": _cell_center(m), "kind": "medkit" })
+	for ch in _gen.chests:
+		_chests.append({ "pos": _cell_center(ch), "opened": false })
+	_pickups.append({ "pos": _cell_center(_gen.stash), "kind": "stash" })
+	_relay_pos = _cell_center(_gen.objective)
+
+func _world_size() -> Vector2:
+	return Vector2(_gen.w * CELL, _gen.h * CELL)
+
+func _collide(p: Vector2, radius: float) -> Vector2:
+	var ws := _world_size()
+	p.x = clampf(p.x, radius, ws.x - radius)
+	p.y = clampf(p.y, radius, ws.y - radius)
+	for solids in [_walls, _waters]:
+		for r in solids:
+			var grown: Rect2 = r.grow(radius)
+			if grown.has_point(p):
+				var left: float = p.x - grown.position.x
+				var right: float = grown.end.x - p.x
+				var top: float = p.y - grown.position.y
+				var bottom: float = grown.end.y - p.y
+				var m: float = minf(minf(left, right), minf(top, bottom))
+				if m == left: p.x = grown.position.x
+				elif m == right: p.x = grown.end.x
+				elif m == top: p.y = grown.position.y
+				else: p.y = grown.end.y
+	return p
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MAIN LOOP
+# ═══════════════════════════════════════════════════════════════════════
+
+func _process(delta: float) -> void:
+	if _dead:
+		return
+	_anim_t += delta
+	_tick_player(delta)
+	_tick_katana(delta)
+	_tick_skills(delta)
+	_tick_enemies(delta)
+	_tick_spawners(delta)
+	_tick_loot(delta)
+	_cam.position = _pos
+	_refresh_hud()
+
+func _tick_player(delta: float) -> void:
+	# Locked in place while working a lock — hands are busy
+	if not _puzzle.is_empty():
+		# Self-heal: never leave movement stuck if the overlay closed oddly
+		if _overlay == null or not _overlay.active:
+			_puzzle = {}
+			_puzzle_ctx = {}
+		else:
+			_invuln = maxf(0.0, _invuln - delta)
+			_set_status("hands busy — solve it or ESC to step back")
+			return
+	_stim_t = maxf(0.0, _stim_t - delta)
+	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	_moving = input.length() > 0.1
+	if _moving:
+		_facing = input.normalized()
+		if absf(input.x) >= absf(input.y):
+			_face_row = Facing.RIGHT if input.x > 0 else Facing.LEFT
+		else:
+			_face_row = Facing.DOWN if input.y > 0 else Facing.UP
+	var vel := input * PLAYER_SPEED * (STIM_MULT if _stim_t > 0.0 else 1.0)
+	if _dash_t > 0.0:
+		_dash_t -= delta
+		vel = _dash_dir * PLAYER_SPEED * DASH_SPEED
+	_pos = _collide(_pos + vel * delta, 14.0)
+	_invuln = maxf(0.0, _invuln - delta)
+	# Context prompts
+	if _pos.distance_to(_spawn_point) < 60.0:
+		_set_status("[E] " + _def.exit_label)
+	elif _pos.distance_to(_relay_pos) < 70.0:
+		if GameState.has_flag(_def.objective_flag):
+			_set_status("the relay node hums. encrypted traffic.")
+		else:
+			_set_status("[E] jack into the relay node")
+	elif _nearby_grate() != null:
+		_set_status("[E] seal the grate valve")
+	elif _nearby_chest() != null:
+		_set_status("[E] locked chest — pick it")
+	else:
+		_set_status("")
+
+func _nearby_grate() -> Variant:
+	for g in _grates:
+		if not g.sealed and g.pos.distance_to(_pos) < 80.0:
+			return g
+	return null
+
+func _nearby_chest() -> Variant:
+	for ch in _chests:
+		if not ch.opened and ch.pos.distance_to(_pos) < 70.0:
+			return ch
+	return null
+
+func _tick_katana(delta: float) -> void:
+	_katana_t -= delta
+	if not _slash.is_empty():
+		_slash.life -= delta
+		if _slash.life <= 0.0:
+			_slash = {}
+	if _katana_t <= 0.0:
+		var reach: float = KATANA_REACH + (GameState.katana_level - 1) * 14.0
+		var dmg: int = 2 + GameState.katana_level * 2
+		var target := _nearest_enemy(reach + 24.0)
+		if not target.is_empty():
+			var dir: Vector2 = (target.pos - _pos).normalized()
+			for e in _enemies:
+				var to: Vector2 = e.pos - _pos
+				if to.length() <= reach + _def.enemies[e.type].size 						and absf(to.angle_to(dir)) < deg_to_rad(60.0):
+					_damage_enemy(e, dmg)
+			_katana_t = KATANA_CD
+			_slash = { "angle": dir.angle(), "life": 0.12, "reach": reach }
+
+func _tick_skills(delta: float) -> void:
+	_dash_cd = maxf(0.0, _dash_cd - delta)
+	_nova_cd = maxf(0.0, _nova_cd - delta)
+	_nova_flash = maxf(0.0, _nova_flash - delta * 3.0)
+	_boom_flash = maxf(0.0, _boom_flash - delta * 2.2)
+
+func _nearest_enemy(max_d: float) -> Dictionary:
+	var best: Dictionary = {}
+	var bd := max_d * max_d
+	for e in _enemies:
+		var d: float = _pos.distance_squared_to(e.pos)
+		if d < bd:
+			bd = d
+			best = e
+	return best
+
+func _tick_enemies(delta: float) -> void:
+	var dead_list: Array = []
+	for e in _enemies:
+		var def: Dictionary = _def.enemies[e.type]
+		var dir: Vector2 = (_pos - e.pos).normalized()
+		e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
+		e.contact_t = maxf(0.0, e.contact_t - delta)
+		e.flash = maxf(0.0, e.flash - delta)
+		if e.hp <= 0:
+			dead_list.append(e)
+			continue
+		if e.contact_t <= 0.0 and _invuln <= 0.0 and _dash_t <= 0.0 \
+				and e.pos.distance_to(_pos) < def.size + 14.0:
+			e.contact_t = CONTACT_CD
+			_invuln = INVULN
+			GameState.hp = maxi(0, GameState.hp - def.dmg)
+			e.pos = _collide(e.pos + (e.pos - _pos).normalized() * 50.0, def.size * 0.7)
+			if not _puzzle.is_empty():
+				_cancel_puzzle("seal interrupted — they got to you!")
+			if GameState.hp <= 0:
+				_die()
+				return
+	for e in dead_list:
+		_enemies.erase(e)
+
+func _damage_enemy(e: Dictionary, dmg: int) -> void:
+	e.hp -= dmg
+	e.flash = 0.12
+	if e.hp <= 0 and not e.get("scored", false):
+		e.scored = true
+		var def: Dictionary = _def.enemies[e.type]
+		var payout: int = def.credits * (3 if e.get("elite", false) else 1)
+		_coins.append({ "pos": e.pos, "amount": payout })
+		var roll := randf()
+		if roll < 0.06:
+			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "medkit" })
+		elif roll < 0.10:
+			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "grenade" })
+		elif roll < 0.13:
+			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "stim" })
+
+func _spawn_enemy(at: Vector2, pool: Array) -> void:
+	if _enemies.size() >= 28:
+		return
+	var kind: String = pool[randi() % pool.size()]
+	var elite: bool = randf() < ELITE_CHANCE
+	_enemies.append({ "pos": at + Vector2(randf_range(-30, 30), randf_range(-30, 30)),
+		"hp": _def.enemies[kind].hp * (2 if elite else 1), "type": kind,
+		"elite": elite, "contact_t": 0.0, "flash": 0.0 })
+
+func _tick_spawners(delta: float) -> void:
+	for g in _grates:
+		if g.sealed or g.pos.distance_to(_pos) > 640.0:
+			continue
+		g.t -= delta
+		if g.t <= 0.0:
+			g.t = randf_range(1.8, 3.2)
+			_spawn_enemy(g.pos, _def.grate_pool)
+	for hole in _holes:
+		if hole.pos.distance_to(_pos) > 430.0:
+			continue
+		hole.t -= delta
+		if hole.t <= 0.0:
+			hole.t = randf_range(3.0, 5.5)
+			_spawn_enemy(hole.pos, _def.hole_pool)
+
+func _tick_loot(delta: float) -> void:
+	var got: Array = []
+	for c in _coins:
+		var d: float = c.pos.distance_to(_pos)
+		if d < 90.0:
+			c.pos = c.pos.move_toward(_pos, 420.0 * delta)
+		if d < 18.0:
+			got.append(c)
+	for c in got:
+		_coins.erase(c)
+		GameState.add_credits(c.amount)
+	var taken: Array = []
+	for p in _pickups:
+		if p.pos.distance_to(_pos) < 26.0:
+			taken.append(p)
+	for p in taken:
+		_pickups.erase(p)
+		match p.kind:
+			"medkit":
+				GameState.add_item("medkit")
+				_set_status("medkit picked up  [1]")
+			"grenade":
+				GameState.add_item("grenade")
+				_set_status("grenade picked up  [2]")
+			"stim":
+				GameState.add_item("stim")
+				_set_status("stim picked up  [3]")
+			"stash":
+				GameState.add_credits(_def.stash_credits)
+				_set_status("stash cracked: %d credits." % _def.stash_credits)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# LOCKS — every lock in the dungeon runs through the reusable
+# PuzzleOverlay: pipes (grates), lockpick (chests), wires (relay)
+# ═══════════════════════════════════════════════════════════════════════
+
+var _overlay
+var _puzzle_ctx: Dictionary = {}
+
+func _open_puzzle(puzzle_kind: String, title: String, ctx: Dictionary) -> void:
+	if _overlay == null:
+		_overlay = PuzzleOverlayScript.new()
+		add_child(_overlay)
+		_overlay.solved.connect(_on_puzzle_solved)
+		_overlay.cancelled.connect(_on_puzzle_cancelled)
+	_puzzle_ctx = ctx
+	_puzzle = { "open": true }
+	_overlay.start(puzzle_kind, title)
+
+func _cancel_puzzle(reason: String) -> void:
+	if _overlay and _overlay.active:
+		_overlay.interrupt(reason)
+
+func _on_puzzle_cancelled(reason: String) -> void:
+	_puzzle = {}
+	_puzzle_ctx = {}
+	_set_status(reason)
+
+func _on_puzzle_solved() -> void:
+	var ctx := _puzzle_ctx
+	_puzzle = {}
+	_puzzle_ctx = {}
+	match ctx.get("kind", ""):
+		"grate":
+			var g = ctx.grate
+			g.sealed = true
+			GameState.add_credits(_def.seal_reward)
+			var open_count := 0
+			for gg in _grates:
+				if not gg.sealed:
+					open_count += 1
+			if open_count == 0:
+				GameState.add_credits(_def.seal_all_reward)
+				_set_status("ALL GRATES SEALED — +%d credits. the tunnels go quiet." 					% _def.seal_all_reward)
+			else:
+				_set_status("grate sealed. +%d credits. %d left." 					% [_def.seal_reward, open_count])
+		"chest":
+			var ch = ctx.chest
+			ch.opened = true
+			var amount := randi_range(60, 140)
+			GameState.add_credits(amount)
+			var bonus: String = ["medkit", "grenade", "stim"][randi() % 3]
+			GameState.add_item(bonus)
+			_set_status("chest picked: %d credits + a %s." % [amount, bonus])
+		"relay":
+			GameState.set_flag(_def.objective_flag)
+			GameState.add_credits(_def.objective_credits)
+			_set_status("relay cracked. %d credits siphoned. NYX will want to hear this." 				% _def.objective_credits)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# DEATH + EXIT + INPUT
+# ═══════════════════════════════════════════════════════════════════════
+
+func _die() -> void:
+	_dead = true
+	GameState.hp = 30
+	var cl := CanvasLayer.new()
+	add_child(cl)
+	var dim := ColorRect.new()
+	dim.color = Color(0.3, 0.0, 0.05, 0.55)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	cl.add_child(dim)
+	var l := Label.new()
+	l.text = "you black out... and drag yourself back to the street."
+	l.add_theme_font_size_override("font_size", 26)
+	l.add_theme_color_override("font_color", Color(1.0, 0.6, 0.6))
+	l.position = Vector2(640 - 320, 340)
+	cl.add_child(l)
+	await get_tree().create_timer(1.8).timeout
+	SceneTransition.go("city", _def.exit_spawn)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if _dead:
+		return
+	# Puzzle overlay owns the mouse + ESC while open
+	if not _puzzle.is_empty():
+		return
+	if event.is_action_pressed("interact"):
+		var g = _nearby_grate()
+		var ch = _nearby_chest()
+		if _pos.distance_to(_spawn_point) < 60.0:
+			SceneTransition.go("city", _def.exit_spawn)
+		elif _pos.distance_to(_relay_pos) < 70.0 \
+				and not GameState.has_flag(_def.objective_flag):
+			_open_puzzle("wires", "CRACK THE RELAY", { "kind": "relay" })
+		elif g != null:
+			_open_puzzle("pipes", "SEAL THE GRATE", { "kind": "grate", "grate": g })
+		elif ch != null:
+			_open_puzzle("lockpick", "PICK THE LOCK", { "kind": "chest", "chest": ch })
+	elif event.is_action_pressed("ui_accept") and _dash_cd <= 0.0:
+		_dash_cd = DASH_CD
+		_dash_t = DASH_TIME
+		_dash_dir = _facing
+		_invuln = maxf(_invuln, DASH_TIME + 0.1)
+	elif event is InputEventKey and event.pressed and not event.echo \
+			and event.keycode == KEY_F and _nova_cd <= 0.0:
+		_nova_cd = NOVA_CD
+		_nova_flash = 1.0
+		for e in _enemies:
+			if _pos.distance_to(e.pos) <= NOVA_RADIUS:
+				_damage_enemy(e, NOVA_DMG)
+	elif event.is_action_pressed("ui_cancel"):
+		SceneTransition.go("city", _def.exit_spawn)
+	elif event.is_action_pressed("hotbar_1"):
+		_use_item("medkit")
+	elif event.is_action_pressed("hotbar_2"):
+		_use_item("grenade")
+	elif event.is_action_pressed("hotbar_3"):
+		_use_item("stim")
+
+var _boom_flash := 0.0
+
+func _use_item(id: String) -> void:
+	if not GameState.has_item(id):
+		_set_status("no %s left. enemies and chests drop them." % id)
+		return
+	GameState.inventory.erase(id)
+	match id:
+		"medkit":
+			GameState.hp = mini(GameState.hp_max, GameState.hp + MEDKIT_HEAL)
+			_set_status("medkit used. +%d HP" % MEDKIT_HEAL)
+		"grenade":
+			_boom_flash = 1.0
+			for e in _enemies:
+				if _pos.distance_to(e.pos) <= GRENADE_RADIUS:
+					_damage_enemy(e, GRENADE_DMG)
+			_set_status("grenade out!")
+		"stim":
+			_stim_t = STIM_DURATION
+			_set_status("stim hits. legs like pistons.")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# DRAW — palette-driven: rooms, water + bridges, flavor lighting, props
+# ═══════════════════════════════════════════════════════════════════════
+
+func _draw_world(b: Node2D) -> void:
+	var ws := _world_size()
+	var tiles: Array = _gen.tiles
+	b.draw_rect(Rect2(Vector2.ZERO, ws), _pal.floor, true)
+	# Per-cell floors: flavor tint, bridges, faint room grime variation
+	for y in _gen.h:
+		for x in _gen.w:
+			var t: int = tiles[y][x]
+			var cell_rect := Rect2(x * CELL, y * CELL, CELL, CELL)
+			if t == DungeonGenSys.T_BRIDGE:
+				# Planks over the water
+				b.draw_rect(cell_rect, _pal.water, true)
+				for i in 4:
+					b.draw_rect(Rect2(cell_rect.position + Vector2(6, 10 + i * 42),
+						Vector2(CELL - 12, 30)), _pal.bridge, true)
+			elif t == DungeonGenSys.T_FLOOR:
+				if _gen.flavor.has(Vector2i(x, y)):
+					b.draw_rect(cell_rect, _pal.floor_flavor, true)
+				elif (x * 7 + y * 13) % 5 == 0:
+					b.draw_rect(cell_rect, _pal.floor * 1.15, true)
+	# Water — animated shimmer
+	for r in _waters:
+		b.draw_rect(r, _pal.water, true)
+		var sy: float = r.position.y + 14.0
+		while sy < r.end.y - 8.0:
+			var wave: float = sin(_anim_t * 1.4 + sy * 0.05) * 14.0
+			b.draw_rect(Rect2(Vector2(r.position.x + 20.0 + wave, sy),
+				Vector2(maxf(30.0, r.size.x * 0.35), 4.0)),
+				Color(_pal.water_shine.r, _pal.water_shine.g, _pal.water_shine.b,
+					0.35 + 0.2 * sin(_anim_t * 2.0 + sy)), true)
+			sy += 34.0
+	# Walls
+	for r in _walls:
+		b.draw_rect(r, _pal.wall, true)
+		b.draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), _pal.wall_rim, true)
+		b.draw_rect(Rect2(Vector2(r.position.x, r.end.y - 5.0),
+			Vector2(r.size.x, 5.0)), _pal.wall_rim * 0.8, true)
+	# Lighting dressing: flavor glow in flavor rooms, sconces elsewhere
+	for y in _gen.h:
+		for x in _gen.w:
+			if tiles[y][x] != DungeonGenSys.T_FLOOR:
+				continue
+			var p := Vector2((x + 0.5) * CELL, y * CELL)
+			var above_wall: bool = y > 0 and tiles[y - 1][x] == DungeonGenSys.T_WALL
+			if not above_wall:
+				continue
+			if _gen.flavor.has(Vector2i(x, y)):
+				b.draw_circle(Vector2(p.x, p.y + 8.0), 7.0, _pal.flavor_light)
+				b.draw_circle(Vector2(p.x, p.y + 8.0), 12.0,
+					Color(_pal.flavor_light.r, _pal.flavor_light.g,
+						_pal.flavor_light.b, 0.22))
+			elif (x * 3 + y * 5) % 4 == 0:
+				b.draw_rect(Rect2(p + Vector2(-4.0, 2.0), Vector2(8.0, 10.0)),
+					Color(0.15, 0.13, 0.11), true)
+				b.draw_circle(Vector2(p.x, p.y + 5.0), 4.5, _pal.sconce)
+	# Grates
+	for g in _grates:
+		b.draw_rect(Rect2(g.pos - Vector2(34, 24), Vector2(68, 48)), Color(0.02, 0.02, 0.02), true)
+		for i in 4:
+			b.draw_rect(Rect2(g.pos + Vector2(-30 + i * 17, -24), Vector2(5, 48)),
+				Color(0.20, 0.20, 0.20), true)
+		if g.sealed:
+			# Welded shut — hot cross-brace cooling off
+			b.draw_line(g.pos + Vector2(-30, -22), g.pos + Vector2(30, 22),
+				Color(1.4, 0.8, 0.3), 6.0)
+			b.draw_line(g.pos + Vector2(-30, 22), g.pos + Vector2(30, -22),
+				Color(1.4, 0.8, 0.3), 6.0)
+		else:
+			b.draw_circle(g.pos, 6.0, Color(1.5, 0.25, 0.2))
+	# Rat holes — dark arches at wall bases
+	for hole in _holes:
+		b.draw_circle(hole.pos + Vector2(0, -10.0), 16.0, Color(0.015, 0.015, 0.015))
+		b.draw_rect(Rect2(hole.pos + Vector2(-16, -10), Vector2(32, 12)),
+			Color(0.015, 0.015, 0.015), true)
+	# Objective prop — relay pylon
+	var hacked: bool = GameState.has_flag(_def.objective_flag)
+	b.draw_rect(Rect2(_relay_pos - Vector2(18, 34), Vector2(36, 68)), Color(0.05, 0.04, 0.08), true)
+	var pulse := 0.5 + 0.5 * sin(_anim_t * 3.0)
+	var node_col: Color = Color(0.3, 1.6, 0.6) if hacked else Color(1.6, 0.2, 0.9)
+	for i in 4:
+		b.draw_rect(Rect2(_relay_pos + Vector2(-12, -26 + i * 15), Vector2(24, 6)),
+			node_col * (0.6 + 0.4 * pulse), true)
+	# Pickups
+	for p in _pickups:
+		if p.kind == "medkit":
+			b.draw_rect(Rect2(p.pos - Vector2(10, 8), Vector2(20, 16)), Color(0.9, 0.95, 1.0), true)
+			b.draw_rect(Rect2(p.pos - Vector2(2, 6), Vector2(4, 12)), Color(1.6, 0.2, 0.3), true)
+			b.draw_rect(Rect2(p.pos - Vector2(6, 2), Vector2(12, 4)), Color(1.6, 0.2, 0.3), true)
+		else:
+			b.draw_rect(Rect2(p.pos - Vector2(14, 10), Vector2(28, 20)), Color(0.4, 0.3, 0.08), true)
+			b.draw_rect(Rect2(p.pos - Vector2(10, 6), Vector2(20, 12)), Color(1.6, 1.2, 0.2), true)
+	# Chests — locked brown boxes with a glowing padlock, husks when open
+	for ch in _chests:
+		var base_col := Color(0.30, 0.20, 0.10) if not ch.opened else Color(0.14, 0.10, 0.07)
+		b.draw_rect(Rect2(ch.pos - Vector2(20, 14), Vector2(40, 28)), base_col, true)
+		b.draw_rect(Rect2(ch.pos - Vector2(20, 14), Vector2(40, 8)), base_col * 1.4, true)
+		if not ch.opened:
+			b.draw_rect(Rect2(ch.pos - Vector2(5, 2), Vector2(10, 12)), Color(1.5, 1.2, 0.3), true)
+			b.draw_arc(ch.pos + Vector2(0, -2), 6.0, PI, TAU, 10, Color(1.5, 1.2, 0.3), 3.0)
+	# Coins
+	for c in _coins:
+		b.draw_circle(c.pos, 6.0, Color(1.7, 1.4, 0.3))
+		b.draw_circle(c.pos, 3.0, Color(0.5, 0.38, 0.05))
+	# Entrance ladder
+	b.draw_rect(Rect2(_spawn_point - Vector2(16, 26), Vector2(32, 52)), Color(0.10, 0.12, 0.14), true)
+	for i in 4:
+		b.draw_rect(Rect2(_spawn_point + Vector2(-14, -20 + i * 13), Vector2(28, 4)),
+			Color(0.35, 0.40, 0.45), true)
+	# Enemies
+	for e in _enemies:
+		var def: Dictionary = _def.enemies[e.type]
+		var to: Vector2 = _pos - e.pos
+		var row := Facing.DOWN
+		if absf(to.x) >= absf(to.y):
+			row = Facing.RIGHT if to.x > 0 else Facing.LEFT
+		else:
+			row = Facing.DOWN if to.y > 0 else Facing.UP
+		var tint: Color = def.tint if e.flash <= 0.0 else Color(2.2, 2.2, 2.2)
+		if e.get("elite", false) and e.flash <= 0.0:
+			tint = tint * Color(1.5, 0.55, 0.55)
+		var sc: float = def.get("scale", 1.0)
+		var frame := int(_anim_t * 7.0 + e.pos.x) % 3
+		b.draw_texture_rect_region(_sheets[def.sheet],
+			Rect2(e.pos - Vector2(FRAME_W * 0.5 * sc, (FRAME_H - 12.0) * sc),
+				Vector2(FRAME_W * sc, FRAME_H * sc)),
+			Rect2(frame * FRAME_W, row * FRAME_H, FRAME_W, FRAME_H), tint)
+	# Slash
+	if not _slash.is_empty():
+		var alpha: float = _slash.life / 0.12
+		var slash_r: float = _slash.reach * 0.62 * (1.15 - alpha * 0.15)
+		b.draw_arc(_pos, slash_r, _slash.angle - deg_to_rad(42.0),
+			_slash.angle + deg_to_rad(42.0), 14, Color(1.8, 1.8, 2.0, alpha), 4.0)
+		b.draw_arc(_pos, slash_r - 5.0, _slash.angle - deg_to_rad(32.0),
+			_slash.angle + deg_to_rad(32.0), 12,
+			Color(_pal.accent.r, _pal.accent.g, _pal.accent.b, alpha * 0.6), 2.5)
+	# Nova ring
+	if _nova_flash > 0.0:
+		b.draw_arc(_pos, NOVA_RADIUS * (1.0 - _nova_flash * 0.3), 0, TAU, 48,
+			Color(0.3, 1.6, 1.0, _nova_flash), 6.0)
+	# Grenade blast ring
+	if _boom_flash > 0.0:
+		b.draw_arc(_pos, GRENADE_RADIUS * (1.1 - _boom_flash * 0.4), 0, TAU, 48,
+			Color(1.7, 0.8, 0.2, _boom_flash), 8.0)
+	# Player
+	var tint := Color(1, 1, 1)
+	if _dash_t > 0.0:
+		tint = Color(0.6, 1.8, 2.0)
+	elif not _puzzle.is_empty():
+		tint = Color(1.3, 1.3, 0.8)
+	elif _invuln > 0.0:
+		tint = Color(2.0, 2.0, 2.0)
+	b.draw_circle(_pos + Vector2(0, 8.0), 12.0, Color(0.0, 0.0, 0.0, 0.4))
+	b.draw_texture_rect_region(_player_sheet,
+		Rect2(_pos - Vector2(FRAME_W * 0.5, FRAME_H - 12.0), Vector2(FRAME_W, FRAME_H)),
+		Rect2((int(_anim_t * 8.0) % 3 if _moving else 0) * FRAME_W,
+			_face_row * FRAME_H, FRAME_W, FRAME_H), tint)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# HUD
+# ═══════════════════════════════════════════════════════════════════════
+
+func _build_hud() -> void:
+	var cl := CanvasLayer.new()
+	add_child(cl)
+	var title := Label.new()
+	title.text = _def.name
+	title.add_theme_font_size_override("font_size", 22)
+	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
+	title.position = Vector2(30, 8)
+	cl.add_child(title)
+	for key in ["hp", "credits", "dash", "nova", "kits", "grates"]:
+		var l := Label.new()
+		l.add_theme_font_size_override("font_size", 18)
+		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
+		cl.add_child(l)
+		_hud[key] = l
+	_hud.hp.position = Vector2(280, 10)
+	_hud.hp.add_theme_color_override("font_color", Color(1.0, 0.3, 0.5))
+	_hud.credits.position = Vector2(430, 10)
+	_hud.credits.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
+	_hud.dash.position = Vector2(560, 10)
+	_hud.nova.position = Vector2(700, 10)
+	_hud.kits.position = Vector2(790, 10)
+	_hud.kits.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_hud.grates.position = Vector2(1085, 10)
+	_hud.grates.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
+	_status_label = Label.new()
+	_status_label.add_theme_font_size_override("font_size", 17)
+	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
+	_status_label.position = Vector2(30, 40)
+	cl.add_child(_status_label)
+	var hint := Label.new()
+	hint.text = "WASD move · SPACE dash · F emp nova · 1 medkit 2 grenade 3 stim · E interact · ESC leave"
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+	hint.position = Vector2(30, 694)
+	cl.add_child(hint)
+	_refresh_hud()
+
+func _set_status(t: String) -> void:
+	if _status_label:
+		_status_label.text = t
+
+func _count_item(id: String) -> int:
+	var n := 0
+	for it in GameState.inventory:
+		if it == id:
+			n += 1
+	return n
+
+func _refresh_hud() -> void:
+	_hud.hp.text = "HP %d/%d" % [GameState.hp, GameState.hp_max]
+	_hud.credits.text = "$%d" % GameState.credits
+	_hud.dash.text = "DASH ✓" if _dash_cd <= 0.0 else "DASH %.1f" % _dash_cd
+	_hud.nova.text = "NOVA ✓" if _nova_cd <= 0.0 else "NOVA %.1f" % _nova_cd
+	_hud.kits.text = "[1]KIT x%d  [2]GRN x%d  [3]STM x%d" % [_count_item("medkit"), _count_item("grenade"), _count_item("stim")]
+	var sealed := 0
+	for g in _grates:
+		if g.sealed:
+			sealed += 1
+	_hud.grates.text = "GRATES %d/%d" % [sealed, _grates.size()]

@@ -37,6 +37,11 @@ func _ready() -> void:
 			await RenderingServer.frame_post_draw
 
 	var img := get_viewport().get_texture().get_image()
+	# HDR-2D viewports hand back linear float data — convert or the PNG
+	# reads far darker than the live window.
+	if get_viewport().use_hdr_2d:
+		img.convert(Image.FORMAT_RGBA8)
+		img.linear_to_srgb()
 	var dir := "res://_renders"
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
 	var out_path := "%s/%s.png" % [dir, out_name]

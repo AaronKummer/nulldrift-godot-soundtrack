@@ -73,6 +73,20 @@ func add_item(item_id: String) -> void:
 	if not inventory.has(item_id):
 		inventory.append(item_id)
 
+var arcade_scores: Dictionary = {}   # game id -> best score
+var pending_dungeon: String = "sewer"   # which dungeon the next dungeon.tscn load builds
+var katana_level: int = 1               # weapon-store upgrades (1-3)
+
+func arcade_best(game: String) -> int:
+	return int(arcade_scores.get(game, 0))
+
+## Returns true if this run set a new high score.
+func submit_arcade_score(game: String, score: int) -> bool:
+	if score > arcade_best(game):
+		arcade_scores[game] = score
+		return true
+	return false
+
 func has_item(item_id: String) -> bool:
 	return inventory.has(item_id)
 
@@ -88,6 +102,8 @@ func to_dict() -> Dictionary:
 		"active_quest": active_quest,
 		"quest_states": quest_states.duplicate(true),
 		"last_scene_id": last_scene_id,
+		"arcade_scores": arcade_scores.duplicate(true),
+		"katana_level": katana_level,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -98,4 +114,6 @@ func from_dict(d: Dictionary) -> void:
 	inventory = d.get("inventory", []).duplicate()
 	active_quest = d.get("active_quest", "")
 	quest_states = d.get("quest_states", {}).duplicate(true)
+	arcade_scores = d.get("arcade_scores", {}).duplicate(true)
+	katana_level = d.get("katana_level", 1)
 	last_scene_id = d.get("last_scene_id", "")

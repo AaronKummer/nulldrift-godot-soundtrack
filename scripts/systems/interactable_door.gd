@@ -14,6 +14,7 @@ class_name InteractableDoor
 extends Area3D
 
 const SceneGraphData := preload("res://data/scene_graph.gd")
+const DoorGlowScript := preload("res://scripts/systems/door_glow.gd")
 
 signal player_entered
 signal player_exited
@@ -24,8 +25,20 @@ signal locked_attempted(label: String)
 ## Optional shape — caller can attach their own CollisionShape3D instead.
 @export var auto_collision_size: Vector3 = Vector3(1.6, 2.0, 1.6)
 
+## Built-in DoorGlow (neon outline + proximity arrow) — the default for
+## every door in the game. Set glow_color.a = 0 to opt out (e.g. when the
+## scene draws its own custom frame).
+@export var glow_color: Color = Color(0.0, 1.0, 1.0)
+@export var glow_opening: Vector2 = Vector2(1.7, 2.5)
+## DoorGlow origin relative to this Area3D (center-bottom of the opening —
+## typically down to the floor and back to the wall face).
+@export var glow_offset: Vector3 = Vector3.ZERO
+## Extra rotation for the glow (e.g. PI/2 around Y for an east-wall door).
+@export var glow_rotation_y: float = 0.0
+
 var _on_door: bool = false
 var _entry: Dictionary = {}
+var _glow: DoorGlowScript = null
 
 func _ready() -> void:
 	monitoring = true
@@ -49,15 +62,27 @@ func _ready() -> void:
 		if d.get("id", "") == door_id:
 			_entry = d
 			break
+	# Default neon outline + proximity arrow
+	if glow_color.a > 0.0:
+		_glow = DoorGlowScript.new()
+		_glow.color = glow_color
+		_glow.opening = glow_opening
+		_glow.position = glow_offset
+		_glow.rotation.y = glow_rotation_y
+		add_child(_glow)
 
 func _on_body_entered(body: Node3D) -> void:
 	if body is CharacterBody3D:
 		_on_door = true
+		if _glow:
+			_glow.set_active(true)
 		player_entered.emit()
 
 func _on_body_exited(body: Node3D) -> void:
 	if body is CharacterBody3D:
 		_on_door = false
+		if _glow:
+			_glow.set_active(false)
 		player_exited.emit()
 
 func _unhandled_input(event: InputEvent) -> void:

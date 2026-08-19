@@ -20,18 +20,23 @@ const HALL_W   := 5.5    # width along Z (north ↔ south)
 const HALL_H   := 3.6
 const WALL_T   := 0.4
 
-const CAMERA_OFFSET := Vector3(20, 22, 20)
+# Side-view camera: sits south of the corridor at player x, looking straight
+# at the north wall. The scene plays as a 2D left/right walk (like balcony).
+const CAMERA_OFFSET := Vector3(0, 1.8, 9.0)
 const CAMERA_FOLLOW_LERP := 6.0
+# Player walks a narrow depth band in front of the north wall
+const PLAYER_Z_MIN := 0.5
+const PLAYER_Z_MAX := 2.1
 
 # Door layout for this scene id. Order = visual ordering along the corridor.
-# Each entry: door_id (matches scene_graph), x position, side ("N"|"S"|"W"|"E").
+# Side view: ALL doors live on the north wall so they face the camera.
 const DOOR_LAYOUT := [
-	{ "id": "apt_401", "x": -10.0, "side": "N" },
-	{ "id": "apt_402", "x":  -5.0, "side": "S" },
-	{ "id": "apt_403", "x":   0.0, "side": "N" },
-	{ "id": "apt_404", "x":   5.0, "side": "S" },   # player's door
-	{ "id": "apt_405", "x":  10.0, "side": "N" },
-	{ "id": "apt_406", "x":  15.0, "side": "S" },
+	{ "id": "apt_401", "x": -12.5, "side": "N" },
+	{ "id": "apt_402", "x":  -7.5, "side": "N" },
+	{ "id": "apt_403", "x":  -2.5, "side": "N" },
+	{ "id": "apt_404", "x":   2.5, "side": "N" },   # player's door
+	{ "id": "apt_405", "x":   7.5, "side": "N" },
+	{ "id": "apt_406", "x":  12.5, "side": "N" },
 ]
 
 # Per-door color theme so the player can tell them apart at a glance.
@@ -78,11 +83,12 @@ func _ready() -> void:
 func _setup_camera() -> void:
 	_camera = Camera3D.new()
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 18.0
+	_camera.size = 9.0   # vertical meters in frame — corridor is 3.6 tall
 	_camera.current = true
 	add_child(_camera)
 	_camera.position = CAMERA_OFFSET
-	_camera.look_at(Vector3.ZERO, Vector3.UP)
+	# Face the north wall dead-on (side view — no iso tilt)
+	_camera.rotation = Vector3.ZERO
 
 func _setup_environment() -> void:
 	_env = Environment.new()
@@ -137,11 +143,10 @@ func _build_floor_and_walls() -> void:
 		Color(0.0, 0.6, 0.8), 0.6, 0.2,
 		true, Color(0.0, 1.0, 1.2), 2.5)
 
-	# Walls — north + south long sides, plus end caps
+	# Walls — north long side + end caps. NO south wall: the side-view
+	# camera sits where it would be, looking at the north wall.
 	_add_box(Vector3(0, HALL_H / 2.0, -HALL_W / 2.0),
 		Vector3(HALL_LEN, HALL_H, WALL_T), Color(0.13, 0.11, 0.16))
-	_add_box(Vector3(0, HALL_H / 2.0, HALL_W / 2.0),
-		Vector3(HALL_LEN, HALL_H, WALL_T), Color(0.11, 0.10, 0.14))
 	# West cap (balcony end)
 	_add_box(Vector3(-HALL_LEN / 2.0, HALL_H / 2.0, 0),
 		Vector3(WALL_T, HALL_H, HALL_W), Color(0.10, 0.10, 0.13))
@@ -153,12 +158,11 @@ func _build_floor_and_walls() -> void:
 	# would occlude the entire corridor. Ceiling lamps stay as floating
 	# emissive fixtures and still light the floor.
 
-	# Subtle baseboard accent on both long walls — thin glowing trim
-	for z in [-HALL_W / 2.0 + WALL_T / 2.0 + 0.01,
-			   HALL_W / 2.0 - WALL_T / 2.0 - 0.01]:
-		_add_box(Vector3(0, 0.06, z), Vector3(HALL_LEN - 0.5, 0.04, 0.03),
-			Color(0.4, 0.1, 0.3), 0.0, 0.3,
-			true, Color(0.6, 0.05, 0.4), 1.4)
+	# Subtle baseboard accent on the north wall — thin glowing trim
+	_add_box(Vector3(0, 0.06, -HALL_W / 2.0 + WALL_T / 2.0 + 0.01),
+		Vector3(HALL_LEN - 0.5, 0.04, 0.03),
+		Color(0.4, 0.1, 0.3), 0.0, 0.3,
+		true, Color(0.6, 0.05, 0.4), 1.4)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -169,54 +173,39 @@ func _build_doors() -> void:
 	for d in DOOR_LAYOUT:
 		_build_door(d.id, d.x, d.side)
 
-func _build_door(door_id: String, x: float, side: String) -> void:
-	# Side N = -Z wall (door panel faces +Z into corridor)
-	var wall_z: float
-	var into_hall_z: float
-	if side == "N":
-		wall_z = -HALL_W / 2.0 + WALL_T / 2.0 + 0.02
-		into_hall_z = 1.2
-	else:  # S
-		wall_z = HALL_W / 2.0 - WALL_T / 2.0 - 0.02
-		into_hall_z = -1.2
+func _build_door(door_id: String, x: float, _side: String) -> void:
+	# All doors sit on the north (-Z) wall, panel facing +Z at the camera
+	var wall_z: float = -HALL_W / 2.0 + WALL_T / 2.0 + 0.02
 	var color: Color = DOOR_COLORS.get(door_id, Color(0.5, 0.5, 0.5))
 
 	# Door is a recessed neon-framed alcove. The panel itself glows softly
 	# in the room's color so each door reads as a beacon from across the
 	# corridor under the iso camera.
-	var z_off := 0.06 if side == "S" else -0.06
+	# z_off points INTO the corridor (+z off the north wall) so the
+	# frame/handle/readout sit proud of the wall face — an inverted sign
+	# here used to bury them inside the wall box.
+	var z_off := 0.06
 
 	# Glowing door panel — soft color wash on a darker base
 	_add_box(Vector3(x, 1.25, wall_z + z_off * 0.4),
 		Vector3(1.5, 2.5, 0.06),
 		color * Color(0.20, 0.20, 0.20, 1.0), 0.0, 0.3,
-		true, color, 1.8)
+		true, color, 0.5)
 	# Inner darker pane so the panel has interior depth
 	_add_box(Vector3(x, 1.25, wall_z + z_off * 0.8),
 		Vector3(1.0, 2.0, 0.02),
 		Color(0.04, 0.04, 0.06), 0.0, 0.6)
 
-	# Hot neon frame — bright tube outlining the doorway
-	for fy in [0.05, 2.45]:
-		_add_box(Vector3(x, fy, wall_z + z_off),
-			Vector3(1.7, 0.06, 0.04),
-			color * Color(0.4, 0.4, 0.4, 1.0), 0.0, 0.2,
-			true, color, 4.5)
-	for fx in [-0.85, 0.85]:
-		_add_box(Vector3(x + fx, 1.25, wall_z + z_off),
-			Vector3(0.06, 2.5, 0.04),
-			color * Color(0.4, 0.4, 0.4, 1.0), 0.0, 0.2,
-			true, color, 4.5)
 
 	# Room-number readout — sign hung above the door
 	_add_box(Vector3(x, 2.75, wall_z + z_off * 1.3),
 		Vector3(0.55, 0.22, 0.05),
 		Color(0.02, 0.02, 0.04), 0.0, 0.2,
-		true, color, 6.0)
-	# Floor pool — colored light spill in front of door so the iso view
-	# reads each entry from the floor too.
+		true, color, 3.5)
+	# Floor pool — colored light spill in front of door. (Used to be placed
+	# at wall_z - 1.5 for north doors, i.e. OUTSIDE the corridor.)
 	var pool := OmniLight3D.new()
-	pool.position = Vector3(x, 0.6, wall_z + (1.5 if side == "S" else -1.5))
+	pool.position = Vector3(x, 0.6, wall_z + 1.5)
 	pool.light_color = color
 	pool.light_energy = 1.8
 	pool.omni_range = 2.0
@@ -224,17 +213,22 @@ func _build_door(door_id: String, x: float, side: String) -> void:
 	add_child(pool)
 
 	# Door handle
-	var handle_offset := -0.35 if side == "N" else 0.35
+	var handle_offset := -0.35
 	_add_box(Vector3(x + handle_offset, 1.15, wall_z + z_off),
 		Vector3(0.06, 0.18, 0.05), Color(0.7, 0.7, 0.75), 0.85, 0.2,
 		true, color, 1.0)
 
-	# Interactable trigger — built via the reusable component
+	# Interactable trigger — spans the player's walk band in front of the door
 	var door := InteractableDoorScript.new()
 	door.scene_id = "hallway"
 	door.door_id = door_id
-	door.position = Vector3(x, 1.0, wall_z + into_hall_z * 0.7)
-	door.auto_collision_size = Vector3(1.8, 2.4, 1.6)
+	door.position = Vector3(x, 1.0, 1.2)
+	door.auto_collision_size = Vector3(1.8, 2.4, 2.4)
+	# Neon outline + proximity arrow come from the door component itself —
+	# glow origin sits at the wall face, center-bottom of the opening.
+	door.glow_color = color
+	door.glow_opening = Vector2(1.66, 2.5)
+	door.glow_offset = Vector3(0, -1.0, wall_z + z_off - 1.2)
 	door.player_entered.connect(func(): _on_door_near(door))
 	door.player_exited.connect(func(): _on_door_far(door))
 	door.locked_attempted.connect(func(label): _set_status("[ " + label + " ]"))
@@ -246,7 +240,7 @@ func _build_door(door_id: String, x: float, side: String) -> void:
 	if door_id == "apt_404":
 		var m := Node3D.new()
 		m.name = "from_apt_404"
-		m.position = Vector3(x, 0.0, wall_z + into_hall_z * 0.6)
+		m.position = Vector3(x, 0.0, 1.2)
 		add_child(m)
 
 func _on_door_near(d: InteractableDoorScript) -> void:
@@ -259,35 +253,40 @@ func _on_door_far(d: InteractableDoorScript) -> void:
 		_set_status("")
 
 
+
 # ─────────────────────────────────────────────────────────────────────────
 # END CAPS — balcony door (west) and elevator (east)
 # ─────────────────────────────────────────────────────────────────────────
 
 func _build_endcaps() -> void:
-	# Balcony door — west end, glass-panel feel, magenta sky beyond
-	var bx: float = -HALL_LEN / 2.0 + WALL_T / 2.0 + 0.05
-	_add_box(Vector3(bx, 1.3, 0),
-		Vector3(0.06, 2.6, 2.6), Color(0.05, 0.04, 0.10), 0.4, 0.3,
-		true, Color(0.8, 0.1, 0.5), 0.6)
-	# Frame
-	_add_box(Vector3(bx, 0.05, 0), Vector3(0.10, 0.10, 3.0),
-		Color(0.18, 0.16, 0.22), 0.6, 0.4)
-	_add_box(Vector3(bx, 2.6, 0), Vector3(0.10, 0.10, 3.0),
-		Color(0.18, 0.16, 0.22), 0.6, 0.4)
-	# Sky-glow lamp behind to suggest open air beyond
+	# Side view: both exits live on the NORTH wall so they face the camera —
+	# balcony door at the far left, elevator at the far right (2D convention).
+	var wall_z: float = -HALL_W / 2.0 + WALL_T / 2.0 + 0.02
+	var z_off := 0.06
+
+	# Balcony door — far west, glass-panel feel, magenta sky beyond
+	var bx := -16.0
+	var bcol: Color = DOOR_COLORS["balcony_door"]
+	_add_box(Vector3(bx, 1.3, wall_z + z_off * 0.4),
+		Vector3(1.7, 2.6, 0.06), Color(0.05, 0.04, 0.10), 0.4, 0.3,
+		true, Color(0.8, 0.1, 0.5), 0.9)
+	# Sky-glow lamp to suggest open air beyond
 	var sky := OmniLight3D.new()
-	sky.position = Vector3(bx - 1.5, 1.8, 0)
+	sky.position = Vector3(bx, 1.8, wall_z + 1.4)
 	sky.light_color = Color(0.9, 0.4, 0.8)
-	sky.light_energy = 4.0
-	sky.omni_range = 5.0
+	sky.light_energy = 3.0
+	sky.omni_range = 4.0
 	sky.omni_attenuation = 1.4
 	add_child(sky)
 
 	var balcony_door := InteractableDoorScript.new()
 	balcony_door.scene_id = "hallway"
 	balcony_door.door_id = "balcony_door"
-	balcony_door.position = Vector3(bx + 1.0, 1.0, 0)
+	balcony_door.position = Vector3(bx, 1.0, 1.2)
 	balcony_door.auto_collision_size = Vector3(2.0, 2.4, 2.4)
+	balcony_door.glow_color = bcol
+	balcony_door.glow_opening = Vector2(1.82, 2.6)
+	balcony_door.glow_offset = Vector3(0, -1.0, wall_z + z_off - 1.2)
 	balcony_door.player_entered.connect(func(): _on_door_near(balcony_door))
 	balcony_door.player_exited.connect(func(): _on_door_far(balcony_door))
 	add_child(balcony_door)
@@ -296,29 +295,33 @@ func _build_endcaps() -> void:
 	# Marker for return from balcony
 	var bm := Node3D.new()
 	bm.name = "from_balcony"
-	bm.position = Vector3(bx + 1.8, 0.0, 0)
+	bm.position = Vector3(bx + 1.6, 0.0, 1.2)
 	add_child(bm)
 
-	# Elevator — east end, recessed alcove with sliding-door look
-	var ex: float = HALL_LEN / 2.0 - WALL_T / 2.0 - 0.05
-	_add_box(Vector3(ex, 1.3, 0),
-		Vector3(0.06, 2.6, 2.4), Color(0.08, 0.07, 0.10), 0.8, 0.2)
+	# Elevator — far east, recessed alcove with sliding-door look
+	var ex := 16.0
+	var ecol: Color = DOOR_COLORS["elevator"]
+	_add_box(Vector3(ex, 1.3, wall_z + z_off * 0.3),
+		Vector3(1.9, 2.6, 0.06), Color(0.08, 0.07, 0.10), 0.8, 0.2)
 	# Two sliding panels — vertical seam in middle
-	_add_box(Vector3(ex - 0.04, 1.3, -0.6),
-		Vector3(0.04, 2.5, 1.1), Color(0.16, 0.16, 0.20), 0.9, 0.15)
-	_add_box(Vector3(ex - 0.04, 1.3, 0.6),
-		Vector3(0.04, 2.5, 1.1), Color(0.16, 0.16, 0.20), 0.9, 0.15)
+	_add_box(Vector3(ex - 0.45, 1.3, wall_z + z_off * 0.7),
+		Vector3(0.85, 2.5, 0.04), Color(0.16, 0.16, 0.20), 0.9, 0.15)
+	_add_box(Vector3(ex + 0.45, 1.3, wall_z + z_off * 0.7),
+		Vector3(0.85, 2.5, 0.04), Color(0.16, 0.16, 0.20), 0.9, 0.15)
 	# Call button + floor indicator (yellow LED above)
-	_add_box(Vector3(ex - 0.08, 1.3, -1.45), Vector3(0.04, 0.18, 0.10),
+	_add_box(Vector3(ex - 1.35, 1.3, wall_z + z_off), Vector3(0.10, 0.18, 0.04),
 		Color(0.5, 0.4, 0.1), 0.0, 0.3, true, Color(1.0, 0.85, 0.1), 2.5)
-	_add_box(Vector3(ex - 0.05, 2.75, 0), Vector3(0.04, 0.16, 0.5),
+	_add_box(Vector3(ex, 2.85, wall_z + z_off), Vector3(0.5, 0.16, 0.04),
 		Color(0.3, 0.25, 0.05), 0.0, 0.3, true, Color(1.0, 0.85, 0.1), 2.0)
 
 	var elev_door := InteractableDoorScript.new()
 	elev_door.scene_id = "hallway"
 	elev_door.door_id = "elevator"
-	elev_door.position = Vector3(ex - 1.0, 1.0, 0)
+	elev_door.position = Vector3(ex, 1.0, 1.2)
 	elev_door.auto_collision_size = Vector3(2.0, 2.4, 2.4)
+	elev_door.glow_color = ecol
+	elev_door.glow_opening = Vector2(2.02, 2.6)
+	elev_door.glow_offset = Vector3(0, -1.0, wall_z + z_off - 1.2)
 	elev_door.player_entered.connect(func(): _on_door_near(elev_door))
 	elev_door.player_exited.connect(func(): _on_door_far(elev_door))
 	add_child(elev_door)
@@ -327,7 +330,7 @@ func _build_endcaps() -> void:
 	# Marker for return from elevator
 	var em := Node3D.new()
 	em.name = "from_elevator"
-	em.position = Vector3(ex - 1.8, 0.0, 0)
+	em.position = Vector3(ex - 1.6, 0.0, 1.2)
 	add_child(em)
 
 
@@ -368,9 +371,9 @@ var _cat_zone: Area3D
 var _on_cat := false
 
 func _build_stray_cat() -> void:
-	# Apartment 404 door is at x=5, south wall (z = HALL_W/2 - WALL_T/2)
-	var cx := 5.0 + 1.2          # slightly east of the doorway
-	var cz := HALL_W / 2.0 - 1.0  # in front of the south wall
+	# Apartment 404 door is at x=2.5 on the north wall (side view)
+	var cx := 2.5 + 1.4          # slightly east of the doorway
+	var cz := 1.5                 # inside the player's walk band
 	var pivot := Node3D.new()
 	pivot.position = Vector3(cx, 0, cz)
 	add_child(pivot)
@@ -433,7 +436,7 @@ func _interact_cat() -> void:
 
 func _build_player() -> void:
 	_player = CharacterBody3D.new()
-	_player.position = Vector3(5.0, 0.85, 0)  # near 404 by default
+	_player.position = Vector3(2.5, 0.85, 1.2)  # near 404 by default
 	add_child(_player)
 	var col := CollisionShape3D.new()
 	var shape := CapsuleShape3D.new()
@@ -459,13 +462,13 @@ func _build_hud() -> void:
 	cl.add_child(title)
 
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 13)
+	_status_label.add_theme_font_size_override("font_size", 17)
 	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
 	_status_label.position = Vector2(24, 40)
 	cl.add_child(_status_label)
 
 	var hint := Label.new()
-	hint.text = "WASD MOVE · R SPRINT · E INTERACT · P PHONE"
+	hint.text = "WASD MOVE · R SPRINT · E INTERACT · I PHONE"
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	hint.anchor_left = 0.0
@@ -508,13 +511,14 @@ func _tick_player(delta: float) -> void:
 	var speed := 4.5
 	if Input.is_action_pressed("sprint"):
 		speed *= 1.7
-	# Iso projection: screen input → world XZ on a 45° axis (matches apartment).
-	var inv_sqrt2 := 1.0 / sqrt(2.0)
-	var world_dir := Vector3(input.x + input.y, 0, -input.x + input.y) * inv_sqrt2
-	_player.velocity.x = world_dir.x * speed
-	_player.velocity.z = world_dir.z * speed
+	# Side view: A/D walk the corridor, W/S step a small depth band
+	_player.velocity.x = input.x * speed
+	_player.velocity.z = input.y * speed * 0.6
 	_player.velocity.y = 0.0
 	_player.move_and_slide()
+	_player.position.x = clampf(_player.position.x,
+		-HALL_LEN / 2.0 + 1.0, HALL_LEN / 2.0 - 1.0)
+	_player.position.z = clampf(_player.position.z, PLAYER_Z_MIN, PLAYER_Z_MAX)
 	if _player_anim:
 		_player_anim.update_facing_from_input(input)
 		_player_anim.set_moving(input.length() > 0.1)
@@ -522,7 +526,9 @@ func _tick_player(delta: float) -> void:
 func _tick_camera(_delta: float) -> void:
 	if _camera == null or _player == null:
 		return
-	var target := _player.global_position + CAMERA_OFFSET
+	# Side view: follow on X only; height and depth stay locked
+	var target := Vector3(_player.global_position.x,
+		CAMERA_OFFSET.y, CAMERA_OFFSET.z)
 	_camera.global_position = _camera.global_position.lerp(target,
 		clampf(_delta * CAMERA_FOLLOW_LERP, 0.0, 1.0))
 
@@ -573,9 +579,9 @@ func _add_box(pos: Vector3, sz: Vector3, col: Color,
 	return body
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("phone_toggle"):
-		Phone.toggle()
-	elif event.is_action_pressed("interact") and _on_cat:
+	# phone_toggle is handled by the Phone autoload — toggling here too made
+	# one keypress open+close the phone in the same frame.
+	if event.is_action_pressed("interact") and _on_cat:
 		_interact_cat()
 	elif event.is_action_pressed("ui_cancel"):
 		get_tree().change_scene_to_file("res://scenes/title.tscn")

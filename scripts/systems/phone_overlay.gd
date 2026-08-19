@@ -159,7 +159,7 @@ func _build_chassis() -> void:
 
 	# Home bar
 	_home_bar = Label.new()
-	_home_bar.text = "— swipe → back · P close —"
+	_home_bar.text = "— swipe → back · I close —"
 	_home_bar.add_theme_font_size_override("font_size", 11)
 	_home_bar.add_theme_color_override("font_color", Color(0.35, 0.45, 0.6))
 	_home_bar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

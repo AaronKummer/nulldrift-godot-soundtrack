@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift07arcd"]
+
+[ext_resource type="Script" path="res://scripts/scenes/arcade.gd" id="1_arcd"]
+
+[node name="Arcade" type="Node3D"]
+script = ExtResource("1_arcd")

@@ -62,6 +62,63 @@ const TREES := {
 		},
 	],
 
+	"chad": [
+		{
+			"condition": { "flag": "chadBeaten" },
+			"lines": [
+				{ "speaker": "CHAD", "text": "Whatever dude, I wasn't even trying.", "color": Color(0.87, 0.80, 0.53) },
+				{ "speaker": "CHAD", "text": "I could beat that score in my sleep.", "color": Color(0.87, 0.80, 0.53) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "CHAD", "text": "Oh great, the unemployed ghost is here.", "color": Color(0.87, 0.80, 0.53) },
+				{ "speaker": "CHAD", "text": "My high score is 3000. Good luck beating THAT, loser.", "color": Color(0.87, 0.80, 0.53) },
+				{ "speaker": "", "text": "He doesn't take his eyes off NEON SURVIVORS the whole time.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
+	"nyx_arcade": [
+		{
+			"condition": { "flag": "chadBeaten" },
+			"lines": [
+				{ "speaker": "NYX", "text": "Not bad... not bad at all.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Maybe you're not just a delivery boy after all.", "color": Color(1.0, 0.53, 0.8) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "NYX", "text": "Don't mind Chad, he's all talk.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Show me what you've got.", "color": Color(1.0, 0.53, 0.8) },
+			],
+		},
+	],
+
+	"blitz": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "BLITZ", "text": "You look fast. Wanna race?", "color": Color(1.0, 0.53, 0.0) },
+				{ "speaker": "BLITZ", "text": "Three laps, five credits. Think you can hang?", "color": Color(1.0, 0.53, 0.0) },
+				{ "speaker": "", "text": "He pats the second racing pod. The screen is dead.", "color": Color(0.53, 0.53, 0.53) },
+				{ "speaker": "BLITZ", "text": "...soon as they fix the link, anyway.", "color": Color(1.0, 0.53, 0.0) },
+			],
+		},
+	],
+
+	"arcade_drifter": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "DRIFTER", "text": "the vending machine ate my last cred in 2047.", "color": Color(0.6, 0.65, 0.7) },
+				{ "speaker": "DRIFTER", "text": "I'm still here. it knows what it did.", "color": Color(0.6, 0.65, 0.7) },
+			],
+		},
+	],
+
 	"tony": [
 		{
 			"condition": { "not_flag": "leftApartment" },

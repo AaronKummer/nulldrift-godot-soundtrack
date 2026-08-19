@@ -16,6 +16,7 @@ extends Node3D
 const SceneGraphData            := preload("res://data/scene_graph.gd")
 const InteractableDoorScript    := preload("res://scripts/systems/interactable_door.gd")
 const AnimatedBillboardScript   := preload("res://scripts/systems/animated_billboard.gd")
+const DoorGlowScript            := preload("res://scripts/systems/door_glow.gd")
 
 # ─── Camera: 3/4 view, lower-pitch than apartment iso ────────────────────
 const CAMERA_OFFSET      := Vector3(0.0, 14.0, 24.0)
@@ -68,6 +69,13 @@ var _player: CharacterBody3D
 var _player_anim
 var _status_label: Label
 var _near_store: Dictionary = {}
+var _near_manhole := false
+var _near_weapon_shop := false
+var _shop_layer: CanvasLayer
+var _shop_open := false
+var _shop_labels: Array = []
+var _shop_credits_label: Label
+var _store_glows: Dictionary = {}   # def.id -> DoorGlow
 var _store_zones: Array = []
 var _camera_locked_rotation: Vector3 = Vector3.ZERO
 var _npcs: Array = []          # walking pedestrians [{node, ab, dir, speed, x_min, x_max}]
@@ -96,6 +104,9 @@ func _ready() -> void:
 	_build_ac_units_and_grime()    # NEW — facade detail
 	_build_streetlamps()
 	_build_atm_scene()
+	_build_elevator_back()
+	_build_arcade_entrance()
+	_build_weapon_shop()
 	_build_food_cart()
 	_build_puddles_and_manholes()
 	# Steam puff particles temporarily disabled — they were rendering as
@@ -314,7 +325,7 @@ func _build_buildings_north_side() -> void:
 	rng.seed = 0xC177101
 	while bx < BLOCK_HALF_W:
 		var bw := rng.randf_range(14.0, 24.0)
-		var bh := rng.randf_range(14.0, 26.0)
+		var bh := rng.randf_range(20.0, 34.0)
 		var bz := -SIDEWALK_W - bw * 0.0 - 4.0   # set back behind the storefront facades
 		_build_one_building(Vector3(bx + bw * 0.5, 0, -SIDEWALK_W - 4.0),
 			Vector3(bw, bh, 8.0), rng, true)
@@ -372,10 +383,13 @@ func _build_one_building(pos: Vector3, size: Vector3,
 		front_face_z = pos.z - size.z * 0.5 - 0.05
 	var step_x := 2.8
 	var step_y := 3.2
+	# North-side towers sit behind the 9m storefront facades — windows
+	# below ~10m are hidden, so start the grid above the facade line.
+	var win_base: float = 10.0 if is_north_side else 2.5
 	var cols: int = max(2, int((size.x - 1.0) / step_x))
-	var rows: int = max(3, int((size.y - 2.5) / step_y))
+	var rows: int = max(2, int((size.y - win_base - 1.0) / step_y))
 	var x0 := pos.x - size.x * 0.5 + (size.x - (cols - 1) * step_x) * 0.5
-	var y0 := 2.5 + (size.y - 3.0 - (rows - 1) * step_y) * 0.5
+	var y0 := win_base + (size.y - win_base - 0.5 - (rows - 1) * step_y) * 0.5
 	# Each window = 3 nested layers giving architectural depth:
 	#   1. Outer metallic frame (slightly lighter than wall)
 	#   2. Recessed dark inset behind the frame
@@ -385,7 +399,7 @@ func _build_one_building(pos: Vector3, size: Vector3,
 	var win_h := 1.9
 	for cx in cols:
 		for ry in rows:
-			var lit := rng.randf() < 0.42
+			var lit := rng.randf() < 0.55
 			var wx := x0 + cx * step_x
 			var wy := y0 + ry * step_y
 
@@ -442,10 +456,10 @@ func _build_one_building(pos: Vector3, size: Vector3,
 				lmat.albedo_color = color * Color(0.30, 0.30, 0.30, 1.0)
 				lmat.emission_enabled = true
 				lmat.emission = color
-				lmat.emission_energy_multiplier = 0.85
+				lmat.emission_energy_multiplier = 2.4
 				lmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 				lit_mi.material_override = lmat
-				lit_mi.position = Vector3(wx, wy, front_face_z + 0.01)
+				lit_mi.position = Vector3(wx, wy, front_face_z + 0.09)
 				lit_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				add_child(lit_mi)
 				# 12% of lit windows get an occupant SILHOUETTE — a tiny
@@ -461,7 +475,7 @@ func _build_one_building(pos: Vector3, size: Vector3,
 					sil_mi.material_override = smat
 					var sil_off_x := rng.randf_range(-win_w * 0.20, win_w * 0.20)
 					sil_mi.position = Vector3(wx + sil_off_x,
-						wy - win_h * 0.10, front_face_z + 0.025)
+						wy - win_h * 0.10, front_face_z + 0.115)
 					sil_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 					add_child(sil_mi)
 
@@ -529,11 +543,14 @@ func _build_one_storefront(def: Dictionary) -> void:
 	_add_box(Vector3(door_x, door_y, win_z + 0.06),
 		Vector3(1.2, 2.5, 0.02),
 		Color(0.03, 0.03, 0.04), 0.0, 0.6)
-	# Door frame
-	for fx in [door_x - 0.85, door_x + 0.85]:
-		_add_box(Vector3(fx, door_y, win_z + 0.02),
-			Vector3(0.12, 3.1, 0.16),
-			Color(0.22, 0.22, 0.26), 0.7, 0.4)
+	# Standard DoorGlow — neon outline in the store's sign color, pulses +
+	# arrow while the player stands in the interact area
+	var glow := DoorGlowScript.new()
+	glow.color = def.sign
+	glow.opening = Vector2(1.7, 3.0)
+	glow.position = Vector3(door_x, 0.05, win_z + 0.02)
+	add_child(glow)
+	_store_glows[def.id] = glow
 	# Door handle (warm)
 	_add_box(Vector3(door_x + 0.65, door_y - 0.1, win_z + 0.10),
 		Vector3(0.06, 0.16, 0.05),
@@ -594,6 +611,237 @@ func _build_one_storefront(def: Dictionary) -> void:
 	area.body_entered.connect(func(b): _on_store_near(def, b))
 	area.body_exited.connect(func(b): _on_store_far(def, b))
 	add_child(area)
+
+const KATANA_PRICES := { 2: 500, 3: 1200 }
+const SHOP_ITEMS := [
+	{ "id": "katana", "label": "KATANA UPGRADE" },
+	{ "id": "medkit", "label": "MEDKIT", "price": 40 },
+	{ "id": "grenade", "label": "GRENADE", "price": 60 },
+	{ "id": "stim", "label": "STIM", "price": 50 },
+]
+
+func _open_shop() -> void:
+	_shop_open = true
+	_shop_labels.clear()
+	_shop_layer = CanvasLayer.new()
+	_shop_layer.layer = 70
+	add_child(_shop_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_shop_layer.add_child(dim)
+	var panel := Panel.new()
+	panel.position = Vector2(360, 150)
+	panel.size = Vector2(560, 400)
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.04, 0.01, 0.01, 0.96)
+	sb.border_color = Color(1.0, 0.3, 0.25)
+	sb.set_border_width_all(2)
+	panel.add_theme_stylebox_override("panel", sb)
+	_shop_layer.add_child(panel)
+	var title := Label.new()
+	title.text = "IRON ORCHID ARMS"
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
+	title.position = Vector2(24, 18)
+	panel.add_child(title)
+	for i in SHOP_ITEMS.size():
+		var l := Label.new()
+		l.add_theme_font_size_override("font_size", 20)
+		l.position = Vector2(24, 80 + i * 56)
+		panel.add_child(l)
+		_shop_labels.append(l)
+	_shop_credits_label = Label.new()
+	_shop_credits_label.add_theme_font_size_override("font_size", 20)
+	_shop_credits_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
+	_shop_credits_label.position = Vector2(24, 330)
+	panel.add_child(_shop_credits_label)
+	var hint := Label.new()
+	hint.text = "press 1-4 to buy · ESC to leave"
+	hint.add_theme_font_size_override("font_size", 14)
+	hint.add_theme_color_override("font_color", Color(0.6, 0.55, 0.55))
+	hint.position = Vector2(24, 366)
+	panel.add_child(hint)
+	_refresh_shop()
+
+func _refresh_shop() -> void:
+	for i in SHOP_ITEMS.size():
+		var item: Dictionary = SHOP_ITEMS[i]
+		var l: Label = _shop_labels[i]
+		if item.id == "katana":
+			if GameState.katana_level >= 3:
+				l.text = "[1]  KATANA MK-III — MAXED OUT"
+				l.add_theme_color_override("font_color", Color(0.5, 0.55, 0.6))
+			else:
+				var price: int = KATANA_PRICES[GameState.katana_level + 1]
+				l.text = "[1]  KATANA MK-%d — %d cr  (more damage + reach)" 					% [GameState.katana_level + 1, price]
+				l.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+		else:
+			l.text = "[%d]  %s — %d cr" % [i + 1, item.label, item.price]
+			l.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
+	if _shop_credits_label:
+		_shop_credits_label.text = "your credits: $%d" % GameState.credits
+
+func _shop_buy(idx: int) -> void:
+	var item: Dictionary = SHOP_ITEMS[idx]
+	if item.id == "katana":
+		if GameState.katana_level >= 3:
+			_set_status("shopkeep: 'that blade's already singing, kid.'")
+			return
+		var price: int = KATANA_PRICES[GameState.katana_level + 1]
+		if GameState.credits < price:
+			_set_status("shopkeep: 'come back with real money.'")
+			return
+		GameState.add_credits(-price)
+		GameState.katana_level += 1
+		_set_status("KATANA MK-%d acquired. it hums." % GameState.katana_level)
+	else:
+		if GameState.credits < item.price:
+			_set_status("shopkeep: 'no credits, no gear.'")
+			return
+		GameState.add_credits(-item.price)
+		GameState.add_item(item.id)
+		_set_status("%s purchased." % item.label.to_lower())
+	_refresh_shop()
+
+func _close_shop() -> void:
+	_shop_open = false
+	if _shop_layer:
+		_shop_layer.queue_free()
+		_shop_layer = null
+	_set_status("")
+
+
+func _build_weapon_shop() -> void:
+	# IRON ORCHID ARMS — street hardware. Katana upgrades + consumables.
+	var wx := 34.0
+	var face_z := -SIDEWALK_W - 0.5
+	var door_z := face_z + 0.72
+	var red := Color(1.0, 0.25, 0.2)
+	# Dark storefront with a barred window + weapon rack silhouettes
+	_add_box(Vector3(wx, 1.6, door_z), Vector3(3.4, 3.2, 0.10),
+		Color(0.06, 0.04, 0.04), 0.5, 0.3, true, red * Color(0.2, 0.2, 0.2, 1.0), 0.4)
+	for bx in [-1.2, -0.6, 0.0, 0.6, 1.2]:
+		_add_box(Vector3(wx + bx, 1.6, door_z + 0.06), Vector3(0.08, 2.8, 0.03),
+			Color(0.12, 0.12, 0.14), 0.7, 0.3)
+	# Glowing katana silhouette in the window
+	_add_box(Vector3(wx - 0.5, 1.9, door_z + 0.10), Vector3(1.8, 0.10, 0.03),
+		Color(0.3, 0.3, 0.35), 0.6, 0.2, true, Color(0.9, 0.95, 1.4), 1.8)
+	_add_box(Vector3(wx + 0.55, 1.9, door_z + 0.10), Vector3(0.3, 0.22, 0.03),
+		Color(0.2, 0.1, 0.1), 0.4, 0.3, true, red, 1.2)
+	var sign_label := Label3D.new()
+	sign_label.text = "IRON ORCHID ARMS"
+	sign_label.font_size = 110
+	sign_label.pixel_size = 0.01
+	sign_label.modulate = red
+	sign_label.outline_size = 22
+	sign_label.outline_modulate = Color(0.2, 0.02, 0.02)
+	sign_label.position = Vector3(wx, 4.0, door_z + 0.1)
+	add_child(sign_label)
+	var spill := OmniLight3D.new()
+	spill.position = Vector3(wx, 2.4, door_z + 1.5)
+	spill.light_color = red
+	spill.light_energy = 1.8
+	spill.omni_range = 4.5
+	spill.omni_attenuation = 1.6
+	add_child(spill)
+	var area := Area3D.new()
+	area.position = Vector3(wx, 1.2, door_z + 1.4)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(3.6, 2.4, 2.6)
+	col.shape = shape
+	area.add_child(col)
+	area.body_entered.connect(func(b):
+		if b is CharacterBody3D:
+			_near_weapon_shop = true
+			_set_status("[E] IRON ORCHID ARMS — buy hardware"))
+	area.body_exited.connect(func(b):
+		if b is CharacterBody3D:
+			_near_weapon_shop = false
+			_set_status(""))
+	add_child(area)
+
+
+func _build_arcade_entrance() -> void:
+	# ARCADE — east end of the block, past the bar. Neon-soaked
+	# double door + sign; leads to the arcade interior scene.
+	var ax := BLOCK_HALF_W - 14.0
+	var face_z := -SIDEWALK_W - 0.5
+	var door_z := face_z + 0.72
+	var neon := Color(1.0, 0.15, 0.7)
+	# Dark recessed double doorway with a hot magenta interior spill
+	_add_box(Vector3(ax, 1.6, door_z),
+		Vector3(2.6, 3.2, 0.10),
+		Color(0.05, 0.03, 0.07), 0.5, 0.3,
+		true, neon * Color(0.3, 0.3, 0.3, 1.0), 0.5)
+	_add_box(Vector3(ax, 1.5, door_z + 0.06),
+		Vector3(0.05, 3.0, 0.02), Color(0.02, 0.02, 0.03), 0.0, 0.5)
+	# Marquee sign above the doors
+	var sign_label := Label3D.new()
+	sign_label.text = "ARCADE"
+	sign_label.font_size = 140
+	sign_label.pixel_size = 0.01
+	sign_label.modulate = neon
+	sign_label.outline_size = 22
+	sign_label.outline_modulate = Color(0.25, 0.0, 0.15)
+	sign_label.position = Vector3(ax, 4.1, door_z + 0.1)
+	add_child(sign_label)
+	# Sign glow spill onto the sidewalk
+	var spill := OmniLight3D.new()
+	spill.position = Vector3(ax, 2.6, door_z + 1.6)
+	spill.light_color = neon
+	spill.light_energy = 2.2
+	spill.omni_range = 5.0
+	spill.omni_attenuation = 1.6
+	add_child(spill)
+	var door := InteractableDoorScript.new()
+	door.scene_id = "city"
+	door.door_id = "arcade_door"
+	door.position = Vector3(ax, 1.2, door_z + 1.4)
+	door.auto_collision_size = Vector3(3.0, 2.4, 2.6)
+	door.glow_color = neon
+	door.glow_opening = Vector2(2.6, 3.2)
+	door.glow_offset = Vector3(0, -1.2, -1.38)
+	door.player_entered.connect(func(): _set_status("[E] " + door.label()))
+	door.player_exited.connect(func(): _set_status(""))
+	add_child(door)
+	# Return marker from the arcade
+	var m := Node3D.new()
+	m.name = "from_arcade"
+	m.position = Vector3(ax, 0.0, door_z + 1.8)
+	add_child(m)
+
+func _build_elevator_back() -> void:
+	# The way home — elevator entrance on the north facade at the west end,
+	# right where from_elevator spawns drop the player. Was missing entirely:
+	# the scene_graph door existed but nothing in the scene built it.
+	var ex := -BLOCK_HALF_W + 6.0
+	var face_z := -SIDEWALK_W - 0.5
+	var door_z := face_z + 0.72
+	# Recessed dark doorway + faint warm interior
+	_add_box(Vector3(ex, 1.55, door_z),
+		Vector3(1.8, 3.1, 0.10),
+		Color(0.06, 0.06, 0.09), 0.6, 0.3,
+		true, Color(1.0, 0.85, 0.1), 0.25)
+	# Sliding-door seam
+	_add_box(Vector3(ex, 1.5, door_z + 0.06),
+		Vector3(0.04, 2.9, 0.02), Color(0.02, 0.02, 0.03), 0.0, 0.5)
+	# "404" readout above — same yellow as the hallway elevator
+	_add_box(Vector3(ex, 3.35, door_z + 0.04),
+		Vector3(0.6, 0.24, 0.05),
+		Color(0.3, 0.25, 0.05), 0.0, 0.3, true, Color(1.0, 0.85, 0.1), 2.0)
+	var door := InteractableDoorScript.new()
+	door.scene_id = "city"
+	door.door_id = "elevator_back"
+	door.position = Vector3(ex, 1.2, door_z + 1.4)
+	door.auto_collision_size = Vector3(2.2, 2.4, 2.6)
+	door.glow_color = Color(1.0, 0.85, 0.10)
+	door.glow_opening = Vector2(1.8, 3.1)
+	door.glow_offset = Vector3(0, -1.2, -1.38)
+	door.player_entered.connect(func(): _set_status("[E] " + door.label()))
+	door.player_exited.connect(func(): _set_status(""))
+	add_child(door)
 
 
 ## Per-store window display: a few silhouette props inside the lit glass
@@ -703,11 +951,15 @@ func _build_textured_sign(pos: Vector3, size: Vector2, tex_path: String,
 func _on_store_near(def: Dictionary, body: Node) -> void:
 	if body is CharacterBody3D:
 		_near_store = def
+		if _store_glows.has(def.id):
+			_store_glows[def.id].set_active(true)
 		_set_status("[E] enter " + def.label)
 
 func _on_store_far(def: Dictionary, body: Node) -> void:
 	if body is CharacterBody3D and _near_store.get("id", "") == def.id:
 		_near_store = {}
+		if _store_glows.has(def.id):
+			_store_glows[def.id].set_active(false)
 		_set_status("")
 
 
@@ -1172,6 +1424,51 @@ func _build_puddles_and_manholes() -> void:
 	var manhole_xs := [-44.0, -10.0, 25.0, 56.0]
 	for mx in manhole_xs:
 		_build_manhole(Vector3(mx, 0.07, ROAD_WIDTH * 0.5))
+	_build_sewer_entrance(Vector3(-10.0, 0.07, ROAD_WIDTH * 0.5))
+
+func _build_sewer_entrance(pos: Vector3) -> void:
+	# One manhole is pried half-open — sickly green light leaks out.
+	# E drops you into the sewer dungeon.
+	var ring := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = 0.55
+	tm.outer_radius = 0.72
+	ring.mesh = tm
+	var rmat := StandardMaterial3D.new()
+	rmat.albedo_color = Color(0.05, 0.15, 0.08)
+	rmat.emission_enabled = true
+	rmat.emission = Color(0.3, 1.4, 0.5)
+	rmat.emission_energy_multiplier = 1.6
+	ring.material_override = rmat
+	ring.position = pos + Vector3(0, 0.03, 0)
+	add_child(ring)
+	var glow := OmniLight3D.new()
+	glow.position = pos + Vector3(0, 0.8, 0)
+	glow.light_color = Color(0.3, 1.2, 0.5)
+	glow.light_energy = 1.4
+	glow.omni_range = 3.5
+	glow.omni_attenuation = 1.8
+	add_child(glow)
+	var area := Area3D.new()
+	area.position = pos + Vector3(0, 1.0, 0)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(2.6, 2.4, 2.6)
+	col.shape = shape
+	area.add_child(col)
+	area.body_entered.connect(func(b):
+		if b is CharacterBody3D:
+			_near_manhole = true
+			_set_status("[E] pry open the manhole — something glows down there"))
+	area.body_exited.connect(func(b):
+		if b is CharacterBody3D:
+			_near_manhole = false
+			_set_status(""))
+	add_child(area)
+	var m := Node3D.new()
+	m.name = "from_sewer"
+	m.position = pos + Vector3(1.6, 0.0, 0.5)
+	add_child(m)
 
 func _build_puddle(pos: Vector3) -> void:
 	# Puddles read as wet via dark albedo + subtle specular, NOT via
@@ -1235,94 +1532,185 @@ func _build_steam_from_manholes() -> void:
 # ─────────────────────────────────────────────────────────────────────────
 
 func _build_cars() -> void:
-	# Mix of car colors, sizes. Each gets glow-halo headlights, brake glow,
-	# real SpotLight3D beams that scatter in fog. Different headlight tints
-	# per car so the road feels alive instead of all warm-yellow.
-	# Cars 3× bigger per Aaron — these now read at proper scale next to
-	# storefronts (was 4.5×1.4×2 → tiny dark blobs; now 13.5×4.2×6 reads
-	# as a real vehicle from the 3/4 view).
-	var car_specs := [
-		{ "x": -BLOCK_HALF_W,        "lane_z": ROAD_WIDTH * 0.30,
+	# Traffic mix per Aaron: sedans + box trucks, one pickup (fewer than
+	# before). Sized down from the old 13m monsters (~2/3 scale), and every
+	# vehicle is LIT: emissive cabin windows, underglow, running lights, and
+	# the box trucks carry glowing ad panels on their cargo boxes.
+	var specs := [
+		{ "type": "sedan",    "x": -BLOCK_HALF_W,        "lane_z": ROAD_WIDTH * 0.30,
 		  "color": Color(0.85, 0.18, 0.20), "speed":  9.0,
-		  "hl_color": Color(1.0, 0.95, 0.78), "size": Vector3(13.8, 4.2, 6.0) },
-		{ "x": -BLOCK_HALF_W * 0.3,  "lane_z": ROAD_WIDTH * 0.30,
-		  "color": Color(0.95, 0.80, 0.10), "speed":  7.5,
-		  "hl_color": Color(0.95, 0.98, 1.0), "size": Vector3(13.2, 4.5, 6.0) },
-		{ "x":  BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.70,
+		  "hl_color": Color(1.0, 0.95, 0.78) },
+		{ "type": "boxtruck", "x": -BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.30,
+		  "color": Color(0.20, 0.45, 0.50), "speed":  7.0,
+		  "hl_color": Color(0.95, 0.98, 1.0), "ad": Color(0.2, 1.2, 1.4) },
+		{ "type": "pickup",   "x":  BLOCK_HALF_W * 0.15, "lane_z": ROAD_WIDTH * 0.30,
+		  "color": Color(0.95, 0.80, 0.10), "speed":  8.0,
+		  "hl_color": Color(1.0, 0.90, 0.80) },
+		{ "type": "sedan",    "x":  BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.70,
 		  "color": Color(0.15, 0.60, 0.95), "speed": -8.5,
-		  "hl_color": Color(0.75, 0.90, 1.0), "size": Vector3(14.4, 3.6, 5.7) },
-		{ "x":  BLOCK_HALF_W * 0.9,  "lane_z": ROAD_WIDTH * 0.70,
-		  "color": Color(0.85, 0.20, 0.85), "speed": -10.0,
-		  "hl_color": Color(1.0, 0.85, 0.95), "size": Vector3(12.6, 4.2, 5.7) },
+		  "hl_color": Color(0.75, 0.90, 1.0) },
+		{ "type": "boxtruck", "x":  BLOCK_HALF_W * 0.85, "lane_z": ROAD_WIDTH * 0.70,
+		  "color": Color(0.55, 0.30, 0.60), "speed": -6.5,
+		  "hl_color": Color(1.0, 0.85, 0.95), "ad": Color(1.5, 0.3, 1.0) },
 	]
-	for spec in car_specs:
+	for spec in specs:
 		var car := Node3D.new()
-		car.position = Vector3(spec.x, spec.size.y * 0.5, spec.lane_z)
+		var fwd: float = 1.0 if spec.speed > 0 else -1.0
+		var sz: Vector3
+		match spec.type:
+			"boxtruck": sz = Vector3(10.5, 4.4, 4.8)
+			"pickup":   sz = Vector3(8.4, 2.7, 4.3)
+			_:          sz = Vector3(8.0, 2.5, 4.2)
+		car.position = Vector3(spec.x, 0.0, spec.lane_z)
 		add_child(car)
-		# Body
-		_add_box_local(car, Vector3(0, 0, 0), spec.size,
-			spec.color * Color(0.7, 0.7, 0.7, 1.0), 0.8, 0.25)
-		# Cabin — slightly back from front + smaller
-		_add_box_local(car, Vector3(0.2, spec.size.y * 0.7, 0),
-			Vector3(spec.size.x * 0.55, spec.size.y * 0.55, spec.size.z * 0.85),
-			spec.color * Color(0.4, 0.4, 0.4, 1.0), 0.85, 0.18)
-		# Underglow strip (neon-drenched feel) — emissive line under the car
-		_add_box_local(car, Vector3(0, -spec.size.y * 0.45, 0),
-			Vector3(spec.size.x * 0.9, 0.06, spec.size.z * 0.95),
-			spec.color * Color(0.3, 0.3, 0.3, 1.0), 0.0, 0.3,
-			true, spec.color, 1.5)
-		var fwd_sign: float = 1.0 if spec.speed > 0 else -1.0
-		var hl_x: float = spec.size.x * 0.49 * fwd_sign
-		# Headlight ASSEMBLIES — bigger emissive lens + halo glow
-		for hz in [-spec.size.z * 0.30, spec.size.z * 0.30]:
-			# Lens — emissive
-			_add_box_local(car, Vector3(hl_x, 0.0, hz),
-				Vector3(0.18, 0.28, 0.30),
-				spec.hl_color * Color(0.25, 0.25, 0.25, 1.0), 0.0, 0.2,
-				true, spec.hl_color, 7.0)
-			# Halo block extending slightly forward (gives bloom a target)
-			_add_box_local(car, Vector3(hl_x + fwd_sign * 0.12, 0.0, hz),
-				Vector3(0.06, 0.16, 0.18),
-				spec.hl_color, 0.0, 0.2,
-				true, spec.hl_color, 4.0)
-		# Brake lights — RED, smoldering glow (will be brighter when stopping)
-		for tz in [-spec.size.z * 0.30, spec.size.z * 0.30]:
-			_add_box_local(car, Vector3(-hl_x, 0.0, tz),
-				Vector3(0.14, 0.22, 0.22),
-				Color(0.40, 0.05, 0.05), 0.0, 0.2,
-				true, Color(1.0, 0.18, 0.18), 4.5)
-		# SpotLight3D beam — fog-scatter headlight cone (the dramatic shaft)
-		var beam := SpotLight3D.new()
-		beam.position = Vector3(hl_x, 0.1, 0)
-		beam.rotation_degrees = Vector3(0, -90 if fwd_sign > 0 else 90, 0)
-		beam.light_color = spec.hl_color
-		beam.light_energy = 7.0
-		beam.spot_range = 14.0
-		beam.spot_angle = 26.0
-		beam.spot_attenuation = 1.4
-		car.add_child(beam)
-		# REAL point light at the headlight — illuminates pavement +
-		# pedestrians as the car drives by. Brighter + wider than before.
-		var hl_pt := OmniLight3D.new()
-		hl_pt.position = Vector3(hl_x, 0.0, 0)
-		hl_pt.light_color = spec.hl_color
-		hl_pt.light_energy = 4.0
-		hl_pt.omni_range = 7.0
-		hl_pt.omni_attenuation = 1.5
-		car.add_child(hl_pt)
-		# Red point-light at the rear so taillights paint the road behind
-		var tail := OmniLight3D.new()
-		tail.position = Vector3(-hl_x, 0.0, 0)
-		tail.light_color = Color(1.0, 0.20, 0.18)
-		tail.light_energy = 1.6
-		tail.omni_range = 3.5
-		tail.omni_attenuation = 1.8
-		car.add_child(tail)
-		_cars.append({
-			"node": car,
-			"speed": spec.speed,
-			"side_facing": fwd_sign,
-		})
+		_build_vehicle_body(car, spec, sz, fwd)
+		_add_vehicle_lights(car, spec, sz, fwd)
+		_cars.append({ "node": car, "speed": spec.speed, "side_facing": fwd })
+
+func _build_vehicle_body(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float) -> void:
+	# Local Y is up-from-road (car node sits on the road plane).
+	# Camera is south (+Z), so lit windows / ad panels go on the +Z face.
+	# Body shells are slightly SELF-LIT (low-energy emissive in the paint
+	# color) so vehicles read as colored machines at night, not black blobs.
+	var body_col: Color = spec.color * Color(0.7, 0.7, 0.7, 1.0)
+	match spec.type:
+		"boxtruck":
+			var cab_len: float = sz.x * 0.24
+			var box_len: float = sz.x * 0.72
+			var cab_x: float = fwd * (sz.x * 0.5 - cab_len * 0.5)
+			var box_x: float = -fwd * (sz.x * 0.5 - box_len * 0.5)
+			var trim: Color = spec.get("ad", Color(0.2, 1.2, 1.4))
+			# Chassis rail — dark, spans cab to tail above the wheels
+			_add_box_local(car, Vector3(0, 0.55, 0),
+				Vector3(sz.x * 0.98, 0.5, sz.z * 0.8),
+				Color(0.05, 0.05, 0.07), 0.4, 0.5)
+			# Cab — self-lit paint
+			_car_shell(car, Vector3(cab_x, 1.45, 0),
+				Vector3(cab_len, 1.9, sz.z * 0.9), body_col)
+			# Windshield — lit band across the cab front
+			_add_box_local(car, Vector3(cab_x + fwd * (cab_len * 0.5 + 0.02), 1.95, 0),
+				Vector3(0.05, 0.55, sz.z * 0.62),
+				Color(0.20, 0.38, 0.45), 0.2, 0.1,
+				true, Color(0.45, 1.0, 1.2), 1.8)
+			# Cab side window (camera side)
+			_add_box_local(car, Vector3(cab_x, 1.95, sz.z * 0.45 + 0.03),
+				Vector3(cab_len * 0.55, 0.5, 0.05),
+				Color(0.25, 0.45, 0.55), 0.2, 0.1,
+				true, Color(0.5, 1.1, 1.3), 1.8)
+			# Cargo box
+			_car_shell(car, Vector3(box_x, 0.8 + (sz.y - 0.8) * 0.5, 0),
+				Vector3(box_len, sz.y - 0.8, sz.z), body_col * 1.25)
+			# Container trim — thin neon edges frame the camera-facing side
+			for tx in [box_x - box_len * 0.5 + 0.06, box_x + box_len * 0.5 - 0.06]:
+				_add_box_local(car, Vector3(tx, 0.8 + (sz.y - 0.8) * 0.5, sz.z * 0.5 + 0.02),
+					Vector3(0.08, sz.y - 1.0, 0.04),
+					trim * Color(0.3, 0.3, 0.3, 1.0), 0.0, 0.3, true, trim, 1.6)
+			_add_box_local(car, Vector3(box_x, sz.y - 0.10, sz.z * 0.5 + 0.02),
+				Vector3(box_len - 0.12, 0.08, 0.04),
+				trim * Color(0.3, 0.3, 0.3, 1.0), 0.0, 0.3, true, trim, 1.6)
+			# Ad panel — inset between the trim
+			_add_box_local(car, Vector3(box_x, 0.8 + (sz.y - 0.8) * 0.52, sz.z * 0.5 + 0.03),
+				Vector3(box_len * 0.60, (sz.y - 0.8) * 0.48, 0.04),
+				trim * Color(0.25, 0.25, 0.25, 1.0), 0.0, 0.3, true, trim, 0.9)
+			# Roof marker lights — orange dots along the box top edge
+			for i in 4:
+				var mx: float = box_x + lerpf(-box_len * 0.38, box_len * 0.38, float(i) / 3.0)
+				_add_box_local(car, Vector3(mx, sz.y + 0.06, sz.z * 0.44),
+					Vector3(0.10, 0.10, 0.10),
+					Color(0.5, 0.3, 0.05), 0.0, 0.3, true, Color(1.0, 0.55, 0.1), 3.0)
+			_add_wheels(car, sz, 0.70, 0.38)
+		"pickup":
+			var cab_len: float = sz.x * 0.42
+			var cab_x: float = fwd * sz.x * 0.12
+			# Body raised on the wheels (0.4 ground clearance)
+			_car_shell(car, Vector3(0, 1.0, 0), Vector3(sz.x, 1.2, sz.z), body_col)
+			_car_shell(car, Vector3(cab_x, 1.6 + (sz.y - 1.6) * 0.5, 0),
+				Vector3(cab_len, sz.y - 1.6, sz.z * 0.85), body_col * 0.8)
+			# Cab side window — lit warm
+			_add_box_local(car, Vector3(cab_x, 1.6 + (sz.y - 1.6) * 0.55, sz.z * 0.425 + 0.03),
+				Vector3(cab_len * 0.7, (sz.y - 1.6) * 0.5, 0.05),
+				Color(0.30, 0.50, 0.40), 0.2, 0.1,
+				true, Color(1.2, 0.9, 0.5), 1.5)
+			# Bed rails
+			_add_box_local(car, Vector3(-fwd * sz.x * 0.28, 1.66, 0),
+				Vector3(sz.x * 0.40, 0.10, sz.z * 0.9), body_col * 0.9, 0.7, 0.3)
+			_add_wheels(car, sz, 0.55, 0.32)
+		_:
+			# Sedan — raised body + cabin + lit side windows
+			_car_shell(car, Vector3(0, 0.95, 0), Vector3(sz.x, 1.2, sz.z), body_col)
+			_car_shell(car, Vector3(-fwd * sz.x * 0.05, 1.55 + (sz.y - 1.55) * 0.5, 0),
+				Vector3(sz.x * 0.55, sz.y - 1.55, sz.z * 0.85), body_col * 0.6)
+			_add_box_local(car, Vector3(-fwd * sz.x * 0.05, 1.55 + (sz.y - 1.55) * 0.55, sz.z * 0.425 + 0.03),
+				Vector3(sz.x * 0.48, (sz.y - 1.55) * 0.5, 0.05),
+				Color(0.25, 0.45, 0.55), 0.2, 0.1,
+				true, Color(0.5, 1.1, 1.3), 1.4)
+			_add_wheels(car, sz, 0.50, 0.30)
+	# Underglow strip — neon-drenched feel
+	_add_box_local(car, Vector3(0, 0.18, 0),
+		Vector3(sz.x * 0.9, 0.06, sz.z * 0.95),
+		spec.color * Color(0.3, 0.3, 0.3, 1.0), 0.0, 0.3,
+		true, spec.color, 1.8)
+
+func _car_shell(car: Node3D, pos: Vector3, size: Vector3, col: Color) -> void:
+	# Paint shell — low-energy emissive so the color reads at night
+	_add_box_local(car, pos, size, col, 0.3, 0.45, true, col, 0.35)
+
+func _add_wheels(car: Node3D, sz: Vector3, radius: float, width: float) -> void:
+	for wx in [-sz.x * 0.32, sz.x * 0.32]:
+		for wz in [-sz.z * 0.40, sz.z * 0.40]:
+			var mi := MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = radius
+			cyl.bottom_radius = radius
+			cyl.height = width
+			mi.mesh = cyl
+			mi.rotation.x = PI / 2.0   # axle along Z
+			mi.position = Vector3(wx, radius, wz)
+			var mat := StandardMaterial3D.new()
+			mat.albedo_color = Color(0.05, 0.05, 0.06)
+			mat.roughness = 0.7
+			mi.material_override = mat
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			car.add_child(mi)
+
+func _add_vehicle_lights(car: Node3D, spec: Dictionary, sz: Vector3, fwd: float) -> void:
+	var hl_x: float = sz.x * 0.49 * fwd
+	var hl_col: Color = spec.hl_color
+	for hz in [-sz.z * 0.30, sz.z * 0.30]:
+		# Headlight lens + halo block (bloom target)
+		_add_box_local(car, Vector3(hl_x, 0.9, hz), Vector3(0.16, 0.24, 0.26),
+			hl_col * Color(0.25, 0.25, 0.25, 1.0), 0.0, 0.2, true, hl_col, 7.0)
+		_add_box_local(car, Vector3(hl_x + fwd * 0.10, 0.9, hz), Vector3(0.05, 0.14, 0.16),
+			hl_col, 0.0, 0.2, true, hl_col, 4.0)
+		# Brake lights — red smolder
+		_add_box_local(car, Vector3(-hl_x, 0.9, hz), Vector3(0.12, 0.20, 0.20),
+			Color(0.40, 0.05, 0.05), 0.0, 0.2, true, Color(1.0, 0.18, 0.18), 4.5)
+	# SpotLight3D beam — fog-scatter headlight cone
+	var beam := SpotLight3D.new()
+	beam.position = Vector3(hl_x, 0.9, 0)
+	beam.rotation_degrees = Vector3(0, -90 if fwd > 0 else 90, 0)
+	beam.light_color = hl_col
+	beam.light_energy = 7.0
+	beam.spot_range = 12.0
+	beam.spot_angle = 24.0
+	beam.spot_attenuation = 1.4
+	car.add_child(beam)
+	# Point light at the headlights — paints pavement + pedestrians
+	var hl_pt := OmniLight3D.new()
+	hl_pt.position = Vector3(hl_x, 0.9, 0)
+	hl_pt.light_color = hl_col
+	hl_pt.light_energy = 3.5
+	hl_pt.omni_range = 6.0
+	hl_pt.omni_attenuation = 1.5
+	car.add_child(hl_pt)
+	# Red point light at the rear
+	var tail := OmniLight3D.new()
+	tail.position = Vector3(-hl_x, 0.9, 0)
+	tail.light_color = Color(1.0, 0.20, 0.18)
+	tail.light_energy = 1.4
+	tail.omni_range = 3.0
+	tail.omni_attenuation = 1.8
+	car.add_child(tail)
 
 
 func _build_walking_npcs() -> void:
@@ -1467,12 +1855,14 @@ func _build_hud() -> void:
 	title.position = Vector2(20, 70)
 	cl.add_child(title)
 	_status_label = Label.new()
-	_status_label.add_theme_font_size_override("font_size", 12)
-	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
-	_status_label.position = Vector2(20, 90)
+	_status_label.add_theme_font_size_override("font_size", 18)
+	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.55))
+	_status_label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+	_status_label.add_theme_constant_override("shadow_offset_y", 2)
+	_status_label.position = Vector2(20, 92)
 	cl.add_child(_status_label)
 	var hint := Label.new()
-	hint.text = "WASD MOVE · R SPRINT · E INTERACT · P PHONE"
+	hint.text = "WASD MOVE · R SPRINT · E INTERACT · I PHONE"
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	hint.anchor_left = 0.0
@@ -1558,9 +1948,28 @@ func _tick_camera(delta: float) -> void:
 	_camera.rotation = _camera_locked_rotation
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("phone_toggle"):
-		Phone.toggle()
-	elif event.is_action_pressed("interact"):
+	# phone_toggle is handled by the Phone autoload — toggling here too made
+	# one keypress open+close the phone in the same frame.
+	if _shop_open:
+		if event.is_action_pressed("hotbar_1"):
+			_shop_buy(0)
+		elif event.is_action_pressed("hotbar_2"):
+			_shop_buy(1)
+		elif event.is_action_pressed("hotbar_3"):
+			_shop_buy(2)
+		elif event.is_action_pressed("hotbar_4"):
+			_shop_buy(3)
+		elif event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
+			_close_shop()
+		return
+	if event.is_action_pressed("interact"):
+		if _near_weapon_shop:
+			_open_shop()
+			return
+		if _near_manhole:
+			GameState.pending_dungeon = "sewer"
+			SceneTransition.go("dungeon", "from_city")
+			return
 		# CyberDeck pickup wins over storefronts — they overlap geographically
 		# at the ATM end of the block.
 		if _near_cyberdeck:

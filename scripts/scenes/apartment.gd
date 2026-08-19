@@ -24,6 +24,7 @@ extends Node3D
 ##   ESC   — back to title
 
 const AnimatedBillboardScript := preload("res://scripts/systems/animated_billboard.gd")
+const DoorGlowScript := preload("res://scripts/systems/door_glow.gd")
 
 const ROOM_W := 52.0
 const ROOM_D := 36.0
@@ -47,6 +48,7 @@ var _cat_t := 0.0
 var _cat_idle_dwell := 3.0
 var _cat_target: Vector3
 var _door_zone: Area3D
+var _door_glow: DoorGlowScript
 var _on_door := false
 var _exiting := false
 
@@ -860,20 +862,14 @@ func _build_door() -> void:
 	_add_box(Vector3(dx - 0.12, 1.3, dz),
 		Vector3(0.02, 2.2, 1.4),
 		Color(0.04, 0.06, 0.08), 0.0, 0.6, false, Color.BLACK, 0.0, false)
-	# Hot neon frame — bright cyan tube outlining the doorway
-	_add_box(Vector3(dx - 0.08, 0.0, dz),
-		Vector3(0.05, 0.06, 2.0),
-		Color(0.0, 0.5, 0.6), 0.0, 0.2,
-		true, Color(0.0, 1.2, 1.4), 4.0, false)
-	_add_box(Vector3(dx - 0.08, 2.8, dz),
-		Vector3(0.05, 0.06, 2.0),
-		Color(0.0, 0.5, 0.6), 0.0, 0.2,
-		true, Color(0.0, 1.2, 1.4), 4.0, false)
-	for fz in [dz - 0.95, dz + 0.95]:
-		_add_box(Vector3(dx - 0.08, 1.4, fz),
-			Vector3(0.05, 2.8, 0.06),
-			Color(0.0, 0.5, 0.6), 0.0, 0.2,
-			true, Color(0.0, 1.2, 1.4), 4.0, false)
+	# Neon outline + proximity arrow — the standard DoorGlow every enterable
+	# door gets. East-wall door: rotate so the frame lies in the YZ plane.
+	_door_glow = DoorGlowScript.new()
+	_door_glow.color = Color(0.0, 1.0, 1.0)
+	_door_glow.opening = Vector2(1.9, 2.8)
+	_door_glow.position = Vector3(dx - 0.08, 0.0, dz)
+	_door_glow.rotation.y = PI / 2.0
+	add_child(_door_glow)
 	# Exit sign above the door
 	_add_box(Vector3(dx - 0.20, 3.0, dz),
 		Vector3(0.04, 0.30, 1.0),
@@ -914,11 +910,13 @@ func _build_door() -> void:
 func _on_door_entered(body: Node3D) -> void:
 	if body == _player:
 		_on_door = true
+		_door_glow.set_active(true)
 		_set_status("[E] LEAVE APARTMENT")
 
 func _on_door_exited(body: Node3D) -> void:
 	if body == _player:
 		_on_door = false
+		_door_glow.set_active(false)
 		_set_status("")
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1091,7 +1089,7 @@ func _build_hud() -> void:
 	layer.add_child(_hud_status)
 
 	var hint := Label.new()
-	hint.text = "WASD MOVE  ·  R SPRINT  ·  1-6 HOTBAR  ·  E INTERACT  ·  P PHONE  ·  ESC TITLE"
+	hint.text = "WASD MOVE  ·  R SPRINT  ·  1-6 HOTBAR  ·  E INTERACT  ·  I PHONE  ·  ESC TITLE"
 	hint.add_theme_font_size_override("font_size", 12)
 	hint.add_theme_color_override("font_color", Color(0.55, 0.55, 0.7))
 	hint.add_theme_color_override("font_outline_color", Color(0, 0, 0))
