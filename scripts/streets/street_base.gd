@@ -12,6 +12,7 @@ extends Node3D
 
 const StreetDefsData := preload("res://data/street_defs.gd")
 const AnimatedBillboardScript := preload("res://scripts/systems/animated_billboard.gd")
+const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 
 const ROAD_WIDTH := 22.0
 const SIDEWALK_W := 5.0
@@ -30,7 +31,7 @@ var _player_anim
 var _status_label: Label
 var _title_label: Label
 var _near_terminal := false
-var _ride_layer: CanvasLayer
+var _ride_menu
 var _ride_open := false
 var _interact_zones: Array = []     # {area, prompt, callback}
 var _near_zone: Dictionary = {}
@@ -393,65 +394,30 @@ func build_ridenet_terminal(pos: Vector3) -> void:
 
 func _open_ridenet() -> void:
 	_ride_open = true
-	_ride_layer = CanvasLayer.new()
-	_ride_layer.layer = 70
-	add_child(_ride_layer)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_ride_layer.add_child(dim)
-	var panel := Panel.new()
-	panel.position = Vector2(390, 130)
-	panel.size = Vector2(500, 460)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.01, 0.04, 0.05, 0.96)
-	sb.border_color = Color(0.2, 1.0, 1.2)
-	sb.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", sb)
-	_ride_layer.add_child(panel)
-	var title := Label.new()
-	title.text = "RIDENET — where to?"
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(0.3, 1.0, 1.1))
-	title.position = Vector2(24, 16)
-	panel.add_child(title)
-	var streets: Array = StreetDefsData.street_list()
-	for i in streets.size():
-		var st: Dictionary = streets[i]
-		var l := Label.new()
+	_ride_menu = ListMenuScript.new()
+	add_child(_ride_menu)
+	_ride_menu.picked.connect(_ride_to_street)
+	_ride_menu.closed.connect(func():
+		_ride_open = false
+		_ride_menu = null)
+	var entries: Array = []
+	for st in StreetDefsData.street_list():
 		var here: bool = st.id == street_id
 		var built: bool = st.get("scene", "") != ""
 		var tag := ""
 		if here:
-			tag = " — you are here"
+			tag = " · you are here"
 		elif not built:
-			tag = " — [SOON]"
+			tag = " · [SOON]"
 		else:
-			tag = " — %d cr" % st.cost
-		l.text = "[%d]  %s%s" % [i + 1, st.name, tag]
-		l.add_theme_font_size_override("font_size", 19)
-		l.add_theme_color_override("font_color",
-			Color(0.45, 0.5, 0.6) if (here or not built) else Color(0.9, 0.95, 1.0))
-		l.position = Vector2(24, 62 + i * 44)
-		panel.add_child(l)
-	var credits_l := Label.new()
-	credits_l.text = "credits: $%d" % GameState.credits
-	credits_l.add_theme_font_size_override("font_size", 18)
-	credits_l.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	credits_l.position = Vector2(24, 62 + streets.size() * 44 + 14)
-	panel.add_child(credits_l)
-	var hint := Label.new()
-	hint.text = "1-%d to ride · ESC to walk away" % streets.size()
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.6, 0.65))
-	hint.position = Vector2(24, 62 + streets.size() * 44 + 44)
-	panel.add_child(hint)
+			tag = " · %d cr" % st.cost
+		entries.append({ "label": st.name + tag, "dim": here or not built })
+	_ride_menu.open("RIDENET · where to?", entries, Color(0.2, 1.0, 1.2),
+		"credits: $%d" % GameState.credits)
 
 func _close_ridenet() -> void:
-	_ride_open = false
-	if _ride_layer:
-		_ride_layer.queue_free()
-		_ride_layer = null
+	if _ride_menu:
+		_ride_menu.close_menu()
 
 func _ride_to_street(idx: int) -> void:
 	var streets: Array = StreetDefsData.street_list()
@@ -459,13 +425,16 @@ func _ride_to_street(idx: int) -> void:
 		return
 	var st: Dictionary = streets[idx]
 	if st.id == street_id:
-		_set_status("RIDENET: 'you're already here, choom.'")
+		if _ride_menu:
+			_ride_menu.set_footer("RIDENET: 'you're already here, choom.'")
 		return
 	if st.get("scene", "") == "":
-		_set_status("RIDENET: 'that route's closed for construction.'")
+		if _ride_menu:
+			_ride_menu.set_footer("RIDENET: 'that route's closed for construction.'")
 		return
 	if GameState.credits < st.cost:
-		_set_status("RIDENET: 'insufficient credits.'")
+		if _ride_menu:
+			_ride_menu.set_footer("RIDENET: 'insufficient credits.'")
 		return
 	GameState.add_credits(-st.cost)
 	_close_ridenet()
@@ -478,14 +447,7 @@ func _ride_to_street(idx: int) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _ride_open:
-		var streets: Array = StreetDefsData.street_list()
-		for i in streets.size():
-			if event.is_action_pressed("hotbar_%d" % (i + 1)):
-				_ride_to_street(i)
-				return
-		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
-			_close_ridenet()
-		return
+		return   # ListMenu owns input while a menu is up
 	if event.is_action_pressed("interact") and not _near_zone.is_empty():
 		_near_zone.callback.call()
 

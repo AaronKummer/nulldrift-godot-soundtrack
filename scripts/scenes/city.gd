@@ -18,6 +18,7 @@ const InteractableDoorScript    := preload("res://scripts/systems/interactable_d
 const AnimatedBillboardScript   := preload("res://scripts/systems/animated_billboard.gd")
 const DoorGlowScript            := preload("res://scripts/systems/door_glow.gd")
 const CityGenSys                := preload("res://scripts/systems/city_gen.gd")
+const ListMenuScript            := preload("res://scripts/systems/list_menu.gd")
 
 # ─── Camera: 3/4 view, lower-pitch than apartment iso ────────────────────
 const CAMERA_OFFSET      := Vector3(0.0, 14.0, 24.0)
@@ -71,13 +72,12 @@ var _player_anim
 var _status_label: Label
 var _near_store: Dictionary = {}
 var _near_manhole := false
-var _shop_layer: CanvasLayer
+var _shop_menu
 var _shop_open := false
-var _shop_labels: Array = []
-var _shop_credits_label: Label
 var _near_terminal := false
-var _ride_layer: CanvasLayer
+var _ride_menu
 var _ride_open := false
+var _ride_quip_idx := 0
 var _riding_scooter := false
 var _scooter_node: Node3D
 var _near_scooter_idx := -1
@@ -649,94 +649,59 @@ const SHOP_ITEMS := [
 
 func _open_shop() -> void:
 	_shop_open = true
-	_shop_labels.clear()
-	_shop_layer = CanvasLayer.new()
-	_shop_layer.layer = 70
-	add_child(_shop_layer)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_shop_layer.add_child(dim)
-	var panel := Panel.new()
-	panel.position = Vector2(360, 150)
-	panel.size = Vector2(560, 400)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.04, 0.01, 0.01, 0.96)
-	sb.border_color = Color(1.0, 0.3, 0.25)
-	sb.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", sb)
-	_shop_layer.add_child(panel)
-	var title := Label.new()
-	title.text = "GUNS+ — street hardware"
-	title.add_theme_font_size_override("font_size", 26)
-	title.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
-	title.position = Vector2(24, 18)
-	panel.add_child(title)
-	for i in SHOP_ITEMS.size():
-		var l := Label.new()
-		l.add_theme_font_size_override("font_size", 20)
-		l.position = Vector2(24, 80 + i * 56)
-		panel.add_child(l)
-		_shop_labels.append(l)
-	_shop_credits_label = Label.new()
-	_shop_credits_label.add_theme_font_size_override("font_size", 20)
-	_shop_credits_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	_shop_credits_label.position = Vector2(24, 330)
-	panel.add_child(_shop_credits_label)
-	var hint := Label.new()
-	hint.text = "press 1-4 to buy · ESC to leave"
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.6, 0.55, 0.55))
-	hint.position = Vector2(24, 366)
-	panel.add_child(hint)
-	_refresh_shop()
+	_shop_menu = ListMenuScript.new()
+	add_child(_shop_menu)
+	_shop_menu.picked.connect(_shop_buy)
+	_shop_menu.closed.connect(func():
+		_shop_open = false
+		_shop_menu = null
+		_set_status(""))
+	_shop_menu.open("GUNS+ · street hardware", _shop_entries(),
+		Color(1.0, 0.35, 0.3), "your credits: $%d" % GameState.credits)
 
-func _refresh_shop() -> void:
+func _shop_entries() -> Array:
+	var out: Array = []
 	for i in SHOP_ITEMS.size():
 		var item: Dictionary = SHOP_ITEMS[i]
-		var l: Label = _shop_labels[i]
 		if item.id == "katana":
 			if GameState.katana_level >= 3:
-				l.text = "[1]  KATANA MK-III — MAXED OUT"
-				l.add_theme_color_override("font_color", Color(0.5, 0.55, 0.6))
+				out.append({ "label": "KATANA MK-III · MAXED OUT", "dim": true })
 			else:
 				var price: int = KATANA_PRICES[GameState.katana_level + 1]
-				l.text = "[1]  KATANA MK-%d — %d cr  (more damage + reach)" 					% [GameState.katana_level + 1, price]
-				l.add_theme_color_override("font_color", Color(0.95, 0.95, 1.0))
+				out.append({ "label": "KATANA MK-%d · %d cr (more damage + reach)"
+					% [GameState.katana_level + 1, price] })
 		else:
-			l.text = "[%d]  %s — %d cr" % [i + 1, item.label, item.price]
-			l.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
-	if _shop_credits_label:
-		_shop_credits_label.text = "your credits: $%d" % GameState.credits
+			out.append({ "label": "%s · %d cr" % [item.label, item.price] })
+	return out
 
 func _shop_buy(idx: int) -> void:
 	var item: Dictionary = SHOP_ITEMS[idx]
+	var msg := ""
 	if item.id == "katana":
 		if GameState.katana_level >= 3:
-			_set_status("shopkeep: 'that blade's already singing, kid.'")
+			_shop_menu.set_footer("shopkeep: 'that blade is already singing, kid.'")
 			return
 		var price: int = KATANA_PRICES[GameState.katana_level + 1]
 		if GameState.credits < price:
-			_set_status("shopkeep: 'come back with real money.'")
+			_shop_menu.set_footer("shopkeep: 'come back with real money.'")
 			return
 		GameState.add_credits(-price)
 		GameState.katana_level += 1
-		_set_status("KATANA MK-%d acquired. it hums." % GameState.katana_level)
+		msg = "KATANA MK-%d acquired. it hums." % GameState.katana_level
 	else:
 		if GameState.credits < item.price:
-			_set_status("shopkeep: 'no credits, no gear.'")
+			_shop_menu.set_footer("shopkeep: 'no credits, no gear.'")
 			return
 		GameState.add_credits(-item.price)
 		GameState.add_item(item.id)
-		_set_status("%s purchased." % item.label.to_lower())
-	_refresh_shop()
+		msg = "%s purchased." % item.label.to_lower()
+	if _shop_menu:
+		_shop_menu.refresh(_shop_entries(),
+			"your credits: $%d · %s" % [GameState.credits, msg])
 
 func _close_shop() -> void:
-	_shop_open = false
-	if _shop_layer:
-		_shop_layer.queue_free()
-		_shop_layer = null
-	_set_status("")
+	if _shop_menu:
+		_shop_menu.close_menu()
 
 
 # =========================================================================
@@ -792,63 +757,43 @@ func _build_ridenet_terminal(pos: Vector3) -> void:
 			_set_status(""))
 	add_child(area)
 
+const LOCAL_RIDE_LINES := [
+	"driver: 'that was 200 meters. no refunds.'",
+	"driver: 'you know you could see it from the curb, right?'",
+	"driver: 'shortest fare of my life. respect.'",
+	"driver: 'i did a u-turn for this.'",
+]
+
 func _open_ridenet() -> void:
 	_ride_open = true
-	_ride_layer = CanvasLayer.new()
-	_ride_layer.layer = 70
-	add_child(_ride_layer)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_ride_layer.add_child(dim)
-	var panel := Panel.new()
-	panel.position = Vector2(400, 160)
-	panel.size = Vector2(480, 380)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.01, 0.04, 0.05, 0.96)
-	sb.border_color = Color(0.2, 1.0, 1.2)
-	sb.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", sb)
-	_ride_layer.add_child(panel)
-	var title := Label.new()
-	title.text = "RIDENET - where to?"
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(0.3, 1.0, 1.1))
-	title.position = Vector2(24, 16)
-	panel.add_child(title)
-	for i in RIDENET_STOPS.size():
-		var stop: Dictionary = RIDENET_STOPS[i]
-		var l := Label.new()
-		var price_txt: String = ""
+	_ride_menu = ListMenuScript.new()
+	add_child(_ride_menu)
+	_ride_menu.picked.connect(_ride_to)
+	_ride_menu.closed.connect(func():
+		_ride_open = false
+		_ride_menu = null)
+	var entries: Array = []
+	for stop in RIDENET_STOPS:
+		var tag := ""
 		if stop.price == 0:
-			price_txt = " - free"
+			tag = " · free"
 		elif stop.price > 0:
-			price_txt = " - %d cr" % stop.price
-		l.text = "[%d]  %s%s" % [i + 1, stop.name, price_txt]
-		l.add_theme_font_size_override("font_size", 20)
-		l.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
-		l.position = Vector2(24, 66 + i * 46)
-		panel.add_child(l)
-	var credits_l := Label.new()
-	credits_l.text = "credits: $%d" % GameState.credits
-	credits_l.add_theme_font_size_override("font_size", 18)
-	credits_l.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	credits_l.position = Vector2(24, 300)
-	panel.add_child(credits_l)
-	var hint := Label.new()
-	hint.text = "1-6 to ride, ESC to walk away"
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.6, 0.65))
-	hint.position = Vector2(24, 340)
-	panel.add_child(hint)
+			tag = " · %d cr" % stop.price
+		else:
+			tag = " · [SOON]"
+		entries.append({ "label": stop.name + tag, "dim": stop.price < 0 })
+	_ride_menu.open("RIDENET · where to?", entries, Color(0.2, 1.0, 1.2),
+		"credits: $%d" % GameState.credits)
 
 func _ride_to(idx: int) -> void:
 	var stop: Dictionary = RIDENET_STOPS[idx]
 	if stop.price < 0:
-		_set_status("RIDENET: 'that route is closed for construction.'")
+		if _ride_menu:
+			_ride_menu.set_footer("RIDENET: 'that route is closed for construction.'")
 		return
 	if GameState.credits < stop.price:
-		_set_status("RIDENET: insufficient credits, choom.")
+		if _ride_menu:
+			_ride_menu.set_footer("RIDENET: insufficient credits, choom.")
 		return
 	if stop.has("scene"):
 		GameState.add_credits(-stop.price)
@@ -875,13 +820,13 @@ func _ride_to(idx: int) -> void:
 	tw.tween_property(fade, "color:a", 0.0, 0.35)
 	tw.tween_callback(func():
 		cl.queue_free()
-		_set_status("RIDENET drop-off: %s." % stop.name))
+		var quip: String = LOCAL_RIDE_LINES[_ride_quip_idx % LOCAL_RIDE_LINES.size()]
+		_ride_quip_idx += 1
+		_set_status("RIDENET drop-off: %s. %s" % [stop.name, quip]))
 
 func _close_ridenet() -> void:
-	_ride_open = false
-	if _ride_layer:
-		_ride_layer.queue_free()
-		_ride_layer = null
+	if _ride_menu:
+		_ride_menu.close_menu()
 
 func _build_scooters() -> void:
 	for spos in [Vector3(-14.0, 0, -2.6), Vector3(30.0, 0, -2.6)]:
@@ -2379,6 +2324,11 @@ func _tick_walking_npcs(delta: float) -> void:
 func _tick_player(_delta: float) -> void:
 	if _player == null:
 		return
+	if _ride_open or _shop_open:
+		_player.velocity = Vector3.ZERO
+		if _player_anim:
+			_player_anim.set_moving(false)
+		return
 	var input := Vector2(
 		Input.get_axis("move_left", "move_right"),
 		Input.get_axis("move_up",   "move_down"),
@@ -2414,26 +2364,8 @@ func _tick_camera(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# phone_toggle is handled by the Phone autoload — toggling here too made
 	# one keypress open+close the phone in the same frame.
-	if _ride_open:
-		for i in RIDENET_STOPS.size():
-			if event.is_action_pressed("hotbar_%d" % (i + 1)):
-				_ride_to(i)
-				return
-		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
-			_close_ridenet()
-		return
-	if _shop_open:
-		if event.is_action_pressed("hotbar_1"):
-			_shop_buy(0)
-		elif event.is_action_pressed("hotbar_2"):
-			_shop_buy(1)
-		elif event.is_action_pressed("hotbar_3"):
-			_shop_buy(2)
-		elif event.is_action_pressed("hotbar_4"):
-			_shop_buy(3)
-		elif event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
-			_close_shop()
-		return
+	if _ride_open or _shop_open:
+		return   # ListMenu owns input while a menu is up
 	if event.is_action_pressed("interact"):
 		if _riding_scooter:
 			_dismount_scooter()

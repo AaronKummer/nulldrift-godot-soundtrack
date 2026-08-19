@@ -5,6 +5,7 @@
 extends "res://scripts/interiors/interior_base.gd"
 
 const RumorData := preload("res://data/rumors.gd")
+const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 
 const DRINKS := [
 	{ "id": "volt_cola", "name": "VOLT COLA", "price": 5, "heal": 5,
@@ -16,8 +17,7 @@ const DRINKS := [
 ]
 
 var _rumor_bag: Array = []
-var _menu_layer: CanvasLayer
-var _menu_lines: Label
+var _bar_menu
 var _juke_idx := 0
 var _juke_cats: Array = []
 
@@ -250,74 +250,35 @@ func _build_lamps() -> void:
 # ── Roz's menu: drinks + talk ────────────────────────────────────────────
 func _open_bar_menu() -> void:
 	_menu_open = true
-	_menu_layer = CanvasLayer.new()
-	_menu_layer.layer = 50
-	add_child(_menu_layer)
-	var panel := Panel.new()
-	panel.anchor_left = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -230
-	panel.offset_right = 230
-	panel.offset_top = -150
-	panel.offset_bottom = 150
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.02, 0.02, 0.94)
-	style.border_color = Color(1.0, 0.35, 0.12)
-	style.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", style)
-	_menu_layer.add_child(panel)
-	var title := Label.new()
-	title.text = "THE BLACKOUT · roz is listening"
-	title.add_theme_font_size_override("font_size", 18)
-	title.add_theme_color_override("font_color", Color(1.0, 0.5, 0.25))
-	title.position = Vector2(20, 14)
-	panel.add_child(title)
-	_menu_lines = Label.new()
-	_menu_lines.add_theme_font_size_override("font_size", 16)
-	_menu_lines.add_theme_color_override("font_color", Color(0.95, 0.9, 0.8))
-	_menu_lines.position = Vector2(20, 52)
-	_menu_lines.size = Vector2(420, 230)
-	panel.add_child(_menu_lines)
-	_refresh_menu()
+	_bar_menu = ListMenuScript.new()
+	add_child(_bar_menu)
+	_bar_menu.picked.connect(_on_bar_pick)
+	_bar_menu.closed.connect(func():
+		_menu_open = false
+		_bar_menu = null)
+	_bar_menu.open("THE BLACKOUT · roz is listening", _bar_entries(),
+		Color(1.0, 0.5, 0.25), _bar_footer())
 
-func _refresh_menu() -> void:
-	var t := ""
-	for i in DRINKS.size():
-		var d: Dictionary = DRINKS[i]
-		t += "[%d] %s · %dcr (+%d hp)\n" % [i + 1, d.name, d.price, d.heal]
-	t += "\n[T] talk to roz\n[ESC] leave the counter\n\n"
-	t += "credits: %d   hp: %d/%d" % [GameState.credits, GameState.hp, GameState.hp_max]
-	_menu_lines.text = t
+func _bar_entries() -> Array:
+	var out: Array = []
+	for d in DRINKS:
+		out.append({ "label": "%s · %dcr (+%d hp)" % [d.name, d.price, d.heal] })
+	out.append({ "label": "talk to roz" })
+	return out
 
-func _close_bar_menu() -> void:
-	_menu_open = false
-	if _menu_layer:
-		_menu_layer.queue_free()
-		_menu_layer = null
+func _bar_footer() -> String:
+	return "credits: %d   hp: %d/%d" % [GameState.credits, GameState.hp, GameState.hp_max]
 
-func _buy_drink(idx: int) -> void:
+func _on_bar_pick(idx: int) -> void:
+	if idx >= DRINKS.size():
+		_bar_menu.close_menu()
+		DialogueOverlay.play("roz")
+		return
 	var d: Dictionary = DRINKS[idx]
 	if GameState.credits < int(d.price):
-		_menu_lines.text = "roz: 'credits first, sad story second.'\n\n[ESC] leave"
+		_bar_menu.set_footer("roz: 'credits first, sad story second.'")
 		return
 	GameState.add_credits(-int(d.price))
 	GameState.hp = mini(GameState.hp + int(d.heal), GameState.hp_max)
-	_refresh_menu()
+	_bar_menu.refresh(_bar_entries(), _bar_footer())
 	_set_status(d.bark)
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _menu_open:
-		if event is InputEventKey and event.pressed and not event.echo:
-			match event.keycode:
-				KEY_1, KEY_2, KEY_3:
-					_buy_drink(event.keycode - KEY_1)
-				KEY_T:
-					_close_bar_menu()
-					DialogueOverlay.play("roz")
-				KEY_ESCAPE:
-					_close_bar_menu()
-			get_viewport().set_input_as_handled()
-		return
-	super._unhandled_input(event)

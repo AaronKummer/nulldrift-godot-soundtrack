@@ -7,8 +7,7 @@ extends "res://scripts/streets/street_base.gd"
 
 const DungeonEntranceColor := Color(1.2, 0.5, 0.15)
 
-var _shop_open2 := false
-var _shop_layer2: CanvasLayer
+var _chop_menu
 
 func _init() -> void:
 	street_id = "warzone"
@@ -267,69 +266,25 @@ const CHOP_ITEMS := [
 ]
 
 func _open_chop_shop() -> void:
-	_shop_open2 = true
-	_shop_layer2 = CanvasLayer.new()
-	_shop_layer2.layer = 70
-	add_child(_shop_layer2)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.6)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_shop_layer2.add_child(dim)
-	var panel := Panel.new()
-	panel.position = Vector2(400, 190)
-	panel.size = Vector2(480, 320)
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.03, 0.01, 0.96)
-	sb.border_color = Color(1.2, 0.6, 0.15)
-	sb.set_border_width_all(2)
-	panel.add_theme_stylebox_override("panel", sb)
-	_shop_layer2.add_child(panel)
-	var title := Label.new()
-	title.text = "CHOP SHOP — no receipts"
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(1.0, 0.65, 0.2))
-	title.position = Vector2(24, 16)
-	panel.add_child(title)
-	for i in CHOP_ITEMS.size():
-		var item: Dictionary = CHOP_ITEMS[i]
-		var l := Label.new()
-		l.text = "[%d]  %s — %d cr" % [i + 1, item.label, item.price]
-		l.add_theme_font_size_override("font_size", 20)
-		l.add_theme_color_override("font_color", Color(0.92, 0.9, 0.85))
-		l.position = Vector2(24, 70 + i * 48)
-		panel.add_child(l)
-	var credits_l := Label.new()
-	credits_l.text = "credits: $%d" % GameState.credits
-	credits_l.add_theme_font_size_override("font_size", 18)
-	credits_l.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	credits_l.position = Vector2(24, 230)
-	panel.add_child(credits_l)
-	var hint := Label.new()
-	hint.text = "1-3 to buy · ESC to leave"
-	hint.add_theme_font_size_override("font_size", 14)
-	hint.add_theme_color_override("font_color", Color(0.6, 0.55, 0.5))
-	hint.position = Vector2(24, 266)
-	panel.add_child(hint)
+	_ride_open = true   # base menu flag: freezes movement + base interacts
+	_chop_menu = ListMenuScript.new()
+	add_child(_chop_menu)
+	_chop_menu.picked.connect(_chop_buy)
+	_chop_menu.closed.connect(func():
+		_ride_open = false
+		_chop_menu = null)
+	var entries: Array = []
+	for item in CHOP_ITEMS:
+		entries.append({ "label": "%s · %d cr" % [item.label, item.price] })
+	_chop_menu.open("CHOP SHOP · no receipts", entries,
+		Color(1.0, 0.65, 0.2), "credits: $%d" % GameState.credits)
 
-func _close_chop_shop() -> void:
-	_shop_open2 = false
-	if _shop_layer2:
-		_shop_layer2.queue_free()
-		_shop_layer2 = null
-
-func _unhandled_input(event: InputEvent) -> void:
-	if _shop_open2:
-		for i in CHOP_ITEMS.size():
-			if event.is_action_pressed("hotbar_%d" % (i + 1)):
-				var item: Dictionary = CHOP_ITEMS[i]
-				if GameState.credits < item.price:
-					_set_status("mechanic: 'credits first.'")
-					return
-				GameState.add_credits(-item.price)
-				GameState.add_item(item.id)
-				_set_status("%s acquired." % item.label.to_lower())
-				return
-		if event.is_action_pressed("ui_cancel") or event.is_action_pressed("interact"):
-			_close_chop_shop()
+func _chop_buy(idx: int) -> void:
+	var item: Dictionary = CHOP_ITEMS[idx]
+	if GameState.credits < item.price:
+		_chop_menu.set_footer("mechanic: 'credits first.'")
 		return
-	super._unhandled_input(event)
+	GameState.add_credits(-item.price)
+	GameState.add_item(item.id)
+	_chop_menu.set_footer("credits: $%d · %s acquired"
+		% [GameState.credits, String(item.label).to_lower()])
