@@ -71,7 +71,6 @@ var _player_anim
 var _status_label: Label
 var _near_store: Dictionary = {}
 var _near_manhole := false
-var _near_weapon_shop := false
 var _shop_layer: CanvasLayer
 var _shop_open := false
 var _shop_labels: Array = []
@@ -122,7 +121,6 @@ func _ready() -> void:
 	_build_atm_scene()
 	_build_elevator_back()
 	_build_arcade_entrance()
-	_build_weapon_shop()
 	# District generator disabled — visuals weren't at the bar (flat unlit
 	# slabs). Rebuild properly with real facade detail before re-enabling.
 	#_gen_mats = CityGenSys.build(self)
@@ -324,10 +322,8 @@ func _build_ground() -> void:
 		smat.roughness = 0.85
 		smi.material_override = smat
 		sb.add_child(smi)
-		var sc := CollisionShape3D.new()
-		var ss := BoxShape3D.new(); ss.size = sm.size
-		sc.shape = ss
-		sb.add_child(sc)
+		# No collision: flat walkable ground. A collision slab here made an
+		# unclimbable ledge (the player capsule has no step-up).
 		# Curb edge accent — brighter cyan emissive so the curb line reads
 		var curb := MeshInstance3D.new()
 		var cm := BoxMesh.new()
@@ -671,7 +667,7 @@ func _open_shop() -> void:
 	panel.add_theme_stylebox_override("panel", sb)
 	_shop_layer.add_child(panel)
 	var title := Label.new()
-	title.text = "IRON ORCHID ARMS"
+	title.text = "GUNS+ — street hardware"
 	title.add_theme_font_size_override("font_size", 26)
 	title.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
 	title.position = Vector2(24, 18)
@@ -748,8 +744,8 @@ func _close_shop() -> void:
 # =========================================================================
 
 const RIDENET_STOPS := [
-	{ "name": "THE ARCADE", "pos": Vector3(46.0, 0.85, -2.0), "price": 5 },
-	{ "name": "IRON ORCHID ARMS", "pos": Vector3(34.0, 0.85, -2.0), "price": 5 },
+	{ "name": "THE ARCADE", "pos": Vector3(54.0, 0.85, -2.0), "price": 5 },
+	{ "name": "GUNS+", "pos": Vector3(44.0, 0.85, -2.0), "price": 5 },
 	{ "name": "WEST END", "pos": Vector3(-52.0, 0.85, -2.0), "price": 5 },
 	{ "name": "THE WARZONE", "scene": "street_warzone", "price": 30 },
 	{ "name": "DOWNTOWN — [SOON]", "price": -1 },
@@ -757,7 +753,7 @@ const RIDENET_STOPS := [
 ]
 
 func _build_ridenet() -> void:
-	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(40.0, 0, -3.0)]:
+	for tpos in [Vector3(-36.0, 0, -3.0), Vector3(10.0, 0, -3.0)]:
 		_build_ridenet_terminal(tpos)
 	var rm_marker := Node3D.new()
 	rm_marker.name = "from_ridenet"
@@ -888,7 +884,7 @@ func _close_ridenet() -> void:
 		_ride_layer = null
 
 func _build_scooters() -> void:
-	for spos in [Vector3(-14.0, 0, 3.5), Vector3(52.0, 0, 3.5)]:
+	for spos in [Vector3(-14.0, 0, -2.6), Vector3(30.0, 0, -2.6)]:
 		var scooter := Node3D.new()
 		scooter.position = spos
 		add_child(scooter)
@@ -896,37 +892,77 @@ func _build_scooters() -> void:
 		_scooters.append({ "node": scooter })
 
 func _add_scooter_visual(parent: Node3D) -> void:
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.12, 0.35, 0.40)
-	mat.emission_enabled = true
-	mat.emission = Color(0.2, 1.0, 1.2)
-	mat.emission_energy_multiplier = 0.6
+	# Readable e-scooter: deck low, steering column with T-handlebar,
+	# two chunky wheels, cyan trim + warm headlight. Parked at a slight
+	# kickstand lean so it reads as a vehicle, not a box.
+	parent.rotation.y = 0.35
+	var frame_mat := StandardMaterial3D.new()
+	frame_mat.albedo_color = Color(0.16, 0.17, 0.20)
+	frame_mat.metallic = 0.6
+	frame_mat.roughness = 0.35
+	var trim_mat := StandardMaterial3D.new()
+	trim_mat.albedo_color = Color(0.06, 0.20, 0.22)
+	trim_mat.emission_enabled = true
+	trim_mat.emission = Color(0.2, 1.2, 1.4)
+	trim_mat.emission_energy_multiplier = 1.4
+	# Deck
 	var deck := MeshInstance3D.new()
 	var dm := BoxMesh.new()
-	dm.size = Vector3(1.5, 0.14, 0.5)
+	dm.size = Vector3(1.3, 0.10, 0.34)
 	deck.mesh = dm
-	deck.material_override = mat
-	deck.position = Vector3(0, 0.75, 0)
+	deck.material_override = frame_mat
+	deck.position = Vector3(0, 0.34, 0)
 	parent.add_child(deck)
-	var stem := MeshInstance3D.new()
-	var sm := BoxMesh.new()
-	sm.size = Vector3(0.1, 1.1, 0.1)
-	stem.mesh = sm
-	stem.material_override = mat
-	stem.position = Vector3(0.65, 1.3, 0)
-	parent.add_child(stem)
-	for wx in [-0.6, 0.6]:
+	# Deck trim strip (glows so it's findable at night)
+	var strip := MeshInstance3D.new()
+	var stm := BoxMesh.new()
+	stm.size = Vector3(1.25, 0.03, 0.06)
+	strip.mesh = stm
+	strip.material_override = trim_mat
+	strip.position = Vector3(0, 0.40, 0.15)
+	parent.add_child(strip)
+	# Steering column (raked) + T-handlebar
+	var column := MeshInstance3D.new()
+	var colm := BoxMesh.new()
+	colm.size = Vector3(0.08, 1.15, 0.08)
+	column.mesh = colm
+	column.material_override = frame_mat
+	column.position = Vector3(0.58, 0.88, 0)
+	column.rotation.z = -0.22
+	parent.add_child(column)
+	var bars := MeshInstance3D.new()
+	var bm2 := BoxMesh.new()
+	bm2.size = Vector3(0.10, 0.06, 0.62)
+	bars.mesh = bm2
+	bars.material_override = frame_mat
+	bars.position = Vector3(0.70, 1.44, 0)
+	parent.add_child(bars)
+	# Headlight
+	var head := MeshInstance3D.new()
+	var hm := BoxMesh.new()
+	hm.size = Vector3(0.10, 0.10, 0.16)
+	head.mesh = hm
+	var hmat := StandardMaterial3D.new()
+	hmat.albedo_color = Color(0.4, 0.35, 0.2)
+	hmat.emission_enabled = true
+	hmat.emission = Color(1.5, 1.2, 0.6)
+	hmat.emission_energy_multiplier = 2.0
+	head.material_override = hmat
+	head.position = Vector3(0.76, 1.30, 0)
+	parent.add_child(head)
+	# Wheels
+	for wx in [-0.55, 0.62]:
 		var wheel := MeshInstance3D.new()
 		var wm := CylinderMesh.new()
-		wm.top_radius = 0.22
-		wm.bottom_radius = 0.22
-		wm.height = 0.12
+		wm.top_radius = 0.16
+		wm.bottom_radius = 0.16
+		wm.height = 0.10
 		wheel.mesh = wm
 		wheel.rotation.x = PI / 2.0
 		var wmat := StandardMaterial3D.new()
 		wmat.albedo_color = Color(0.05, 0.05, 0.06)
 		wheel.material_override = wmat
-		wheel.position = Vector3(wx, 0.55, 0)
+		wheel.position = Vector3(wx, 0.16, 0)
 		parent.add_child(wheel)
 
 func _check_scooter_proximity() -> void:
@@ -1108,61 +1144,10 @@ func _build_backdrop_column(x: float, seed_v: int) -> void:
 		z += d + rng.randf_range(3.0, 9.0)
 
 
-func _build_weapon_shop() -> void:
-	# IRON ORCHID ARMS — street hardware. Katana upgrades + consumables.
-	var wx := 34.0
-	var face_z := -SIDEWALK_W - 0.5
-	var door_z := face_z + 0.72
-	var red := Color(1.0, 0.25, 0.2)
-	# Dark storefront with a barred window + weapon rack silhouettes
-	_add_box(Vector3(wx, 1.6, door_z), Vector3(3.4, 3.2, 0.10),
-		Color(0.06, 0.04, 0.04), 0.5, 0.3, true, red * Color(0.2, 0.2, 0.2, 1.0), 0.4)
-	for bx in [-1.2, -0.6, 0.0, 0.6, 1.2]:
-		_add_box(Vector3(wx + bx, 1.6, door_z + 0.06), Vector3(0.08, 2.8, 0.03),
-			Color(0.12, 0.12, 0.14), 0.7, 0.3)
-	# Glowing katana silhouette in the window
-	_add_box(Vector3(wx - 0.5, 1.9, door_z + 0.10), Vector3(1.8, 0.10, 0.03),
-		Color(0.3, 0.3, 0.35), 0.6, 0.2, true, Color(0.9, 0.95, 1.4), 1.8)
-	_add_box(Vector3(wx + 0.55, 1.9, door_z + 0.10), Vector3(0.3, 0.22, 0.03),
-		Color(0.2, 0.1, 0.1), 0.4, 0.3, true, red, 1.2)
-	var sign_label := Label3D.new()
-	sign_label.text = "IRON ORCHID ARMS"
-	sign_label.font_size = 110
-	sign_label.pixel_size = 0.01
-	sign_label.modulate = red
-	sign_label.outline_size = 22
-	sign_label.outline_modulate = Color(0.2, 0.02, 0.02)
-	sign_label.position = Vector3(wx, 4.0, door_z + 0.1)
-	add_child(sign_label)
-	var spill := OmniLight3D.new()
-	spill.position = Vector3(wx, 2.4, door_z + 1.5)
-	spill.light_color = red
-	spill.light_energy = 1.8
-	spill.omni_range = 4.5
-	spill.omni_attenuation = 1.6
-	add_child(spill)
-	var area := Area3D.new()
-	area.position = Vector3(wx, 1.2, door_z + 1.4)
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
-	shape.size = Vector3(3.6, 2.4, 2.6)
-	col.shape = shape
-	area.add_child(col)
-	area.body_entered.connect(func(b):
-		if b is CharacterBody3D:
-			_near_weapon_shop = true
-			_set_status("[E] IRON ORCHID ARMS — buy hardware"))
-	area.body_exited.connect(func(b):
-		if b is CharacterBody3D:
-			_near_weapon_shop = false
-			_set_status(""))
-	add_child(area)
-
-
 func _build_arcade_entrance() -> void:
 	# ARCADE — east end of the block, past the bar. Neon-soaked
 	# double door + sign; leads to the arcade interior scene.
-	var ax := BLOCK_HALF_W - 14.0
+	var ax := BLOCK_HALF_W - 6.0
 	var face_z := -SIDEWALK_W - 0.5
 	var door_z := face_z + 0.72
 	var neon := Color(1.0, 0.15, 0.7)
@@ -2454,9 +2439,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _near_terminal:
 			_open_ridenet()
 			return
-		if _near_weapon_shop:
-			_open_shop()
-			return
 		if _near_manhole:
 			GameState.pending_dungeon = "sewer"
 			SceneTransition.go("dungeon", "from_city")
@@ -2474,6 +2456,9 @@ func _unhandled_input(event: InputEvent) -> void:
 # tutorial-quest payoff.
 func _on_storefront_interact(def: Dictionary) -> void:
 	var id: String = def.get("id", "")
+	if id == "guns":
+		_open_shop()
+		return
 	if id == "pet":
 		if not GameState.has_item("fish_food"):
 			if GameState.credits >= 20:
