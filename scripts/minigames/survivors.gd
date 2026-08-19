@@ -7,6 +7,7 @@
 ## Hordes are ninjas, thugs, and cops (real character sheets, not shapes),
 ## with red elite variants late. Outscore CHAD's 3000 to set chadBeaten.
 extends Node2D
+const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 
 const WORLD := 2600.0
 const PLAYER_SPEED := 170.0
@@ -83,7 +84,7 @@ var _cam: Camera2D
 var _board: Node2D
 var _hud: Dictionary = {}
 var _over_layer: CanvasLayer
-var _pick_layer: CanvasLayer
+var _pick_menu
 
 func _ready() -> void:
 	get_viewport().use_hdr_2d = true
@@ -122,47 +123,36 @@ func _show_sector_select() -> void:
 	dim.color = Color(0.005, 0.005, 0.015)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_select_layer.add_child(dim)
-	var title := Label.new()
-	title.text = "NEON SURVIVORS — SELECT SECTOR"
-	title.add_theme_font_size_override("font_size", 32)
-	title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.6))
-	title.position = Vector2(640 - 280, 120)
-	_select_layer.add_child(title)
+	_sector_menu = ListMenuScript.new()
+	add_child(_sector_menu)
+	_sector_menu.picked.connect(_on_sector_pick)
+	_sector_menu.closed.connect(func():
+		_sector_menu = null
+		if _selecting:
+			_exit_to_arcade())
+	var entries: Array = []
 	for i in LEVELS.size():
 		var def: Dictionary = LEVELS[i]
 		var locked := _level_locked(i)
-		var panel := Panel.new()
-		panel.position = Vector2(280, 200 + i * 120)
-		panel.size = Vector2(720, 100)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.02, 0.05, 0.08, 0.9)
-		sb.border_color = Color(0.25, 0.28, 0.35) if locked else Color(0.0, 0.9, 1.0)
-		sb.set_border_width_all(2)
-		panel.add_theme_stylebox_override("panel", sb)
-		_select_layer.add_child(panel)
-		var name_l := Label.new()
-		name_l.text = ("[%d]  %s" % [i + 1, def.name]) if not locked 			else ("[LOCKED]  %s — clear the previous sector" % def.name)
-		name_l.add_theme_font_size_override("font_size", 22)
-		name_l.add_theme_color_override("font_color",
-			Color(0.45, 0.5, 0.6) if locked else Color(0.9, 1.0, 1.0))
-		name_l.position = Vector2(20, 14)
-		panel.add_child(name_l)
-		var desc_l := Label.new()
-		var best: int = GameState.arcade_best("survivors_" + def.id)
-		var cleared := " · CLEARED ✔" if _level_cleared(def.id) else ""
-		desc_l.text = "%s · %d:%02d run · best %d%s" % [def.desc,
-			int(def.duration) / 60, int(def.duration) % 60, best, cleared]
-		desc_l.add_theme_font_size_override("font_size", 15)
-		desc_l.add_theme_color_override("font_color",
-			Color(0.4, 0.42, 0.5) if locked else Color(0.6, 0.7, 0.75))
-		desc_l.position = Vector2(20, 54)
-		panel.add_child(desc_l)
-	var hint := Label.new()
-	hint.text = "press 1-3 to jack in · ESC back to arcade"
-	hint.add_theme_font_size_override("font_size", 15)
-	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	hint.position = Vector2(280, 200 + LEVELS.size() * 120 + 10)
-	_select_layer.add_child(hint)
+		var label := ""
+		if locked:
+			label = "%s · LOCKED · clear the previous sector" % def.name
+		else:
+			var best: int = GameState.arcade_best("survivors_" + def.id)
+			var cleared := " · CLEARED" if _level_cleared(def.id) else ""
+			label = "%s · %d:%02d run · best %d%s" % [def.name,
+				int(def.duration) / 60, int(def.duration) % 60, best, cleared]
+		entries.append({ "label": label, "dim": locked })
+	_sector_menu.open("NEON SURVIVORS · select sector", entries,
+		Color(1.0, 0.25, 0.6), "beat CHAD's 3000")
+
+func _on_sector_pick(idx: int) -> void:
+	if _level_locked(idx):
+		_sector_menu.set_footer("locked. clear the previous sector first.")
+		return
+	_selecting = false
+	_sector_menu.close_menu()
+	_start_level(idx)
 
 func _start_level(idx: int) -> void:
 	_level_def = LEVELS[idx]
@@ -285,6 +275,7 @@ var _level_def: Dictionary = {}
 var _level_id := ""
 var _selecting := true
 var _select_layer: CanvasLayer
+var _sector_menu
 var _spawn_point := Vector2(WORLD * 0.5, WORLD * 0.5)
 
 func _level_cleared(id: String) -> bool:
@@ -607,40 +598,23 @@ func _apply_choice(choice: Dictionary) -> void:
 		"razor": _dmg_bonus += 1
 		"heal": _hp = mini(PLAYER_MAX_HP, _hp + 2)
 	_picking = false
-	if _pick_layer:
-		_pick_layer.queue_free()
-		_pick_layer = null
 
 func _show_picker() -> void:
-	_pick_layer = CanvasLayer.new()
-	add_child(_pick_layer)
-	var dim := ColorRect.new()
-	dim.color = Color(0, 0, 0, 0.55)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_pick_layer.add_child(dim)
-	var title := Label.new()
-	title.text = "LEVEL %d — CHOOSE UPGRADE" % _level
-	title.add_theme_font_size_override("font_size", 30)
-	title.add_theme_color_override("font_color", Color(0.3, 1.0, 0.9))
-	title.position = Vector2(640 - 220, 180)
-	_pick_layer.add_child(title)
-	for i in _choices.size():
-		var ch: Dictionary = _choices[i]
-		var panel := Panel.new()
-		panel.position = Vector2(340, 250 + i * 90)
-		panel.size = Vector2(600, 74)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.02, 0.05, 0.08, 0.9)
-		sb.border_color = Color(0.0, 0.9, 1.0)
-		sb.set_border_width_all(2)
-		panel.add_theme_stylebox_override("panel", sb)
-		_pick_layer.add_child(panel)
-		var l := Label.new()
-		l.text = "[%d]  %s   —  %s" % [i + 1, ch.label, ch.desc]
-		l.add_theme_font_size_override("font_size", 20)
-		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
-		l.position = Vector2(20, 24)
-		panel.add_child(l)
+	_pick_menu = ListMenuScript.new()
+	add_child(_pick_menu)
+	_pick_menu.picked.connect(func(idx):
+		if idx < _choices.size():
+			_apply_choice(_choices[idx])
+			_pick_menu.close_menu())
+	_pick_menu.closed.connect(func():
+		_pick_menu = null
+		if _picking:
+			_show_picker())   # no skipping upgrades: ESC reopens
+	var entries: Array = []
+	for ch in _choices:
+		entries.append({ "label": "%s · %s" % [ch.label, ch.desc] })
+	_pick_menu.open("LEVEL %d · choose upgrade" % _level, entries,
+		Color(0.3, 1.0, 0.9))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -693,20 +667,8 @@ func _exit_to_arcade() -> void:
 	SceneTransition.go("arcade", "from_game_survivors")
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _selecting:
-		for i in LEVELS.size():
-			if event.is_action_pressed("hotbar_%d" % (i + 1)) and not _level_locked(i):
-				_start_level(i)
-				return
-		if event.is_action_pressed("ui_cancel"):
-			_exit_to_arcade()
-		return
-	if _picking:
-		for i in 3:
-			if event.is_action_pressed("hotbar_%d" % (i + 1)) and i < _choices.size():
-				_apply_choice(_choices[i])
-				return
-		return
+	if _selecting or _picking:
+		return   # ListMenu owns input while a menu is up
 	if event.is_action_pressed("ui_cancel"):
 		_exit_to_arcade()
 		return
@@ -827,31 +789,36 @@ func _draw_world(b: Node2D) -> void:
 func _build_hud() -> void:
 	var cl := CanvasLayer.new()
 	add_child(cl)
+	# HBox so nothing overlaps no matter how long the sector name gets
+	var bar := HBoxContainer.new()
+	bar.anchor_right = 1.0
+	bar.offset_left = 30
+	bar.offset_top = 8
+	bar.offset_right = -160
+	bar.add_theme_constant_override("separation", 30)
+	cl.add_child(bar)
 	var title := Label.new()
-	title.text = "NEON SURVIVORS"
 	title.add_theme_font_size_override("font_size", 22)
 	title.add_theme_color_override("font_color", Color(1.0, 0.25, 0.6))
-	title.position = Vector2(30, 8)
-	cl.add_child(title)
+	bar.add_child(title)
 	_hud["title"] = title
 	for key in ["score", "best", "hp", "lvl", "time"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 20)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
-		cl.add_child(l)
+		bar.add_child(l)
 		_hud[key] = l
-	_hud.score.position = Vector2(260, 10)
-	_hud.best.position = Vector2(440, 10)
 	_hud.best.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-	_hud.hp.position = Vector2(620, 10)
 	_hud.hp.add_theme_color_override("font_color", Color(1.0, 0.3, 0.5))
-	_hud.lvl.position = Vector2(750, 10)
 	_hud.lvl.add_theme_color_override("font_color", Color(0.7, 0.6, 1.0))
-	_hud.time.position = Vector2(920, 10)
 	var exit_btn := Button.new()
 	exit_btn.text = "EXIT GAME"
-	exit_btn.position = Vector2(1010, 8)
-	exit_btn.size = Vector2(110, 32)
+	exit_btn.anchor_left = 1.0
+	exit_btn.anchor_right = 1.0
+	exit_btn.offset_left = -140
+	exit_btn.offset_right = -30
+	exit_btn.offset_top = 8
+	exit_btn.offset_bottom = 40
 	exit_btn.focus_mode = Control.FOCUS_NONE
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.05, 0.02, 0.04, 0.9)
@@ -865,7 +832,11 @@ func _build_hud() -> void:
 	hint.text = "WASD move · weapons auto-fire · beat CHAD's 3000 · ESC exit"
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	hint.position = Vector2(30, 694)
+	hint.anchor_top = 1.0
+	hint.anchor_bottom = 1.0
+	hint.offset_left = 30
+	hint.offset_top = -26
+	hint.offset_bottom = -8
 	cl.add_child(hint)
 	_refresh_hud()
 

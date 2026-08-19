@@ -16,7 +16,7 @@ signal picked(idx: int)
 signal closed
 
 const ROW_H := 42
-const PANEL_W := 560.0
+var _panel_w := 560.0
 
 var _entries: Array = []
 var _footer_text := ""
@@ -37,14 +37,19 @@ func open(title_text: String, entries: Array, accent := Color(0.2, 1.0, 1.2),
 	dim.color = Color(0, 0, 0, 0.6)
 	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(dim)
+	# Width scales with the longest row so nothing overflows the border
+	var longest := title_text.length()
+	for e in entries:
+		longest = maxi(longest, String(e.get("label", "")).length() + 4)
+	_panel_w = clampf(90.0 + longest * 10.5, 480.0, 1000.0)
 	var panel_h := 96.0 + entries.size() * ROW_H + 74.0
 	_panel = Panel.new()
 	_panel.anchor_left = 0.5
 	_panel.anchor_right = 0.5
 	_panel.anchor_top = 0.5
 	_panel.anchor_bottom = 0.5
-	_panel.offset_left = -PANEL_W / 2.0
-	_panel.offset_right = PANEL_W / 2.0
+	_panel.offset_left = -_panel_w / 2.0
+	_panel.offset_right = _panel_w / 2.0
 	_panel.offset_top = -panel_h / 2.0
 	_panel.offset_bottom = panel_h / 2.0
 	var sb := StyleBoxFlat.new()
@@ -71,7 +76,7 @@ func open(title_text: String, entries: Array, accent := Color(0.2, 1.0, 1.2),
 	_footer_label.add_theme_font_size_override("font_size", 17)
 	_footer_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 	_footer_label.position = Vector2(26, 82 + entries.size() * ROW_H)
-	_footer_label.size = Vector2(PANEL_W - 52, 24)
+	_footer_label.size = Vector2(_panel_w - 52, 24)
 	_panel.add_child(_footer_label)
 	var hint := Label.new()
 	hint.text = "W/S · arrows to choose · ENTER or E to confirm · ESC to leave"

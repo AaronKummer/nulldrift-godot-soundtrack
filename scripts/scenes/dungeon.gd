@@ -110,7 +110,13 @@ func _ready() -> void:
 	}
 	_player_sheet = load("res://assets/sprites/player-pizza.png")
 	# Fresh maze every visit
-	_gen = DungeonGenSys.generate(_def, randi())
+	# Layout seed persists per save: the maze is stable when you come back
+	# in, but a fresh playthrough rolls new dungeons. Enemies and chest
+	# contents use the global RNG at runtime, so every visit is reinhabited.
+	var did: String = GameState.pending_dungeon
+	if not GameState.dungeon_seeds.has(did):
+		GameState.dungeon_seeds[did] = randi()
+	_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did])
 	_bake_geometry()
 	_pos = _cell_center(_gen.entrance)
 	_spawn_point = _pos
