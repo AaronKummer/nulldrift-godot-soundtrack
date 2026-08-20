@@ -22,6 +22,13 @@ func _ready() -> void:
 	# Auto-start any quests flagged auto_start=true
 	for qid in Quests.auto_start_quests():
 		start_quest(qid)
+	_apply_dev_bankroll()
+
+## Debug builds start flush so testing never stalls on credits.
+## Exported release builds are unaffected (is_debug_build() is false).
+func _apply_dev_bankroll() -> void:
+	if OS.is_debug_build():
+		credits = maxi(credits, 100_000)
 
 # ── Flags ─────────────────────────────────────────────────────────────
 
@@ -145,4 +152,5 @@ func from_dict(d: Dictionary) -> void:
 	hotbar = d.get("hotbar", { "1": "medkit", "2": "grenade", "3": "stim",
 		"4": "", "5": "", "6": "" }).duplicate(true)
 	settings = d.get("settings", { "lights": "full" }).duplicate(true)
+	_apply_dev_bankroll()
 	last_scene_id = d.get("last_scene_id", "")
