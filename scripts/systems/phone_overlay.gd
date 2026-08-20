@@ -133,7 +133,7 @@ func _build_chassis() -> void:
 	_phone.add_child(vbox)
 
 	_status_bar = Label.new()
-	_status_bar.text = "NULLDRIFT//OS  ·  23:47  ·  ▮▮▮▮▯"
+	_status_bar.text = "23:47  ·  ▮▮▮▮▯"
 	_status_bar.add_theme_font_size_override("font_size", 16)
 	_status_bar.add_theme_color_override("font_color", Color(0.0, 1.0, 0.8))
 	_status_bar.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -298,6 +298,14 @@ func _build_home() -> Control:
 
 	return screen
 
+var _emoji_font_cache: SystemFont
+
+func _emoji_font() -> SystemFont:
+	if _emoji_font_cache == null:
+		_emoji_font_cache = SystemFont.new()
+		_emoji_font_cache.font_names = ["Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji"]
+	return _emoji_font_cache
+
 func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 	var cell := VBoxContainer.new()
 	cell.add_theme_constant_override("separation", 3)
@@ -333,9 +341,11 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 		btn.pressed.connect(func(): _push(app_id))
 		cell.add_child(btn)
 	else:
-		# Glyph fallback (kept so adding a new app doesn't require artwork)
+		# Glyph fallback — Phaser-style emoji, rendered via the system
+		# emoji font so they come out in color
 		var btn := Button.new()
 		btn.text = app.get("icon", "?")
+		btn.add_theme_font_override("font", _emoji_font())
 		btn.add_theme_font_size_override("font_size", int(icon_size * 0.45))
 		btn.custom_minimum_size = Vector2(icon_size, icon_size)
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -422,6 +432,7 @@ func _build_app_body(app_id: String, color: Color) -> Control:
 		"email":    return _app_email(color)
 		"profile":  return _app_profile(color)
 		"gear":     return _app_gear(color)
+		"settings": return _app_settings(color)
 		"map":      return _stub_map(color)
 		"deck":     return _stub_deck(color)
 		_:          return _stub_generic(app_id, color)
@@ -852,6 +863,38 @@ func _gear_render(list: VBoxContainer, color: Color) -> void:
 		hl.add_theme_font_size_override("font_size", 14)
 		hl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 		list.add_child(hl)
+
+# ─────────────────────────────────────────────────────────────────────
+# Settings — graphics options (dynamic-light quality for weak machines)
+# ─────────────────────────────────────────────────────────────────────
+func _app_settings(color: Color) -> Control:
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 12)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_settings_render(list, color)
+	return list
+
+func _settings_render(list: VBoxContainer, color: Color) -> void:
+	for c in list.get_children():
+		c.queue_free()
+	var title := Label.new()
+	title.text = "GRAPHICS"
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", color)
+	list.add_child(title)
+	var mode: String = str(GameState.settings.get("lights", "full"))
+	var btn := Button.new()
+	btn.text = "DYNAMIC LIGHTS: " + mode.to_upper()
+	btn.add_theme_font_size_override("font_size", 15)
+	btn.pressed.connect(func():
+		GameState.settings["lights"] = "low" if mode == "full" else "full"
+		_settings_render(list, color))
+	list.add_child(btn)
+	var desc := Label.new()
+	desc.text = "LOW disables shadows and extra light sources\nfor low-powered machines. applies when a\nscene loads."
+	desc.add_theme_font_size_override("font_size", 12)
+	desc.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	list.add_child(desc)
 
 func _stub_generic(app_id: String, color: Color) -> Control:
 	var v := VBoxContainer.new()

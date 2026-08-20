@@ -59,6 +59,8 @@ var _blackouts: Array = []
 var _torch: PointLight2D
 var _relay_light: PointLight2D
 var _light_tex: GradientTexture2D
+var _flickers: Array = []
+var _low_lights := false
 const TEX_FLOOR := preload("res://assets/world/textures/concrete/albedo.png")
 const TEX_WALL := preload("res://assets/world/textures/metal_brushed/albedo.png")
 
@@ -103,8 +105,8 @@ func _ready() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_CANVAS
 	env.glow_enabled = true
-	env.glow_intensity = 0.9
-	env.glow_strength = 1.1
+	env.glow_intensity = 1.15
+	env.glow_strength = 1.15
 	env.glow_bloom = 0.05
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_ADDITIVE
 	env.glow_hdr_threshold = 1.0
@@ -638,6 +640,7 @@ func _use_item(id: String) -> void:
 # ═══════════════════════════════════════════════════════════════════════
 
 func _build_lights() -> void:
+	_low_lights = str(GameState.settings.get("lights", "full")) == "low"
 	var cm := CanvasModulate.new()
 	cm.color = Color(0.115, 0.125, 0.20)   # deep underground dark
 	add_child(cm)
@@ -654,10 +657,10 @@ func _build_lights() -> void:
 	_light_tex.fill_to = Vector2(0.5, 0.0)
 	# No light of your own unless you bought a headlamp at GUNS+
 	if GameState.has_item("headlamp"):
-		_torch = _add_light(_pos, Color(1.0, 0.85, 0.6), 3.6, 1.3)
+		_torch = _add_light(_pos, Color(1.0, 0.85, 0.6), 4.0, 1.6)
 	else:
 		# eyes adjusting to the dark — barely anything
-		_torch = _add_light(_pos, Color(0.75, 0.8, 0.95), 1.0, 0.22)
+		_torch = _add_light(_pos, Color(0.75, 0.8, 0.95), 1.0, 0.24)
 	# Sconces + moss glow (same deterministic spots the draw pass dresses)
 	var tiles: Array = _gen.tiles
 	for y in _gen.h:
@@ -670,19 +673,24 @@ func _build_lights() -> void:
 				continue
 			var p := Vector2((x + 0.5) * CELL, y * CELL + 8.0)
 			if _gen.flavor.has(Vector2i(x, y)):
-				_add_light(p, Color(0.35, 1.0, 0.5), 1.6, 0.7)
+				if not _low_lights:
+					var ml := _add_light(p, Color(0.35, 1.0, 0.5), 1.9, 1.0)
+					_flickers.append({ "l": ml, "ph": randf() * TAU, "base": 1.0 })
 			elif (x * 3 + y * 5) % 4 == 0:
-				_add_light(p, Color(0.55, 0.85, 1.0), 1.5, 0.85)
+				var sl := _add_light(p, Color(0.55, 0.85, 1.0), 1.9, 1.2)
+				if not _low_lights:
+					_flickers.append({ "l": sl, "ph": randf() * TAU, "base": 1.2 })
 	# Faint glow off the water
-	for r in _waters:
-		_add_light(r.get_center(), Color(0.3, 0.8, 1.0),
-			clampf(maxf(r.size.x, r.size.y) / 200.0, 1.0, 4.0), 0.3)
+	if not _low_lights:
+		for r in _waters:
+			_add_light(r.get_center(), Color(0.3, 0.8, 1.0),
+				clampf(maxf(r.size.x, r.size.y) / 200.0, 1.0, 4.0), 0.45)
 	# Grates pulse red until sealed
 	for g in _grates:
-		g["light"] = _add_light(g.pos, Color(1.0, 0.25, 0.2), 1.0, 0.5)
-	_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 1.8, 1.0)
+		g["light"] = _add_light(g.pos, Color(1.0, 0.25, 0.2), 1.2, 0.7)
+	_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 2.2, 1.3)
 	# Street light spilling down the entrance shaft
-	_add_light(_spawn_point, Color(0.7, 0.8, 1.0), 1.8, 0.9)
+	_add_light(_spawn_point, Color(0.7, 0.8, 1.0), 2.0, 1.2)
 	# Walls block light — real shadows, real dark corners
 	for r in _walls:
 		var occ := LightOccluder2D.new()
@@ -701,7 +709,7 @@ func _add_light(pos: Vector2, color: Color, tex_scale: float,
 	l.color = color
 	l.texture_scale = tex_scale
 	l.energy = energy
-	l.shadow_enabled = true
+	l.shadow_enabled = not _low_lights
 	l.shadow_filter = PointLight2D.SHADOW_FILTER_PCF5
 	l.shadow_filter_smooth = 2.5
 	l.shadow_color = Color(0, 0, 0, 0.82)
@@ -738,7 +746,11 @@ func _tick_lights() -> void:
 			g.light.color = Color(1.0, 0.7, 0.3)
 			g.light.energy = 0.25
 		else:
-			g.light.energy = 0.40 + 0.22 * sin(_anim_t * 5.0 + g.t)
+			g.light.energy = 0.55 + 0.30 * sin(_anim_t * 5.0 + g.t)
+	# Fixture flicker — dying tubes, occasional dropout blink
+	for f in _flickers:
+		var drop: float = 0.35 if fmod(_anim_t * 0.7 + f.ph, 7.0) < 0.07 else 1.0
+		f.l.energy = f.base * (0.86 + 0.14 * sin(_anim_t * 11.0 + f.ph)) * drop
 	if _relay_light:
 		var hacked: bool = GameState.has_flag(_def.objective_flag)
 		_relay_light.color = Color(0.3, 1.0, 0.5) if hacked else Color(1.0, 0.2, 0.85)

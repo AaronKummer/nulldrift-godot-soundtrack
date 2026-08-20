@@ -97,6 +97,7 @@ var arcade_scores: Dictionary = {}   # game id -> best score
 var pending_dungeon: String = "sewer"   # which dungeon the next dungeon.tscn load builds
 var dungeon_seeds: Dictionary = {}      # dungeon id -> layout seed (per save)
 var katana_level: int = 1               # weapon-store upgrades (1-3)
+var settings: Dictionary = { "lights": "full" }   # "full" | "low" (weak GPUs)
 
 func arcade_best(game: String) -> int:
 	return int(arcade_scores.get(game, 0))
@@ -127,6 +128,7 @@ func to_dict() -> Dictionary:
 		"katana_level": katana_level,
 		"dungeon_seeds": dungeon_seeds.duplicate(true),
 		"hotbar": hotbar.duplicate(true),
+		"settings": settings.duplicate(true),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -142,4 +144,5 @@ func from_dict(d: Dictionary) -> void:
 	dungeon_seeds = d.get("dungeon_seeds", {}).duplicate(true)
 	hotbar = d.get("hotbar", { "1": "medkit", "2": "grenade", "3": "stim",
 		"4": "", "5": "", "6": "" }).duplicate(true)
+	settings = d.get("settings", { "lights": "full" }).duplicate(true)
 	last_scene_id = d.get("last_scene_id", "")

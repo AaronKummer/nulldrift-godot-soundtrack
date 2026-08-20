@@ -6,7 +6,7 @@ config_version=5
 
 [application]
 
-config/name="Null//Drift"
+config/name="0xFADE"
 config/description="Cyberpunk hacker game — Godot 3D iso port of hacking-game (Phaser)"
 run/main_scene="res://scenes/soundtrack.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
