@@ -1,11 +1,11 @@
 ## THE LIBRARY — downtown's quietest building. Laura runs the desk, Brian
-## fights the "IT" system, and the back alcove shelf has one empty slot.
-## Port of the Phaser MagesGuildScene discovery: find the spellbook someone
-## keeps reshelving in fiction, place it in the empty slot, and the shelf
-## swings open on the guild.
+## fights the "IT" system, and the back alcove holds a matched set with
+## one missing volume. The missing book is on YOUR shelf at home (it came
+## with the apartment). Bring it to Laura: she knows who you are, and the
+## brass key she hands you opens the cellar door. The cellar is the guild.
 extends "res://scripts/interiors/interior_base.gd"
 
-var _guild_door_built := false
+var _cellar_glow
 
 func _ready() -> void:
 	room_w = 30.0
@@ -15,8 +15,6 @@ func _ready() -> void:
 	exit_spawn = "from_library"
 	super._ready()
 	Music.play_category("apartment")
-	if GameState.has_flag("guildDiscovered"):
-		_build_guild_door()
 
 func _ambient() -> Color:
 	return Color(0.30, 0.27, 0.22)
@@ -33,6 +31,7 @@ func _build_interior() -> void:
 	_build_reading_tables()
 	_build_fiction_shelf()
 	_build_alcove_shelf()
+	_build_cellar_door()
 	_build_people()
 	_build_lamps()
 
@@ -65,7 +64,26 @@ func _build_desk() -> void:
 		Color(0.2, 0.6, 0.9) * 0.4, 0.0, 0.4, true, Color(0.3, 0.8, 1.2), 1.2)
 	add_npc("res://assets/sprites/cyberGirl.png", Vector3(10.5, 0.9, -7.9), 0)
 	add_interact(Vector3(10.5, 1.2, -4.8), Vector3(4.4, 2.4, 2.4),
-		"talk to laura (librarian)", func(): DialogueOverlay.play("laura"))
+		"talk to laura (librarian)", _talk_laura)
+
+func _talk_laura() -> void:
+	if GameState.has_item("spellbook") and not GameState.has_flag("guildDiscovered"):
+		GameState.inventory.erase("spellbook")
+		GameState.set_flag("spellbookPlaced")
+		GameState.set_flag("guildDiscovered")
+		GameState.add_item("cellar_key")
+		DialogueOverlay.play_lines([
+			{ "speaker": "LAURA", "text": "...that's volume seven. we've been looking for that for six years.", "color": Color(0.75, 0.6, 1.0) },
+			{ "speaker": "LAURA", "text": "and it was in YOUR apartment. of course it was.", "color": Color(0.75, 0.6, 1.0) },
+			{ "speaker": "", "text": "She studies you for a long moment. Something behind her eyes recalibrates.", "color": Color(0.53, 0.53, 0.53) },
+			{ "speaker": "LAURA", "text": "we know who you are, ghost. we've known since you moved in.", "color": Color(0.9, 0.7, 1.2) },
+			{ "speaker": "", "text": "She reshelves the book without looking and presses a heavy brass key into your hand.", "color": Color(0.53, 0.53, 0.53) },
+			{ "speaker": "LAURA", "text": "the cellar. mind the circle. and QUIET, please.", "color": Color(0.75, 0.6, 1.0) },
+		], "laura_key")
+		if _cellar_glow:
+			_cellar_glow.set_active(true)
+		return
+	DialogueOverlay.play("laura")
 
 # ── reading tables + Brian ───────────────────────────────────────────────
 func _build_reading_tables() -> void:
@@ -81,7 +99,7 @@ func _build_reading_tables() -> void:
 	add_interact(Vector3(7.0, 1.2, 6.8), Vector3(2.4, 2.4, 2.4),
 		"talk to brian (it guy)", func(): DialogueOverlay.play("brian"))
 
-# ── fiction section: the spellbook that keeps reshelving itself ─────────
+# ── fiction section ──────────────────────────────────────────────────────
 func _build_fiction_shelf() -> void:
 	_add_box(Vector3(-13.2, 1.4, 3.0), Vector3(0.9, 2.8, 5.0),
 		Color(0.22, 0.15, 0.10), 0.1, 0.6)
@@ -93,21 +111,9 @@ func _build_fiction_shelf() -> void:
 	sign.position = Vector3(-12.6, 3.2, 3.0)
 	sign.rotation.y = PI / 2.0
 	add_child(sign)
-	# The one glowing spine
-	_add_box(Vector3(-12.7, 1.6, 2.2), Vector3(0.12, 0.5, 0.34),
-		Color(0.5, 0.3, 0.8), 0.0, 0.3, true, Color(0.8, 0.4, 1.6), 1.6)
 	add_interact(Vector3(-11.8, 1.2, 3.0), Vector3(2.2, 2.4, 5.2),
-		"browse fiction", _browse_fiction)
-
-func _browse_fiction() -> void:
-	if GameState.has_item("spellbook") or GameState.has_flag("spellbookPlaced"):
-		_set_status("paperbacks, mostly. whatever kept reshelving itself is gone.")
-		return
-	GameState.add_item("spellbook")
-	DialogueOverlay.play_lines([
-		{ "speaker": "", "text": "wedged between two paperbacks: a heavy book with glowing runes. it hums against your hands.", "color": Color(0.8, 0.6, 1.0) },
-		{ "speaker": "", "text": "the return label says RARE BOOKS. there is no rare books section.", "color": Color(0.6, 0.6, 0.7) },
-	], "spellbook")
+		"browse fiction", func():
+			_set_status("paperbacks. someone has dog-eared every single mystery."))
 
 # ── the back alcove: a shelf of old books, one slot empty ───────────────
 func _build_alcove_shelf() -> void:
@@ -120,41 +126,40 @@ func _build_alcove_shelf() -> void:
 		_add_box(Vector3(bx, 1.9, -9.0), Vector3(0.34, 0.6, 0.1),
 			Color(0.35, 0.28, 0.18) * (0.8 + 0.05 * (i % 4)), 0.0, 0.6)
 	add_interact(Vector3(-4.0, 1.2, -8.2), Vector3(6.4, 2.4, 2.2),
-		"a shelf of old books", _try_shelf)
+		"a matched set of old books", _try_shelf)
 
 func _try_shelf() -> void:
 	if GameState.has_flag("guildDiscovered"):
-		_set_status("the shelf stands ajar. cold air drifts out.")
+		_set_status("the set is whole again. the books look smug about it.")
 		return
 	if GameState.has_item("spellbook"):
-		GameState.inventory.erase("spellbook")
-		GameState.set_flag("spellbookPlaced")
-		GameState.set_flag("guildDiscovered")
-		DialogueOverlay.play_lines([
-			{ "speaker": "", "text": "you slide the spellbook into the empty slot. a perfect fit.", "color": Color(0.8, 0.6, 1.0) },
-			{ "speaker": "", "text": "somewhere inside the wall, tumblers turn. the shelf swings inward on silent hinges.", "color": Color(0.8, 0.6, 1.0) },
-			{ "speaker": "", "text": "purple light. a smell like ozone and old paper.", "color": Color(0.7, 0.4, 1.2) },
-		], "guild_open")
-		_build_guild_door()
-	else:
-		_set_status("a shelf of old books. one slot is empty...")
-
-func _build_guild_door() -> void:
-	if _guild_door_built:
+		_set_status("the empty slot matches your book exactly. but this isn't yours to shelve. show the librarian.")
 		return
-	_guild_door_built = true
-	# The shelf stands ajar — purple doorway into the dark
+	GameState.set_flag("librarySetSeen")
+	DialogueOverlay.play_lines([
+		{ "speaker": "", "text": "a matched set of old rune-bound volumes. one slot stands empty.", "color": Color(0.8, 0.6, 1.0) },
+		{ "speaker": "", "text": "wait. you KNOW this binding. the heavy book on your shelf at home. the one that came with the apartment.", "color": Color(0.9, 0.8, 1.0) },
+		{ "speaker": "", "text": "you have the missing book to this set. at home.", "color": Color(0.7, 0.4, 1.2) },
+	], "set_seen")
+
+func _build_cellar_door() -> void:
+	# The cellar door is always there — most people never wonder about it
 	_add_box(Vector3(0.2, 1.5, -9.5), Vector3(2.0, 3.0, 0.5),
-		Color(0.03, 0.02, 0.05), 0.2, 0.4, true, Color(0.5, 0.2, 1.0), 0.4)
-	var glow := DoorGlowScript.new()
-	glow.color = Color(0.7, 0.35, 1.5)
-	glow.opening = Vector2(2.0, 3.0)
-	glow.position = Vector3(0.2, 0.0, -9.2)
-	add_child(glow)
-	glow.set_active(true)
+		Color(0.03, 0.02, 0.05), 0.2, 0.4, true, Color(0.5, 0.2, 1.0), 0.25)
+	_add_box(Vector3(0.85, 1.4, -9.2), Vector3(0.10, 0.22, 0.08),
+		Color(0.7, 0.55, 0.2), 0.7, 0.3, true, Color(1.0, 0.8, 0.35), 0.9)   # keyhole plate
+	_cellar_glow = DoorGlowScript.new()
+	_cellar_glow.color = Color(0.7, 0.35, 1.5)
+	_cellar_glow.opening = Vector2(2.0, 3.0)
+	_cellar_glow.position = Vector3(0.2, 0.0, -9.2)
+	add_child(_cellar_glow)
+	_cellar_glow.set_active(GameState.has_flag("guildDiscovered"))
 	add_interact(Vector3(0.2, 1.2, -8.4), Vector3(2.6, 2.4, 2.0),
-		"the rare books section", func():
-			SceneTransition.go("mages_guild", "from_library"))
+		"the cellar door", func():
+			if GameState.has_flag("guildDiscovered"):
+				SceneTransition.go("mages_guild", "from_library")
+			else:
+				_set_status("locked. the keyhole is shaped like a book spine."))
 
 func _build_people() -> void:
 	# A patron lost in the stacks

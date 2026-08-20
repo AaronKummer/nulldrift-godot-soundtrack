@@ -22,10 +22,11 @@ func _floor_color() -> Color:
 	return Color(0.17, 0.13, 0.09)
 
 func _build_interior() -> void:
-	# Counter spanning the room, kitchen behind
-	_add_box(Vector3(0, 0.6, -2.0), Vector3(13.0, 1.2, 1.2),
+	# Counter along the kitchen side — leaves the east walkway open so the
+	# door isn't blocked
+	_add_box(Vector3(-2.5, 0.6, -2.0), Vector3(9.0, 1.2, 1.2),
 		Color(0.24, 0.17, 0.11), 0.1, 0.5)
-	_add_box(Vector3(0, 1.24, -2.0), Vector3(13.3, 0.08, 1.5),
+	_add_box(Vector3(-2.5, 1.24, -2.0), Vector3(9.3, 0.08, 1.5),
 		Color(0.55, 0.42, 0.26), 0.1, 0.4)
 	# The pot — big, steel, glowing faintly from the burner beneath
 	_add_box(Vector3(-2.0, 1.7, -4.0), Vector3(2.0, 1.0, 1.6),
@@ -53,15 +54,15 @@ func _build_interior() -> void:
 			[Color(0.8, 0.2, 0.15), Color(0.9, 0.75, 0.2), Color(0.2, 0.5, 0.8)][i] * 0.7,
 			0.0, 0.8)
 	# Stools
-	for i in 5:
-		var sx := -5.0 + i * 2.5
+	for i in 4:
+		var sx := -5.5 + i * 2.4
 		_add_box(Vector3(sx, 0.4, 0.2), Vector3(0.7, 0.8, 0.7),
 			Color(0.30, 0.14, 0.10), 0.1, 0.6)
 	# A regular slurping at the end seat
-	add_npc("res://assets/sprites/npc-cop.png", Vector3(5.0, 0.9, 0.2), 3)
+	add_npc("res://assets/sprites/npc-cop.png", Vector3(1.7, 0.9, 0.2), 3)
 	# The cook
 	add_npc("res://assets/sprites/npc-thug.png", Vector3(0.0, 0.9, -3.6), 0)
-	add_interact(Vector3(0.0, 1.2, -0.6), Vector3(12.0, 2.4, 2.2),
+	add_interact(Vector3(-2.5, 1.2, -0.6), Vector3(9.0, 2.4, 2.2),
 		"ramen · %dcr" % RAMEN_COST, _eat_ramen)
 	# Warm kitchen light
 	var lamp := OmniLight3D.new()

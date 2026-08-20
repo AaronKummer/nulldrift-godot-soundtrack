@@ -45,6 +45,8 @@ const POOL := [
 	{ "text": "heard somebody walked into the jackals garage and walked back out. the kid didn't even say thanks. sounds like her.",
 	  "req": { "patchRescued": true } },
 	{ "text": "ex-corpo lady drinks alone at the sushi place downtown. omnicorp compliance, they say. don't bring up the tower." },
+	{ "text": "the downtown library keeps a matched set of old books in the back. been missing a volume for years. librarian's still sore about it.",
+	  "req": { "guildDiscovered": false } },
 	{ "text": "lucky chrome pays out, sometimes. the pit boss remembers every face that wins twice." },
 
 	# City flavor / future hooks

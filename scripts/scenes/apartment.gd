@@ -119,6 +119,7 @@ func _ready() -> void:
 	_build_ceiling_lamps()
 	_build_door()
 	_build_fishtank()
+	_build_bookshelf()
 	_build_player()
 	_build_lightning()
 	_build_hud()
@@ -723,6 +724,8 @@ var _fish_silhouettes: Array = []  # MeshInstance3D × 3
 var _fishtank_water: MeshInstance3D
 var _fishtank_water_mat: StandardMaterial3D
 
+var _on_bookshelf := false
+
 func _build_fishtank() -> void:
 	# Position near the bed in the cozy corner — slightly east of the bed
 	# so the player passes it walking from the door to the bed.
@@ -849,6 +852,65 @@ func _interact_fishtank() -> void:
 	else:
 		_set_status("the fish look hungry. (buy food at the pet store)")
 
+
+func _build_bookshelf() -> void:
+	# West wall, past the bed: your paperbacks. And the one heavy book
+	# that came with the apartment and doesn't match anything you own.
+	var sx := -ROOM_W / 2.0 + 0.9
+	var sz := 4.0
+	_add_box(Vector3(sx, 1.5, sz), Vector3(0.8, 3.0, 4.2),
+		Color(0.12, 0.09, 0.06), 0.0, 0.7)
+	for shelf_i in 3:
+		var sy := 0.8 + shelf_i * 0.95
+		_add_box(Vector3(sx + 0.15, sy, sz), Vector3(0.55, 0.06, 4.0),
+			Color(0.22, 0.16, 0.10), 0.0, 0.6)
+		for i in 9:
+			if shelf_i == 1 and i == 4:
+				continue   # a gap where the odd book leans
+			var bz := sz - 1.8 + i * 0.42
+			var bh := 0.45 + fmod(float(i * 5 + shelf_i * 3), 0.22)
+			_add_box(Vector3(sx + 0.25, sy + bh * 0.5 + 0.04, bz),
+				Vector3(0.3, bh, 0.32),
+				[Color(0.55, 0.25, 0.2), Color(0.25, 0.4, 0.55),
+					Color(0.55, 0.45, 0.25), Color(0.3, 0.45, 0.3)][(i + shelf_i) % 4],
+				0.0, 0.6)
+	# The odd one: heavy, dark, faint rune-glow — removed once taken
+	if not GameState.has_flag("spellbookTaken"):
+		_add_box(Vector3(sx + 0.25, 2.05, sz - 0.1), Vector3(0.34, 0.6, 0.4),
+			Color(0.30, 0.18, 0.45), 0.0, 0.4, true, Color(0.7, 0.35, 1.4), 1.2)
+	var zone := Area3D.new()
+	zone.position = Vector3(sx + 1.2, 1.2, sz)
+	var zc := CollisionShape3D.new()
+	var zs := BoxShape3D.new()
+	zs.size = Vector3(2.0, 2.4, 4.6)
+	zc.shape = zs
+	zone.add_child(zc)
+	zone.body_entered.connect(func(b):
+		if b == _player:
+			_on_bookshelf = true
+			_set_status("[E] your bookshelf"))
+	zone.body_exited.connect(func(b):
+		if b == _player:
+			_on_bookshelf = false
+			_set_status(""))
+	add_child(zone)
+
+func _interact_bookshelf() -> void:
+	if GameState.has_flag("spellbookTaken"):
+		_set_status("paperbacks and dust. the heavy one is gone. the shelf seems relieved.")
+		return
+	GameState.set_flag("spellbookTaken")
+	GameState.add_item("spellbook")
+	if GameState.has_flag("librarySetSeen"):
+		DialogueOverlay.play_lines([
+			{ "speaker": "", "text": "the heavy rune-bound book. same binding as the set in the library's back alcove. it IS the missing volume.", "color": Color(0.8, 0.6, 1.0) },
+			{ "speaker": "", "text": "you take it. it hums like it knows it's going home. show it to the librarian.", "color": Color(0.6, 0.6, 0.7) },
+		], "spellbook")
+	else:
+		DialogueOverlay.play_lines([
+			{ "speaker": "", "text": "the heavy book that came with the apartment. rune-bound, warm to the touch, matches nothing you own.", "color": Color(0.8, 0.6, 1.0) },
+			{ "speaker": "", "text": "you take it down. somewhere, a set is incomplete.", "color": Color(0.6, 0.6, 0.7) },
+		], "spellbook")
 
 func _build_door() -> void:
 	var dx := ROOM_W / 2.0
@@ -1228,6 +1290,8 @@ func _input(event: InputEvent) -> void:
 		_exit_to_city()
 	elif event.is_action_pressed("interact") and _on_fishtank:
 		_interact_fishtank()
+	elif event.is_action_pressed("interact") and _on_bookshelf:
+		_interact_bookshelf()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
 	else:
