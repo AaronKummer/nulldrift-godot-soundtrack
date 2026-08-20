@@ -11,6 +11,7 @@
 extends Node3D
 
 const StreetDefsData := preload("res://data/street_defs.gd")
+const DoorGlowScript := preload("res://scripts/systems/door_glow.gd")
 const AnimatedBillboardScript := preload("res://scripts/systems/animated_billboard.gd")
 const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 
@@ -296,6 +297,136 @@ func _street_process(_delta: float) -> void:
 
 
 # ═══════════════════════════════════════════════════════════════════════
+# STOREFRONT — the home-street recipe, shared: facade + framed window +
+# door with approach-activated DoorGlow + awning with chain lights +
+# textured neon sign + door light pool + sign back-glow + interact zone.
+# def: { id, x, label, tex, sign: Color, awning: Color, sign_w, sign_h,
+#        scene (optional target), spawn (optional marker) }
+# ═══════════════════════════════════════════════════════════════════════
+
+func build_storefront(def: Dictionary) -> void:
+	var x: float = def.x
+	var facade_w := 8.0
+	var facade_h := 9.0
+	var face_z := -SIDEWALK_W - 0.5
+	var win_z := face_z + 0.72
+	# 1) building section
+	_add_box(Vector3(x, facade_h * 0.5, face_z), Vector3(facade_w, facade_h, 1.4),
+		Color(0.045, 0.04, 0.075), 0.10, 0.6)
+	# 2) window display
+	var win_w := 4.5
+	var win_h := 2.6
+	var win_y := 1.8
+	_add_box(Vector3(x - 1.4, win_y, win_z), Vector3(win_w, win_h, 0.04),
+		def.sign * Color(0.18, 0.18, 0.18, 1.0), 0.4, 0.10, true, def.sign, 0.55)
+	for fx in [x - 1.4 - win_w * 0.5 - 0.08, x - 1.4 + win_w * 0.5 + 0.08]:
+		_add_box(Vector3(fx, win_y, win_z), Vector3(0.12, win_h + 0.18, 0.18),
+			Color(0.20, 0.18, 0.22), 0.5, 0.4)
+	_add_box(Vector3(x - 1.4, win_y + win_h * 0.5 + 0.08, win_z),
+		Vector3(win_w + 0.2, 0.12, 0.18), Color(0.20, 0.18, 0.22), 0.5, 0.4)
+	_add_box(Vector3(x - 1.4, win_y - win_h * 0.5 - 0.08, win_z),
+		Vector3(win_w + 0.2, 0.12, 0.18), Color(0.20, 0.18, 0.22), 0.5, 0.4)
+	# simple lit shelf silhouettes behind the glass
+	for i in 3:
+		_add_box(Vector3(x - 2.4 + i * 1.0, win_y - 0.5 + (i % 2) * 0.5, win_z - 0.10),
+			Vector3(0.6, 0.5, 0.06), def.sign * Color(0.35, 0.35, 0.35, 1.0),
+			0.0, 0.5, true, def.sign, 0.30)
+	# 3) door
+	var door_x := x + 2.4
+	_add_box(Vector3(door_x, 1.55, win_z), Vector3(1.6, 3.0, 0.10),
+		Color(0.12, 0.10, 0.06), 0.3, 0.4, true, Color(1.0, 0.75, 0.30), 0.8)
+	_add_box(Vector3(door_x, 1.55, win_z + 0.06), Vector3(1.2, 2.5, 0.02),
+		Color(0.03, 0.03, 0.04), 0.0, 0.6)
+	var glow := DoorGlowScript.new()
+	glow.color = def.sign
+	glow.opening = Vector2(1.7, 3.0)
+	glow.position = Vector3(door_x, 0.05, win_z + 0.02)
+	add_child(glow)
+	_store_glows[def.id] = glow
+	_add_box(Vector3(door_x + 0.65, 1.45, win_z + 0.10), Vector3(0.06, 0.16, 0.05),
+		Color(0.7, 0.55, 0.20), 0.6, 0.3, true, Color(1.0, 0.85, 0.40), 1.8)
+	# 4) awning + chain lights
+	var awning_y: float = minf(facade_h * 0.5 + 1.5, 5.0)
+	_add_box(Vector3(x, awning_y, win_z + 0.6), Vector3(facade_w - 0.3, 0.30, 1.0),
+		def.awning, 0.1, 0.4)
+	_add_box(Vector3(x, awning_y + 0.15, win_z + 0.6), Vector3(facade_w - 0.3, 0.06, 1.02),
+		def.awning * Color(1.5, 1.5, 1.5, 1.0), 0.1, 0.4)
+	for i in 5:
+		var t: float = (i + 0.5) / 5.0
+		_add_box(Vector3(x - facade_w * 0.5 + 0.5 + t * (facade_w - 1.0),
+			awning_y - 0.30, win_z + 0.95), Vector3(0.08, 0.08, 0.08),
+			Color(1.0, 0.85, 0.30) * Color(0.2, 0.2, 0.2, 1.0), 0.0, 0.3,
+			true, Color(1.0, 0.85, 0.30), 2.5)
+	# 5) textured neon sign above the awning
+	build_textured_sign(Vector3(x, awning_y + 0.4 + def.sign_h * 0.5, win_z + 0.05),
+		Vector2(def.sign_w, def.sign_h), def.tex)
+	# 6) door light pool + sign back-glow
+	var pool := OmniLight3D.new()
+	pool.position = Vector3(door_x, 0.6, win_z + 1.2)
+	pool.light_color = Color(1.0, 0.78, 0.40)
+	pool.light_energy = 1.6
+	pool.omni_range = 3.0
+	pool.omni_attenuation = 2.2
+	add_child(pool)
+	var back := OmniLight3D.new()
+	back.position = Vector3(x, awning_y - 0.2, win_z + 0.4)
+	back.light_color = Color(clampf(def.sign.r, 0, 1), clampf(def.sign.g, 0, 1),
+		clampf(def.sign.b, 0, 1))
+	back.light_energy = 1.2
+	back.omni_range = 4.0
+	back.omni_attenuation = 2.0
+	add_child(back)
+	# 7) interact area — glow arrow + prompt only while standing at the door
+	var area := Area3D.new()
+	area.position = Vector3(door_x, 1.0, win_z + 1.8)
+	var ac := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(2.4, 2.4, 2.5)
+	ac.shape = shape
+	area.add_child(ac)
+	area.body_entered.connect(func(b):
+		if b is CharacterBody3D:
+			_near_store = def
+			if _store_glows.has(def.id):
+				_store_glows[def.id].set_active(true)
+			_set_status("[E] enter " + def.label))
+	area.body_exited.connect(func(b):
+		if b is CharacterBody3D and _near_store.get("id", "") == def.id:
+			_near_store = {}
+			if _store_glows.has(def.id):
+				_store_glows[def.id].set_active(false)
+			_set_status(""))
+	add_child(area)
+
+## Default entry behavior — defs with a "scene" go there; rest are stubs.
+## Subclasses override for special cases (shops, dungeons).
+func _on_storefront_interact(def: Dictionary) -> void:
+	if def.has("scene"):
+		SceneTransition.go(def.scene, def.get("spawn", "from_street"))
+	else:
+		_set_status("(" + def.get("label", "?") + " interior not built yet)")
+
+func build_textured_sign(pos: Vector3, size: Vector2, tex_path: String) -> void:
+	var tex := load(tex_path) as Texture2D
+	var mi := MeshInstance3D.new()
+	var qm := QuadMesh.new()
+	qm.size = size
+	mi.mesh = qm
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = tex
+	mat.emission_enabled = true
+	mat.emission_texture = tex
+	mat.emission = Color(1, 1, 1)
+	mat.emission_energy_multiplier = 0.9
+	mat.roughness = 0.6
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mi.material_override = mat
+	mi.position = pos
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(mi)
+
+
+# ═══════════════════════════════════════════════════════════════════════
 # TRAFFIC — self-lit cars, two lanes, follow-the-leader (shared by all
 # streets; the home street has its own hand-built system)
 # ═══════════════════════════════════════════════════════════════════════
@@ -390,6 +521,8 @@ func _tick_traffic(delta: float) -> void:
 # ═══════════════════════════════════════════════════════════════════════
 
 var _walkers: Array = []
+var _store_glows: Dictionary = {}
+var _near_store: Dictionary = {}
 
 func add_walker(sheet: String, x_min: float, x_max: float, z: float,
 		speed: float = 2.0) -> void:
@@ -574,6 +707,9 @@ func _ride_to_street(idx: int) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if _ride_open:
 		return   # ListMenu owns input while a menu is up
+	if event.is_action_pressed("interact") and not _near_store.is_empty():
+		_on_storefront_interact(_near_store)
+		return
 	if event.is_action_pressed("interact") and not _near_zone.is_empty():
 		_near_zone.callback.call()
 
