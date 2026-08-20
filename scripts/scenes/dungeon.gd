@@ -54,6 +54,8 @@ var _sheets := {}
 var _player_sheet: Texture2D
 var _floor_board
 var _water_board
+var _blackout_board
+var _blackouts: Array = []
 var _torch: PointLight2D
 var _relay_light: PointLight2D
 var _light_tex: GradientTexture2D
@@ -153,6 +155,9 @@ func _ready() -> void:
 	_board.game = self
 	_board.texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	add_child(_board)
+	_blackout_board = _BlackoutBoard.new()
+	_blackout_board.game = self
+	add_child(_blackout_board)
 	_build_lights()
 	_build_hud()
 	SceneTransition.consume_spawn()
@@ -176,6 +181,14 @@ class _WaterBoard extends Node2D:
 	var game
 	func _draw() -> void:
 		game._draw_water(self)
+
+class _BlackoutBoard extends Node2D:
+	var game
+	func _draw() -> void:
+		# Heavy murk over blackout rooms. Lights still add on top, so a
+		# headlamp carves visibility into it.
+		for bo in game._blackouts:
+			draw_rect(bo.rect, Color(0, 0, 0, 0.62), true)
 
 func _cell_center(c: Vector2i) -> Vector2:
 	return Vector2((c.x + 0.5) * CELL, (c.y + 0.5) * CELL)
@@ -208,6 +221,18 @@ func _bake_geometry() -> void:
 		_chests.append({ "pos": _cell_center(ch), "opened": false })
 	_pickups.append({ "pos": _cell_center(_gen.stash), "kind": "stash" })
 	_relay_pos = _cell_center(_gen.objective)
+	# Blackout rooms — no fixtures, near-zero visibility. Selection is
+	# seeded off the layout seed so the same rooms are dark every re-entry.
+	var brng := RandomNumberGenerator.new()
+	brng.seed = int(GameState.dungeon_seeds.get(GameState.pending_dungeon, 0)) + 777
+	for i in range(1, _gen.rooms.size()):
+		var room: Rect2i = _gen.rooms[i]
+		var wr := Rect2(room.position.x * CELL, room.position.y * CELL,
+			room.size.x * CELL, room.size.y * CELL)
+		if wr.has_point(_relay_pos) or wr.has_point(_cell_center(_gen.stash)):
+			continue
+		if brng.randf() < 0.30:
+			_blackouts.append({ "rect": wr, "cells": room, "warned": false })
 
 func _world_size() -> Vector2:
 	return Vector2(_gen.w * CELL, _gen.h * CELL)
@@ -247,6 +272,7 @@ func _process(delta: float) -> void:
 	_tick_spawners(delta)
 	_tick_loot(delta)
 	_tick_lights()
+	_tick_blackout_warning()
 	_cam.position = _pos
 	_refresh_hud()
 
@@ -572,14 +598,20 @@ func _unhandled_input(event: InputEvent) -> void:
 				_damage_enemy(e, NOVA_DMG)
 	elif event.is_action_pressed("ui_cancel"):
 		SceneTransition.go("city", _def.exit_spawn)
-	elif event.is_action_pressed("hotbar_1"):
-		_use_item("medkit")
-	elif event.is_action_pressed("hotbar_2"):
-		_use_item("grenade")
-	elif event.is_action_pressed("hotbar_3"):
-		_use_item("stim")
+	else:
+		for i in range(1, 7):
+			if event.is_action_pressed("hotbar_%d" % i):
+				_use_slot(i)
+				return
 
 var _boom_flash := 0.0
+
+func _use_slot(slot: int) -> void:
+	var id: String = GameState.hotbar.get(str(slot), "")
+	if id == "":
+		_set_status("slot %d empty. assign items in the phone GEAR app." % slot)
+		return
+	_use_item(id)
 
 func _use_item(id: String) -> void:
 	if not GameState.has_item(id):
@@ -607,7 +639,7 @@ func _use_item(id: String) -> void:
 
 func _build_lights() -> void:
 	var cm := CanvasModulate.new()
-	cm.color = Color(0.145, 0.16, 0.245)   # deep underground dark
+	cm.color = Color(0.115, 0.125, 0.20)   # deep underground dark
 	add_child(cm)
 	var grad := Gradient.new()
 	grad.offsets = PackedFloat32Array([0.0, 0.4, 1.0])
@@ -633,6 +665,8 @@ func _build_lights() -> void:
 			if tiles[y][x] != DungeonGenSys.T_FLOOR:
 				continue
 			if not (y > 0 and tiles[y - 1][x] == DungeonGenSys.T_WALL):
+				continue
+			if _in_blackout_cell(Vector2i(x, y)):
 				continue
 			var p := Vector2((x + 0.5) * CELL, y * CELL + 8.0)
 			if _gen.flavor.has(Vector2i(x, y)):
@@ -673,6 +707,26 @@ func _add_light(pos: Vector2, color: Color, tex_scale: float,
 	l.shadow_color = Color(0, 0, 0, 0.82)
 	add_child(l)
 	return l
+
+func _in_blackout_cell(c: Vector2i) -> bool:
+	for bo in _blackouts:
+		if (bo.cells as Rect2i).has_point(c):
+			return true
+	return false
+
+func _tick_blackout_warning() -> void:
+	var pc := Vector2i(int(_pos.x / CELL), int(_pos.y / CELL))
+	for bo in _blackouts:
+		if not bo.warned and (bo.cells as Rect2i).has_point(pc):
+			bo.warned = true
+			if not GameState.has_item("headlamp"):
+				DialogueOverlay.play_lines([
+					{ "speaker": "", "text": "it is pitch black in here.",
+					  "color": Color(0.7, 0.75, 0.85) },
+					{ "speaker": "", "text": "you are likely to be eaten by a gator.",
+					  "color": Color(1.0, 0.4, 0.35) },
+				], "blackout")
+			return
 
 func _tick_lights() -> void:
 	if _torch:
@@ -751,6 +805,8 @@ func _draw_world(b: Node2D) -> void:
 			var p := Vector2((x + 0.5) * CELL, y * CELL)
 			var above_wall: bool = y > 0 and tiles[y - 1][x] == DungeonGenSys.T_WALL
 			if not above_wall:
+				continue
+			if _in_blackout_cell(Vector2i(x, y)):
 				continue
 			if _gen.flavor.has(Vector2i(x, y)):
 				b.draw_circle(Vector2(p.x, p.y + 8.0), 7.0, _pal.flavor_light)
@@ -880,7 +936,7 @@ func _build_hud() -> void:
 	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 	title.position = Vector2(30, 8)
 	cl.add_child(title)
-	for key in ["hp", "credits", "dash", "nova", "kits", "grates"]:
+	for key in ["hp", "credits", "dash", "nova", "grates"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
@@ -890,11 +946,37 @@ func _build_hud() -> void:
 	_hud.hp.add_theme_color_override("font_color", Color(1.0, 0.3, 0.5))
 	_hud.credits.position = Vector2(430, 10)
 	_hud.credits.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	_hud.dash.position = Vector2(560, 10)
-	_hud.nova.position = Vector2(700, 10)
-	_hud.kits.position = Vector2(790, 10)
-	_hud.kits.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+	_hud.dash.position = Vector2(480, 10)
+	_hud.nova.position = Vector2(600, 10)
 	_hud.grates.position = Vector2(1085, 10)
+	# Hotbar slot boxes — assignments live in the phone GEAR app
+	_hud["slots"] = []
+	for i in 6:
+		var box := Panel.new()
+		box.position = Vector2(742 + i * 46, 4)
+		box.size = Vector2(42, 34)
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.03, 0.04, 0.07, 0.85)
+		sb.border_color = Color(0.25, 0.3, 0.4)
+		sb.set_border_width_all(1)
+		box.add_theme_stylebox_override("panel", sb)
+		cl.add_child(box)
+		var num := Label.new()
+		num.text = str(i + 1)
+		num.add_theme_font_size_override("font_size", 9)
+		num.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
+		num.position = Vector2(3, 0)
+		box.add_child(num)
+		var glyph := Label.new()
+		glyph.add_theme_font_size_override("font_size", 12)
+		glyph.position = Vector2(9, 10)
+		box.add_child(glyph)
+		var cnt := Label.new()
+		cnt.add_theme_font_size_override("font_size", 10)
+		cnt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
+		cnt.position = Vector2(24, 20)
+		box.add_child(cnt)
+		_hud.slots.append({ "glyph": glyph, "cnt": cnt })
 	_hud.grates.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 17)
@@ -902,7 +984,7 @@ func _build_hud() -> void:
 	_status_label.position = Vector2(30, 40)
 	cl.add_child(_status_label)
 	var hint := Label.new()
-	hint.text = "WASD move · SPACE dash · F emp nova · 1 medkit 2 grenade 3 stim · E interact · ESC leave"
+	hint.text = "WASD move · SPACE dash · F emp nova · 1-6 hotbar (assign in phone GEAR) · E interact · ESC leave"
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	hint.position = Vector2(30, 694)
@@ -925,7 +1007,18 @@ func _refresh_hud() -> void:
 	_hud.credits.text = "$%d" % GameState.credits
 	_hud.dash.text = "DASH ✓" if _dash_cd <= 0.0 else "DASH %.1f" % _dash_cd
 	_hud.nova.text = "NOVA ✓" if _nova_cd <= 0.0 else "NOVA %.1f" % _nova_cd
-	_hud.kits.text = "[1]KIT x%d  [2]GRN x%d  [3]STM x%d" % [_count_item("medkit"), _count_item("grenade"), _count_item("stim")]
+	for i in 6:
+		var sd: Dictionary = _hud.slots[i]
+		var id: String = GameState.hotbar.get(str(i + 1), "")
+		if id == "":
+			sd.glyph.text = ""
+			sd.cnt.text = ""
+		else:
+			sd.glyph.text = GameState.HOTBAR_GLYPHS.get(id, id.left(3).to_upper())
+			var n := _count_item(id)
+			sd.cnt.text = "x%d" % n
+			sd.glyph.add_theme_color_override("font_color",
+				Color(0.9, 1.0, 1.0) if n > 0 else Color(0.4, 0.45, 0.5))
 	var sealed := 0
 	for g in _grates:
 		if g.sealed:

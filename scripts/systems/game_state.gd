@@ -69,9 +69,29 @@ func add_credits(n: int) -> void:
 	credits = max(0, credits + n)
 	credits_changed.emit(credits)
 
+## Consumables stack (one array entry per unit); gear stays unique.
+const STACKABLE := ["medkit", "grenade", "stim"]
+## Hotbar-assignable items and their HUD glyphs.
+const HOTBAR_GLYPHS := { "medkit": "KIT", "grenade": "GRN", "stim": "STM" }
+var hotbar: Dictionary = { "1": "medkit", "2": "grenade", "3": "stim",
+	"4": "", "5": "", "6": "" }
+
 func add_item(item_id: String) -> void:
-	if not inventory.has(item_id):
+	if STACKABLE.has(item_id) or not inventory.has(item_id):
 		inventory.append(item_id)
+	# Auto-assign new consumable types to the first empty slot
+	if HOTBAR_GLYPHS.has(item_id) and not hotbar.values().has(item_id):
+		for s in ["1", "2", "3", "4", "5", "6"]:
+			if hotbar[s] == "":
+				hotbar[s] = item_id
+				break
+
+func count_item(item_id: String) -> int:
+	var n := 0
+	for it in inventory:
+		if it == item_id:
+			n += 1
+	return n
 
 var arcade_scores: Dictionary = {}   # game id -> best score
 var pending_dungeon: String = "sewer"   # which dungeon the next dungeon.tscn load builds
@@ -106,6 +126,7 @@ func to_dict() -> Dictionary:
 		"arcade_scores": arcade_scores.duplicate(true),
 		"katana_level": katana_level,
 		"dungeon_seeds": dungeon_seeds.duplicate(true),
+		"hotbar": hotbar.duplicate(true),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -119,4 +140,6 @@ func from_dict(d: Dictionary) -> void:
 	arcade_scores = d.get("arcade_scores", {}).duplicate(true)
 	katana_level = d.get("katana_level", 1)
 	dungeon_seeds = d.get("dungeon_seeds", {}).duplicate(true)
+	hotbar = d.get("hotbar", { "1": "medkit", "2": "grenade", "3": "stim",
+		"4": "", "5": "", "6": "" }).duplicate(true)
 	last_scene_id = d.get("last_scene_id", "")

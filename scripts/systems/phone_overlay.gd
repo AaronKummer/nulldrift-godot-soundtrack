@@ -421,6 +421,7 @@ func _build_app_body(app_id: String, color: Color) -> Control:
 		"stocks":   return _app_stocks(color)
 		"email":    return _app_email(color)
 		"profile":  return _app_profile(color)
+		"gear":     return _app_gear(color)
 		"map":      return _stub_map(color)
 		"deck":     return _stub_deck(color)
 		_:          return _stub_generic(app_id, color)
@@ -769,6 +770,88 @@ func _fmt_num(n: int) -> String:
 		out = "," + s.substr(i - 3, 3) + out
 		i -= 3
 	return s.substr(0, i) + out
+
+# ─────────────────────────────────────────────────────────────────────
+# Gear — hotbar assignment (port of the Phaser inventory hotbar).
+# Field keys 1-6 use whatever is assigned here.
+# ─────────────────────────────────────────────────────────────────────
+func _app_gear(color: Color) -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 10)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	_gear_render(list, color)
+	return scroll
+
+func _gear_render(list: VBoxContainer, color: Color) -> void:
+	for c in list.get_children():
+		c.queue_free()
+	var title := Label.new()
+	title.text = "HOTBAR · field keys 1-6"
+	title.add_theme_font_size_override("font_size", 16)
+	title.add_theme_color_override("font_color", color)
+	list.add_child(title)
+	for i in range(1, 7):
+		var slot := str(i)
+		var id: String = GameState.hotbar.get(slot, "")
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var l := Label.new()
+		if id == "":
+			l.text = "[%d]  (empty)" % i
+			l.add_theme_color_override("font_color", Color(0.45, 0.5, 0.58))
+		else:
+			l.text = "[%d]  %s x%d" % [i, id.to_upper(), GameState.count_item(id)]
+			l.add_theme_color_override("font_color", Color(0.9, 0.95, 1.0))
+		l.add_theme_font_size_override("font_size", 15)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		if id != "":
+			var btn := Button.new()
+			btn.text = "CLEAR"
+			btn.add_theme_font_size_override("font_size", 12)
+			btn.pressed.connect(func():
+				GameState.hotbar[slot] = ""
+				_gear_render(list, color))
+			row.add_child(btn)
+		list.add_child(row)
+	var t2 := Label.new()
+	t2.text = "ITEMS · tap a number to assign"
+	t2.add_theme_font_size_override("font_size", 16)
+	t2.add_theme_color_override("font_color", color)
+	list.add_child(t2)
+	for id in GameState.HOTBAR_GLYPHS:
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var l := Label.new()
+		var n: int = GameState.count_item(id)
+		l.text = "%s x%d" % [id.to_upper(), n]
+		l.add_theme_font_size_override("font_size", 15)
+		l.add_theme_color_override("font_color",
+			Color(0.9, 0.95, 1.0) if n > 0 else Color(0.45, 0.5, 0.58))
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		for i in range(1, 7):
+			var b := Button.new()
+			b.text = str(i)
+			b.add_theme_font_size_override("font_size", 12)
+			var slot := str(i)
+			var iid: String = id
+			b.pressed.connect(func():
+				GameState.hotbar[slot] = iid
+				_gear_render(list, color))
+			row.add_child(b)
+		list.add_child(row)
+	# Passive gear
+	if GameState.has_item("headlamp"):
+		var hl := Label.new()
+		hl.text = "HEADLAMP · passive · lights the underground"
+		hl.add_theme_font_size_override("font_size", 14)
+		hl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+		list.add_child(hl)
 
 func _stub_generic(app_id: String, color: Color) -> Control:
 	var v := VBoxContainer.new()
