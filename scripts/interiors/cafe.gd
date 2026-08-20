@@ -77,7 +77,7 @@ func _build_interior() -> void:
 			Color(0.9, 0.88, 0.85), 0.0, 0.5)
 		_add_box(Vector3(6.8, 0.82, 3.2), Vector3(0.15, 0.18, 0.15),
 			Color(0.9, 0.88, 0.85), 0.0, 0.5)
-		add_npc("res://assets/sprites/player-hacker.png", Vector3(7.4, 0.9, 3.0), 1)
+		add_npc("res://assets/sprites/lady.png", Vector3(7.4, 0.9, 3.0), 1)
 		add_interact(Vector3(5.6, 1.2, 3.0), Vector3(2.6, 2.4, 3.0),
 			"kerry · your match", _kerry_date)
 	elif GameState.has_flag("kerryDated"):

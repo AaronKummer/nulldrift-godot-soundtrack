@@ -35,7 +35,7 @@ const DEFS := {
 		# Roster (Phaser dungeonDefs stats)
 		"enemies": {
 			"rat": { "sheet": "rat", "hp": 1, "speed": 115.0, "size": 12.0,
-				"dmg": 5, "credits": 3, "tint": Color(1.15, 1.1, 1.05), "scale": 0.8,
+				"dmg": 5, "credits": 3, "tint": Color(1.2, 1.15, 1.1), "scale": 1.3,
 				"drops": false },
 			"mutant": { "sheet": "mutant", "hp": 6, "speed": 52.0, "size": 18.0,
 				"dmg": 12, "credits": 10, "tint": Color(1.05, 1.1, 1.0), "scale": 1.1 },
@@ -78,12 +78,12 @@ const DEFS := {
 			"conduit": Color(1.3, 0.7, 0.2),
 		},
 		"enemies": {
-			"jackal_runner": { "sheet": "ninja", "hp": 4, "speed": 105.0, "size": 15.0,
-				"dmg": 10, "credits": 12, "tint": Color(1.2, 0.75, 0.45), "scale": 1.0 },
-			"jackal_bruiser": { "sheet": "thug", "hp": 9, "speed": 55.0, "size": 19.0,
-				"dmg": 15, "credits": 18, "tint": Color(1.2, 0.7, 0.4), "scale": 1.15 },
-			"jackal_boss": { "sheet": "thug", "hp": 20, "speed": 62.0, "size": 22.0,
-				"dmg": 22, "credits": 60, "tint": Color(1.4, 0.5, 0.3), "scale": 1.35,
+			"jackal_runner": { "sheet": "yak1", "hp": 4, "speed": 105.0, "size": 15.0,
+				"dmg": 10, "credits": 12, "tint": Color(1.1, 0.95, 0.8), "scale": 1.0 },
+			"jackal_bruiser": { "sheet": "yak2", "hp": 9, "speed": 55.0, "size": 19.0,
+				"dmg": 15, "credits": 18, "tint": Color(1.1, 0.9, 0.75), "scale": 1.15 },
+			"jackal_boss": { "sheet": "yakboss", "hp": 20, "speed": 62.0, "size": 22.0,
+				"dmg": 22, "credits": 60, "tint": Color(1.2, 0.9, 0.7), "scale": 1.35,
 				"lunge": true },
 		},
 		"grate_pool": ["jackal_runner", "jackal_runner", "jackal_bruiser",

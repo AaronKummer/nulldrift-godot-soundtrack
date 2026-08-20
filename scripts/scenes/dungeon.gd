@@ -119,9 +119,13 @@ func _ready() -> void:
 		"cop": load("res://assets/sprites/npc-cop.png"),
 		"cat": load("res://assets/sprites/cyberCat.png"),
 		"cyberGirl": load("res://assets/sprites/cyberGirl.png"),
-		"rat": load("res://assets/sprites/creature-rat.png"),
-		"gator": load("res://assets/sprites/creature-gator.png"),
-		"mutant": load("res://assets/sprites/creature-mutant.png"),
+		"rat": load("res://assets/sprites/sewerRat.png"),
+		"gator": load("res://assets/sprites/kingCroc.png"),
+		"mutant": load("res://assets/sprites/sewerCroc.png"),
+		"troll": load("res://assets/sprites/sewerTroll.png"),
+		"yak1": load("res://assets/sprites/Yakuza1.png"),
+		"yak2": load("res://assets/sprites/Yakuza2.png"),
+		"yakboss": load("res://assets/sprites/YakuzaBoss.png"),
 	}
 	_player_sheet = load("res://assets/sprites/player-pizza.png")
 	# Fresh maze every visit

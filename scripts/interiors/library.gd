@@ -162,8 +162,9 @@ func _build_cellar_door() -> void:
 				_set_status("locked. the keyhole is shaped like a book spine."))
 
 func _build_people() -> void:
-	# A patron lost in the stacks
-	add_npc("res://assets/sprites/npc-corpo.png", Vector3(-6.0, 0.9, 0.2), 1)
+	# A patron lost in the stacks, and the library cat on the desk
+	add_npc("res://assets/sprites/streetPeople.png", Vector3(-6.0, 0.9, 0.2), 1)
+	add_npc("res://assets/sprites/whiteCat.png", Vector3(12.4, 1.45, -6.5), 1)
 
 func _build_lamps() -> void:
 	for spot in [Vector3(0.0, 3.6, -4.0), Vector3(8.0, 3.4, 4.0), Vector3(-8.0, 3.4, 4.0)]:

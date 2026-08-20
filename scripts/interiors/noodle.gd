@@ -59,7 +59,7 @@ func _build_interior() -> void:
 		_add_box(Vector3(sx, 0.4, 0.2), Vector3(0.7, 0.8, 0.7),
 			Color(0.30, 0.14, 0.10), 0.1, 0.6)
 	# A regular slurping at the end seat
-	add_npc("res://assets/sprites/npc-cop.png", Vector3(1.7, 0.9, 0.2), 3)
+	add_npc("res://assets/sprites/streetPeople.png", Vector3(1.7, 0.9, 0.2), 3)
 	# The cook
 	add_npc("res://assets/sprites/npc-thug.png", Vector3(0.0, 0.9, -3.6), 0)
 	add_interact(Vector3(-2.5, 1.2, -0.6), Vector3(9.0, 2.4, 2.2),

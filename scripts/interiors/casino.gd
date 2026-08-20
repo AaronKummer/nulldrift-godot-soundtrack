@@ -247,12 +247,12 @@ func _build_glitz() -> void:
 
 func _build_people() -> void:
 	# The pit boss. He is always watching.
-	add_npc("res://assets/sprites/npc-thug.png", Vector3(2.0, 0.9, -2.0), 0)
+	add_npc("res://assets/sprites/YakuzaBoss.png", Vector3(2.0, 0.9, -2.0), 0)
 	add_interact(Vector3(2.0, 1.2, -0.8), Vector3(2.2, 2.4, 2.0),
 		"the pit boss", func():
 			_set_status("he doesn't blink. 'luck's a system, friend. the house wrote it.'"))
 	add_npc("res://assets/sprites/npc-corpo.png", Vector3(-8.0, 0.9, -5.6), 3)
-	add_npc("res://assets/sprites/npc-cyberpunk.png", Vector3(9.5, 0.9, -4.8), 3)
+	add_npc("res://assets/sprites/streetPeople2.png", Vector3(9.5, 0.9, -4.8), 3)
 
 # ── shared game-menu plumbing ────────────────────────────────────────────
 func _open_game(title: String, entries: Array, accent: Color,

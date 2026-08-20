@@ -212,7 +212,7 @@ func _build_patrons() -> void:
 		  "facing": 3, "name": "SUIT", "color": Color(0.55, 0.75, 1.0) },
 		{ "sheet": "res://assets/sprites/npc-cyberpunk.png", "pos": Vector3(-11.0, 0.9, 4.0),
 		  "facing": 2, "name": "REGULAR", "color": Color(1.0, 0.6, 0.85) },
-		{ "sheet": "res://assets/sprites/npc-thug.png", "pos": Vector3(8.6, 0.9, 3.6),
+		{ "sheet": "res://assets/sprites/streetPeople2.png", "pos": Vector3(8.6, 0.9, 3.6),
 		  "facing": 1, "name": "POOL SHARK", "color": Color(1.0, 0.75, 0.4) },
 	]
 	for p in patrons:
