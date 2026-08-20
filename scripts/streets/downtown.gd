@@ -186,8 +186,8 @@ func _build_crowd() -> void:
 	add_walker("res://assets/sprites/npc-cyberpunk.png", 10.0, 54.0, -2.3, 2.9)
 	add_walker("res://assets/sprites/npc-cop2.png", -54.0, -20.0, -2.6, 1.9)
 	# Standing figures (converted sheets have no real walk cycle — they
-	# pose, they don't commute): suit waiting at a bench, window shopper
-	add_npc("res://assets/sprites/business-guy.png", Vector3(-16.0, 0.9, -3.9), 0)
+	# pose, they don't commute): suit loitering under the neon, window shopper
+	add_npc("res://assets/sprites/business-guy.png", Vector3(-22.5, 0.9, -3.2), 0)
 	add_npc("res://assets/sprites/princess-lavender.png", Vector3(16.2, 0.9, -3.8), 3)
 	# And a couple of fixtures: door cop at the casino, dealer by the venue
 	add_npc("res://assets/sprites/npc-cop2.png", Vector3(-44.0, 0.9, -3.6), 0)

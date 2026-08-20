@@ -219,7 +219,7 @@ func _build_patrons() -> void:
 		"pos": Vector3(-0.5, 0.9, 3.4), "facing": 0,
 		"name": "DANCER", "color": Color(1.0, 0.5, 0.5) })
 	patrons.append({ "sheet": "res://assets/sprites/princess-rose.png",
-		"pos": Vector3(-11.0, 0.9, -1.3), "facing": 0,
+		"pos": Vector3(2.5, 0.9, -3.2), "facing": 3,
 		"name": "REGRETS", "color": Color(1.0, 0.7, 0.85) })
 	for p in patrons:
 		add_npc(p.sheet, p.pos, p.facing)

@@ -71,9 +71,9 @@ func _build_interior() -> void:
 	tl.omni_range = 5.0
 	tl.position = Vector3(7.5, 1.8, 4.5)
 	add_child(tl)
-	add_npc("res://assets/sprites/npc-corpo.png", Vector3(8.4, 0.9, 4.5), 1)
-	add_interact(Vector3(6.6, 1.2, 4.5), Vector3(2.6, 2.4, 3.6),
-		"the woman in the corner booth", _talk_miko)
+	add_npc("res://assets/sprites/npc-corpo.png", Vector3(7.4, 0.9, 6.6), 0)
+	add_interact(Vector3(6.8, 1.2, 5.6), Vector3(3.2, 2.4, 3.4),
+		"the woman by the corner booth", _talk_miko)
 
 func _eat_sushi() -> void:
 	if GameState.credits < SUSHI_COST:
