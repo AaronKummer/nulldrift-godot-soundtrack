@@ -83,18 +83,33 @@ func _build_storefronts() -> void:
 						Color(0.05, 0.06, 0.09), 0.3, 0.3)
 				wx += 2.4
 			wy += 2.6
-		# Neon sign + underline tube
+		# Backed neon signboard: dark panel, tube border, glowing text
+		var board_w: float = minf(w * 0.92, st.sign.length() * 1.35 + 1.6)
+		_add_box(Vector3(cx, h + 1.5, -4.92), Vector3(board_w, 2.4, 0.18),
+			Color(0.04, 0.04, 0.06), 0.2, 0.5)
+		for edge in [[Vector3(0, 1.2, 0), Vector3(board_w, 0.09, 0.09)],
+				[Vector3(0, -1.2, 0), Vector3(board_w, 0.09, 0.09)],
+				[Vector3(-board_w * 0.5, 0, 0), Vector3(0.09, 2.4, 0.09)],
+				[Vector3(board_w * 0.5, 0, 0), Vector3(0.09, 2.4, 0.09)]]:
+			_add_box(Vector3(cx, h + 1.5, -4.80) + edge[0], edge[1],
+				col * 0.4, 0.0, 0.4, true, col, 2.4)
 		var label := Label3D.new()
 		label.text = st.sign
-		label.font_size = 120
+		label.font_size = 110
 		label.pixel_size = 0.012
-		label.modulate = col
-		label.outline_size = 18
+		label.modulate = col * 1.15
+		label.outline_size = 14
 		label.outline_modulate = Color(0, 0, 0)
-		label.position = Vector3(cx, h + 1.6, -4.8)
+		label.position = Vector3(cx, h + 1.5, -4.72)
 		add_child(label)
-		_add_box(Vector3(cx, h + 0.6, -4.85), Vector3(w * 0.7, 0.08, 0.08),
-			col * 0.4, 0.0, 0.4, true, col, 2.2)
+		# The sign actually lights the sidewalk below it
+		var sign_light := OmniLight3D.new()
+		sign_light.light_color = Color(clampf(col.r, 0, 1), clampf(col.g, 0, 1),
+			clampf(col.b, 0, 1))
+		sign_light.light_energy = 1.6
+		sign_light.omni_range = 11.0
+		sign_light.position = Vector3(cx, 4.0, -3.2)
+		add_child(sign_light)
 		# Doorway + glow
 		_add_box(Vector3(cx, 1.5, -4.88), Vector3(2.2, 3.0, 0.1),
 			Color(0.05, 0.05, 0.08), 0.4, 0.3)
@@ -151,20 +166,39 @@ func _build_fillers() -> void:
 		var col: Color = f.col
 		_add_box(Vector3(cx, h * 0.5, -9.0), Vector3(w, h, 8.0),
 			Color(0.13, 0.14, 0.18) * rng.randf_range(0.85, 1.1), 0.2, 0.7)
-		# Vertical neon sign down the frontage
+		# Vertical neon: narrow backed board hanging off the frontage
 		var txt: String = f.sign
+		var board_h: float = txt.length() * 0.72 + 0.8
+		var by: float = h - 0.6 - board_h * 0.5
+		_add_box(Vector3(cx, by, -4.92), Vector3(1.5, board_h, 0.18),
+			Color(0.04, 0.04, 0.06), 0.2, 0.5)
+		for edge in [[Vector3(-0.78, 0, 0), Vector3(0.08, board_h, 0.08)],
+				[Vector3(0.78, 0, 0), Vector3(0.08, board_h, 0.08)],
+				[Vector3(0, board_h * 0.5, 0), Vector3(1.5, 0.08, 0.08)],
+				[Vector3(0, -board_h * 0.5, 0), Vector3(1.5, 0.08, 0.08)]]:
+			_add_box(Vector3(cx, by, -4.82) + edge[0], edge[1],
+				col * 0.4, 0.0, 0.4, true, col, 2.2)
 		var vert := ""
 		for i in txt.length():
-			vert += txt[i] + ("\n" if i < txt.length() - 1 else "")
+			vert += txt[i] + ("
+" if i < txt.length() - 1 else "")
 		var label := Label3D.new()
 		label.text = vert
-		label.font_size = 58
+		label.font_size = 52
 		label.pixel_size = 0.011
-		label.modulate = col
-		label.outline_size = 12
+		label.modulate = col * 1.15
+		label.outline_size = 10
 		label.outline_modulate = Color(0, 0, 0)
-		label.position = Vector3(cx, h - 1.0 - txt.length() * 0.34, -4.75)
+		label.position = Vector3(cx, by, -4.72)
 		add_child(label)
+		# Small colored spill on the sidewalk
+		var fl := OmniLight3D.new()
+		fl.light_color = Color(clampf(col.r, 0, 1), clampf(col.g, 0, 1),
+			clampf(col.b, 0, 1))
+		fl.light_energy = 0.9
+		fl.omni_range = 7.0
+		fl.position = Vector3(cx, 3.0, -3.4)
+		add_child(fl)
 		# A lit doorway so it reads inhabited
 		_add_box(Vector3(cx, 1.4, -4.9), Vector3(1.6, 2.8, 0.08),
 			col * 0.25, 0.0, 0.5, true, col * 0.7, 0.5)

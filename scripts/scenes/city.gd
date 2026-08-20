@@ -1874,19 +1874,19 @@ func _build_cars() -> void:
 	# vehicle is LIT: emissive cabin windows, underglow, running lights, and
 	# the box trucks carry glowing ad panels on their cargo boxes.
 	var specs := [
-		{ "type": "sedan",    "x": -BLOCK_HALF_W,        "lane_z": ROAD_WIDTH * 0.30,
+		{ "type": "sedan",    "x": -BLOCK_HALF_W,        "lane_z": ROAD_WIDTH * 0.70,
 		  "color": Color(0.85, 0.18, 0.20), "speed":  9.0,
 		  "hl_color": Color(1.0, 0.95, 0.78) },
-		{ "type": "boxtruck", "x": -BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.30,
+		{ "type": "boxtruck", "x": -BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.70,
 		  "color": Color(0.20, 0.45, 0.50), "speed":  7.0,
 		  "hl_color": Color(0.95, 0.98, 1.0), "ad": Color(0.2, 1.2, 1.4) },
-		{ "type": "pickup",   "x":  BLOCK_HALF_W * 0.15, "lane_z": ROAD_WIDTH * 0.30,
+		{ "type": "pickup",   "x":  BLOCK_HALF_W * 0.15, "lane_z": ROAD_WIDTH * 0.70,
 		  "color": Color(0.95, 0.80, 0.10), "speed":  8.0,
 		  "hl_color": Color(1.0, 0.90, 0.80) },
-		{ "type": "sedan",    "x":  BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.70,
+		{ "type": "sedan",    "x":  BLOCK_HALF_W * 0.4,  "lane_z": ROAD_WIDTH * 0.30,
 		  "color": Color(0.15, 0.60, 0.95), "speed": -8.5,
 		  "hl_color": Color(0.75, 0.90, 1.0) },
-		{ "type": "boxtruck", "x":  BLOCK_HALF_W * 0.85, "lane_z": ROAD_WIDTH * 0.70,
+		{ "type": "boxtruck", "x":  BLOCK_HALF_W * 0.85, "lane_z": ROAD_WIDTH * 0.30,
 		  "color": Color(0.55, 0.30, 0.60), "speed": -6.5,
 		  "hl_color": Color(1.0, 0.85, 0.95), "ad": Color(1.5, 0.3, 1.0) },
 	]

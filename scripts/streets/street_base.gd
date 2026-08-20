@@ -311,7 +311,7 @@ func build_traffic(count: int = 8, palette: Array = []) -> void:
 	rng.seed = hash(street_id) + 99
 	for i in count:
 		var east := i % 2 == 0
-		var lane_z: float = ROAD_WIDTH * (0.30 if east else 0.72)
+		var lane_z: float = ROAD_WIDTH * (0.72 if east else 0.30)
 		var node := Node3D.new()
 		node.position = Vector3(rng.randf_range(-block_half_w, block_half_w),
 			0, lane_z + rng.randf_range(-0.4, 0.4))
