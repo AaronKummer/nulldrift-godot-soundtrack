@@ -251,7 +251,9 @@ func _build_people() -> void:
 	add_interact(Vector3(2.0, 1.2, -0.8), Vector3(2.2, 2.4, 2.0),
 		"the pit boss", func():
 			_set_status("he doesn't blink. 'luck's a system, friend. the house wrote it.'"))
-	add_npc("res://assets/sprites/npc-corpo.png", Vector3(-8.0, 0.9, -5.6), 3)
+	add_npc("res://assets/sprites/floozy-red.png", Vector3(-8.0, 0.9, -5.6), 3)
+	add_npc("res://assets/sprites/courtesan.png", Vector3(-3.4, 0.9, -5.2), 3)
+	add_npc("res://assets/sprites/business-guy.png", Vector3(5.6, 0.9, -4.9), 3)
 	add_npc("res://assets/sprites/civ/civ-b08.png", Vector3(9.5, 0.9, -4.8), 3)
 
 # ── shared game-menu plumbing ────────────────────────────────────────────

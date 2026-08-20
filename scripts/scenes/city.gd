@@ -2073,6 +2073,8 @@ func _build_walking_npcs() -> void:
 		"res://assets/sprites/npc-cop.png",
 		"res://assets/sprites/npc-cyberpunk.png",
 		"res://assets/sprites/npc-thug.png",
+		"res://assets/sprites/business-guy.png",
+		"res://assets/sprites/floozy-pink.png",
 		"res://assets/sprites/smoking_scrapper.png",
 	]
 	# 8 pedestrians along the sidewalk + a few on the south sidewalk too

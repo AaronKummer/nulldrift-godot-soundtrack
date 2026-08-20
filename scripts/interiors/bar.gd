@@ -215,6 +215,12 @@ func _build_patrons() -> void:
 		{ "sheet": "res://assets/sprites/civ/civ-b05.png", "pos": Vector3(8.6, 0.9, 3.6),
 		  "facing": 1, "name": "POOL SHARK", "color": Color(1.0, 0.75, 0.4) },
 	]
+	patrons.append({ "sheet": "res://assets/sprites/floozy-red.png",
+		"pos": Vector3(-0.5, 0.9, 3.4), "facing": 0,
+		"name": "DANCER", "color": Color(1.0, 0.5, 0.5) })
+	patrons.append({ "sheet": "res://assets/sprites/princess-rose.png",
+		"pos": Vector3(-11.0, 0.9, -1.3), "facing": 0,
+		"name": "REGRETS", "color": Color(1.0, 0.7, 0.85) })
 	for p in patrons:
 		add_npc(p.sheet, p.pos, p.facing)
 		var pname: String = p.name
