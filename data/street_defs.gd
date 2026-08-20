@@ -15,7 +15,7 @@ const STREETS := {
 		"stops": ["the dump", "chop shop", "jackals turf"],
 	},
 	"downtown": {
-		"name": "DOWNTOWN", "cost": 15, "scene": "",
+		"name": "DOWNTOWN", "cost": 15, "scene": "street_downtown",
 		"stops": ["casino", "the cathode", "growlers", "sushi", "cafe",
 			"tech shop", "library"],
 	},

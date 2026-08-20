@@ -420,15 +420,17 @@ func _damage_enemy(e: Dictionary, dmg: int) -> void:
 	if e.hp <= 0 and not e.get("scored", false):
 		e.scored = true
 		var def: Dictionary = _def.enemies[e.type]
-		var payout: int = def.credits * (3 if e.get("elite", false) else 1)
-		_coins.append({ "pos": e.pos, "amount": payout })
-		var roll := randf()
-		if roll < 0.06:
-			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "medkit" })
-		elif roll < 0.10:
-			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "grenade" })
-		elif roll < 0.13:
-			_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "stim" })
+		# Animals carry nothing; humans and machines drop credits + gear
+		if def.get("drops", true):
+			var payout: int = def.credits * (3 if e.get("elite", false) else 1)
+			_coins.append({ "pos": e.pos, "amount": payout })
+			var roll := randf()
+			if roll < 0.06:
+				_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "medkit" })
+			elif roll < 0.10:
+				_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "grenade" })
+			elif roll < 0.13:
+				_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "stim" })
 
 func _spawn_enemy(at: Vector2, pool: Array) -> void:
 	if _enemies.size() >= 28:
@@ -798,17 +800,36 @@ func _draw_world(b: Node2D) -> void:
 				for i in 4:
 					b.draw_rect(Rect2(cell_rect.position + Vector2(6, 10 + i * 42),
 						Vector2(CELL - 12, 30)), _pal.bridge, true)
-	# Walls — brushed metal, pattern continuous across rects
+	# Walls — the mass is void-black; a metal FACE renders only where a
+	# wall meets walkable space below it. Reads as walls, not stacked
+	# blocks, and kills the rim seams between merged rows.
 	for r in _walls:
-		b.draw_texture_rect_region(TEX_WALL, r,
-			Rect2(r.position * 2.6, r.size * 2.6), _pal.wall * 3.4)
-		if _pal.has("conduit") and r.size.x >= CELL * 2.0:
-			var flick := 0.75 + 0.25 * sin(_anim_t * 9.0 + r.position.x * 0.01)
-			b.draw_rect(Rect2(r.position.x + 14.0, r.end.y - 12.0,
-				r.size.x - 28.0, 3.0), _pal.conduit * flick, true)
-		b.draw_rect(Rect2(r.position, Vector2(r.size.x, 5.0)), _pal.wall_rim * 2.0, true)
-		b.draw_rect(Rect2(Vector2(r.position.x, r.end.y - 5.0),
-			Vector2(r.size.x, 5.0)), _pal.wall_rim * 0.8, true)
+		b.draw_rect(r, Color(0.010, 0.012, 0.018), true)
+	var flick := 0.75 + 0.25 * sin(_anim_t * 9.0)
+	for y in _gen.h:
+		for x in _gen.w:
+			if tiles[y][x] != DungeonGenSys.T_WALL:
+				continue
+			var wx: float = x * CELL
+			var wy: float = y * CELL
+			if y + 1 < _gen.h and tiles[y + 1][x] != DungeonGenSys.T_WALL:
+				var face := Rect2(wx, wy + CELL * 0.45, CELL, CELL * 0.55)
+				b.draw_texture_rect_region(TEX_WALL, face,
+					Rect2(face.position * 2.6, face.size * 2.6), _pal.wall * 3.4)
+				b.draw_rect(Rect2(wx, wy + CELL * 0.45, CELL, 5.0),
+					_pal.wall_rim * 1.8, true)
+				if _pal.has("conduit"):
+					b.draw_rect(Rect2(wx, wy + CELL - 13.0, CELL, 3.0),
+						_pal.conduit * flick, true)
+			# Thin edge lines where the void borders open space — keeps the
+			# maze silhouette readable without lighting seams
+			if y > 0 and tiles[y - 1][x] != DungeonGenSys.T_WALL:
+				b.draw_rect(Rect2(wx, wy, CELL, 3.0), _pal.wall_rim * 0.7, true)
+			if x > 0 and tiles[y][x - 1] != DungeonGenSys.T_WALL:
+				b.draw_rect(Rect2(wx, wy, 3.0, CELL), _pal.wall_rim * 0.7, true)
+			if x + 1 < _gen.w and tiles[y][x + 1] != DungeonGenSys.T_WALL:
+				b.draw_rect(Rect2(wx + CELL - 3.0, wy, 3.0, CELL),
+					_pal.wall_rim * 0.7, true)
 	# Lighting dressing: flavor glow in flavor rooms, sconces elsewhere
 	for y in _gen.h:
 		for x in _gen.w:

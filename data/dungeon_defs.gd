@@ -35,12 +35,13 @@ const DEFS := {
 		# Roster (Phaser dungeonDefs stats)
 		"enemies": {
 			"rat": { "sheet": "rat", "hp": 1, "speed": 115.0, "size": 12.0,
-				"dmg": 5, "credits": 3, "tint": Color(1.15, 1.1, 1.05), "scale": 0.8 },
+				"dmg": 5, "credits": 3, "tint": Color(1.15, 1.1, 1.05), "scale": 0.8,
+				"drops": false },
 			"mutant": { "sheet": "mutant", "hp": 6, "speed": 52.0, "size": 18.0,
 				"dmg": 12, "credits": 10, "tint": Color(1.05, 1.1, 1.0), "scale": 1.1 },
 			"gator": { "sheet": "gator", "hp": 18, "speed": 55.0, "size": 26.0,
 				"dmg": 26, "credits": 28, "tint": Color(1.05, 1.1, 1.0), "scale": 1.6,
-				"lunge": true },
+				"lunge": true, "drops": false },
 		},
 		"grate_pool": ["rat", "rat", "rat", "mutant", "mutant", "gator"],
 		"hole_pool": ["rat"],

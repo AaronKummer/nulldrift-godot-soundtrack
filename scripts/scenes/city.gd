@@ -719,7 +719,7 @@ const RIDENET_STOPS := [
 	{ "name": "GUNS+", "pos": Vector3(44.0, 0.85, -2.0), "price": 5 },
 	{ "name": "WEST END", "pos": Vector3(-52.0, 0.85, -2.0), "price": 5 },
 	{ "name": "THE WARZONE", "scene": "street_warzone", "price": 30 },
-	{ "name": "DOWNTOWN — [SOON]", "price": -1 },
+	{ "name": "DOWNTOWN", "scene": "street_downtown", "price": 15 },
 	{ "name": "THE STACK — [SOON]", "price": -1 },
 ]
 

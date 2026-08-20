@@ -37,6 +37,67 @@ const TREES := {
 		},
 	],
 
+	"laura": [
+		{
+			"condition": { "flag": "guildDiscovered" },
+			"lines": [
+				{ "speaker": "LAURA", "text": "you found the rare books section.", "color": Color(0.75, 0.6, 1.0) },
+				{ "speaker": "LAURA", "text": "i was starting to think nobody in this city could read.", "color": Color(0.75, 0.6, 1.0) },
+				{ "speaker": "", "text": "She stamps a return card that has nothing on it.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "LAURA", "text": "quiet please. the books prefer it.", "color": Color(0.75, 0.6, 1.0) },
+				{ "speaker": "LAURA", "text": "somebody keeps shelving spellbooks in the fiction section. they keep reshelving themselves.", "color": Color(0.75, 0.6, 1.0) },
+				{ "speaker": "LAURA", "text": "if you find one, it belongs in rare books. we don't have a rare books section.", "color": Color(0.75, 0.6, 1.0) },
+			],
+		},
+	],
+
+	"brian": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "BRIAN", "text": "i'm supposed to be the IT guy but half the 'technology' here runs on ACTUAL MAGIC.", "color": Color(0.4, 0.9, 1.0) },
+				{ "speaker": "BRIAN", "text": "the catalog system? literal magic. i filed a ticket. the ticket caught fire.", "color": Color(0.4, 0.9, 1.0) },
+				{ "speaker": "BRIAN", "text": "don't touch anything glowing in the stacks. or do. i get paid either way.", "color": Color(0.4, 0.9, 1.0) },
+			],
+		},
+	],
+
+	"archmage": [
+		{
+			"condition": { "flag": "grimoire" },
+			"lines": [
+				{ "speaker": "ARCHMAGE", "text": "back again. the circle remembers your footprints.", "color": Color(0.85, 0.5, 1.4) },
+				{ "speaker": "ARCHMAGE", "text": "study the grimoire. spells are just code the universe forgot to deprecate.", "color": Color(0.85, 0.5, 1.4) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "ARCHMAGE", "text": "you placed the book. good. it gets restless when it's misfiled.", "color": Color(0.85, 0.5, 1.4) },
+				{ "speaker": "ARCHMAGE", "text": "welcome to rare books. membership is automatic and non-refundable.", "color": Color(0.85, 0.5, 1.4) },
+				{ "speaker": "ARCHMAGE", "text": "check your phone. we installed something. the paperwork signed itself.", "color": Color(0.85, 0.5, 1.4) },
+				{ "speaker": "", "text": "The GRIMOIRE app shimmers onto your home screen.", "color": Color(0.7, 0.4, 1.2) },
+			],
+		},
+	],
+
+	"zee": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "ZEE", "text": "first time? perfect tommy nights get loud. godsnack nights get weird.", "color": Color(1.0, 0.4, 0.9) },
+				{ "speaker": "ZEE", "text": "aaron killed it on the ultranova last week. brian's voice is unreal live.", "color": Color(1.0, 0.4, 0.9) },
+				{ "speaker": "ZEE", "text": "greg? greg once played a forty minute song about a parking structure. people cried.", "color": Color(1.0, 0.4, 0.9) },
+				{ "speaker": "", "text": "The bass hits so hard your fillings vibrate.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
 	"apartment_cat": [
 		{
 			"condition": null,

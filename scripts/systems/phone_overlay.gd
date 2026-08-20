@@ -282,6 +282,8 @@ func _build_home() -> Control:
 	grid.add_theme_constant_override("v_separation", 14)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for app in APPS:
+		if app.has("gate") and not GameState.has_flag(str(app.gate)):
+			continue
 		grid.add_child(_build_app_icon(app, icon_size))
 	screen.add_child(grid)
 

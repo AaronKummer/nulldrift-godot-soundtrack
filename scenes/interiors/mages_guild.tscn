@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift42guil"]
+
+[ext_resource type="Script" path="res://scripts/interiors/mages_guild.gd" id="1_s"]
+
+[node name="MagesGuild" type="Node3D"]
+script = ExtResource("1_s")

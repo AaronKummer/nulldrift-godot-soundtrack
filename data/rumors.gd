@@ -40,6 +40,7 @@ const POOL := [
 	{ "text": "stims from the shop slow the whole world down. don't ask what they speed up." },
 
 	# City flavor / future hooks
+	{ "text": "perfect tommy plays the cathode downtown. the synth guy is unreal. godsnack nights are... something else." },
 	{ "text": "downtown's got a casino now. the cathode, growler's, the whole strip. ridenet says soon. soon means soon." },
 	{ "text": "don't swim the canal. i knew a guy. we don't talk about the guy." },
 	{ "text": "the scooters on the sidewalk are free. nobody knows who charges them. nobody asks." },

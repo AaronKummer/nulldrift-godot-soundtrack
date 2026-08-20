@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift41libr"]
+
+[ext_resource type="Script" path="res://scripts/interiors/library.gd" id="1_s"]
+
+[node name="LibraryInterior" type="Node3D"]
+script = ExtResource("1_s")
