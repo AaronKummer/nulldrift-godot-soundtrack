@@ -2092,6 +2092,8 @@ func _build_walking_npcs() -> void:
 		ab.pixel_size = 0.04  # match player
 		ab.position = Vector3(0, 0, 0)
 		pivot.add_child(ab)
+		ab.tint = [Color(1, 1, 1), Color(1.0, 0.85, 0.85), Color(0.85, 0.9, 1.0),
+			Color(0.88, 1.0, 0.88), Color(1.0, 0.95, 0.78), Color(0.82, 0.86, 0.95)][i % 6]
 		ab.load_sheet(sheets[i % sheets.size()])
 		var dir: int = 1 if rng.randf() < 0.5 else -1
 		ab.facing = (AnimatedBillboardScript.Facing.RIGHT if dir > 0

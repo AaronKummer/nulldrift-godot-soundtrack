@@ -36,6 +36,11 @@ var moving: bool = false
 var show_floor_shadow: bool = true
 
 var _sprite: Sprite3D
+var tint := Color(1, 1, 1):
+	set(v):
+		tint = v
+		if _sprite:
+			_sprite.modulate = v
 var _atlas: AtlasTexture
 var _tex: Texture2D
 var _frame := 0
@@ -90,6 +95,7 @@ func _ready() -> void:
 	add_child(_shadow)
 
 	_sprite = Sprite3D.new()
+	_sprite.modulate = tint
 	_sprite.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	_sprite.pixel_size = pixel_size
 	_sprite.shaded = false

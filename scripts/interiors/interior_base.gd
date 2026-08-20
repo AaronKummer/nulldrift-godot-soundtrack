@@ -189,7 +189,8 @@ func add_interact(pos: Vector3, size: Vector3, prompt: String,
 			_set_status(""))
 	add_child(area)
 
-func add_npc(sheet: String, pos: Vector3, facing: int = 0) -> Node3D:
+func add_npc(sheet: String, pos: Vector3, facing: int = 0,
+		tint: Color = Color(1, 1, 1)) -> Node3D:
 	var pivot := Node3D.new()
 	pivot.position = pos
 	add_child(pivot)
@@ -197,6 +198,7 @@ func add_npc(sheet: String, pos: Vector3, facing: int = 0) -> Node3D:
 	ab.show_floor_shadow = false
 	ab.pixel_size = 0.04
 	pivot.add_child(ab)
+	ab.tint = tint
 	ab.load_sheet(sheet)
 	ab.facing = facing
 	ab.set_moving(false)

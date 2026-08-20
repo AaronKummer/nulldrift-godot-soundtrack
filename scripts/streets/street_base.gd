@@ -568,6 +568,7 @@ func add_walker(sheet: String, x_min: float, x_max: float, z: float,
 	ab.show_floor_shadow = false
 	ab.pixel_size = 0.04
 	pivot.add_child(ab)
+	ab.tint = random_tint()
 	ab.load_sheet(sheet)
 	ab.set_moving(true)
 	var dir := 1 if randf() < 0.5 else -1
@@ -781,7 +782,19 @@ func _add_box(pos: Vector3, sz: Vector3, col: Color,
 	add_child(body)
 	return body
 
-func add_npc(sheet: String, pos: Vector3, facing: int = 0) -> void:
+## Subtle whole-sprite tints — the Phaser setTint trick. Same sheet reads
+## as different people: warm coat, cool jacket, faded, sun-bleached...
+const NPC_TINTS := [
+	Color(1, 1, 1), Color(1.0, 0.85, 0.85), Color(0.85, 0.9, 1.0),
+	Color(0.88, 1.0, 0.88), Color(1.0, 0.95, 0.78), Color(0.82, 0.86, 0.95),
+	Color(0.95, 0.82, 0.95), Color(0.9, 0.9, 0.9),
+]
+
+func random_tint() -> Color:
+	return NPC_TINTS[randi() % NPC_TINTS.size()]
+
+func add_npc(sheet: String, pos: Vector3, facing: int = 0,
+		tint: Color = Color(1, 1, 1)) -> void:
 	var pivot := Node3D.new()
 	pivot.position = pos
 	add_child(pivot)
@@ -789,6 +802,7 @@ func add_npc(sheet: String, pos: Vector3, facing: int = 0) -> void:
 	ab.show_floor_shadow = false
 	ab.pixel_size = 0.04
 	pivot.add_child(ab)
+	ab.tint = tint
 	ab.load_sheet(sheet)
 	ab.facing = facing
 	ab.set_moving(false)

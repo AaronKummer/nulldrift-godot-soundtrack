@@ -185,7 +185,9 @@ func _build_crowd() -> void:
 	for i in 10:
 		var px := rng.randf_range(-8.0, 8.0)
 		var pz := rng.randf_range(-4.6, -1.8)
-		var fan := add_npc(sheets[i % sheets.size()], Vector3(px, 0.9, pz), 3)
+		var fan := add_npc(sheets[i % sheets.size()], Vector3(px, 0.9, pz), 3,
+			[Color(1, 1, 1), Color(1.0, 0.85, 0.85), Color(0.85, 0.9, 1.0),
+				Color(0.88, 1.0, 0.88), Color(1.0, 0.95, 0.78)][rng.randi() % 5])
 		_crowd.append({ "node": fan, "phase": rng.randf() * TAU,
 			"amp": rng.randf_range(0.06, 0.16), "base": 0.9 })
 
