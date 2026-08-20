@@ -48,7 +48,7 @@ func _build_interior() -> void:
 		lamp.omni_range = 7.0
 		lamp.position = Vector3(lx, 3.0, -4.0)
 		add_child(lamp)
-	add_npc("res://assets/sprites/business-guy.png", Vector3(2.5, 0.9, -3.4), 3)
+	add_npc("res://assets/sprites/civ/civ-b03.png", Vector3(2.5, 0.9, -3.4), 3)
 	# Chef Tatsu
 	add_npc("res://assets/sprites/npc-thug.png", Vector3(-2.0, 0.9, -6.4), 0)
 	add_interact(Vector3(-2.0, 1.2, -3.6), Vector3(11.0, 2.4, 2.0),

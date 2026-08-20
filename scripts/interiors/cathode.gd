@@ -175,11 +175,11 @@ func _build_spotlights() -> void:
 # ── the crowd ────────────────────────────────────────────────────────────
 func _build_crowd() -> void:
 	var sheets := ["res://assets/sprites/civ/civ-a02.png",
-		"res://assets/sprites/civ/civ-a05.png", "res://assets/sprites/courtesan.png",
-		"res://assets/sprites/civ/civ-b01.png", "res://assets/sprites/floozy-gold.png",
-		"res://assets/sprites/civ/civ-b07.png", "res://assets/sprites/princess-pink.png",
+		"res://assets/sprites/civ/civ-a05.png", "res://assets/sprites/civ/civ-a09.png",
+		"res://assets/sprites/civ/civ-b01.png", "res://assets/sprites/civ/civ-b04.png",
+		"res://assets/sprites/civ/civ-b07.png", "res://assets/sprites/civ/civ-b10.png",
 		"res://assets/sprites/civ/civ-a11.png", "res://assets/sprites/cyberGirl.png",
-		"res://assets/sprites/business-guy.png"]
+		"res://assets/sprites/lady.png"]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xCA70
 	for i in 10:

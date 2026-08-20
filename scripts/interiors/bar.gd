@@ -215,10 +215,10 @@ func _build_patrons() -> void:
 		{ "sheet": "res://assets/sprites/civ/civ-b05.png", "pos": Vector3(8.6, 0.9, 3.6),
 		  "facing": 1, "name": "POOL SHARK", "color": Color(1.0, 0.75, 0.4) },
 	]
-	patrons.append({ "sheet": "res://assets/sprites/floozy-red.png",
+	patrons.append({ "sheet": "res://assets/sprites/civ/civ-a06.png",
 		"pos": Vector3(-0.5, 0.9, 3.4), "facing": 0,
 		"name": "DANCER", "color": Color(1.0, 0.5, 0.5) })
-	patrons.append({ "sheet": "res://assets/sprites/princess-rose.png",
+	patrons.append({ "sheet": "res://assets/sprites/civ/civ-b09.png",
 		"pos": Vector3(2.5, 0.9, -3.2), "facing": 3,
 		"name": "REGRETS", "color": Color(1.0, 0.7, 0.85) })
 	for p in patrons:
