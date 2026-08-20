@@ -98,6 +98,77 @@ const TREES := {
 		},
 	],
 
+	"miko": [
+		{
+			"condition": { "flag": "mikoHome" },
+			"lines": [
+				{ "speaker": "MIKO", "text": "you again. good. sit. i already ordered for you.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "MIKO", "text": "i told the tower recruiter no this morning. out loud. in public.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "", "text": "Under the table, her hand finds yours like it's been doing it for years.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+		{
+			"condition": { "flag": "mikoWarm" },
+			"lines": [
+				{ "speaker": "MIKO", "text": "sake again? you're either interested or an expense account.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "MIKO", "text": "eight years in compliance. i signed things that outlive both of us. don't look impressed.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "MIKO", "text": "my place has a real window. actual sky. you should verify that. tonight.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "", "text": "She's already standing. Compliance never asks twice.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+		{
+			"condition": { "flag": "mikoMet" },
+			"lines": [
+				{ "speaker": "MIKO", "text": "still here? most people see the corpo posture and pick another table.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "MIKO", "text": "buy the next round and i might tell you what i did at omnicorp.", "color": Color(1.0, 0.6, 0.75) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "MIKO", "text": "if you're selling something, the answer is no. if you're the pizza guy, you're very lost.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "MIKO", "text": "...you're not leaving. fine. miko. formerly omnicorp compliance. currently drinking.", "color": Color(1.0, 0.6, 0.75) },
+				{ "speaker": "", "text": "She pours herself another and, after a beat, gestures at the empty seat.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
+	"kerry_date": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "KERRY", "text": "you came! i was worried you'd ghost me. ...pun intended.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "GHOST", "text": "couldn't resist. you had me at 'not a bot.'", "color": Color(0.4, 1.0, 0.9) },
+				{ "speaker": "KERRY", "text": "so... an unemployed programmer. bold of you to put that in the bio.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "GHOST", "text": "the AI took the job. figured honesty was the only thing it couldn't automate.", "color": Color(0.4, 1.0, 0.9) },
+				{ "speaker": "KERRY", "text": "*laughs* i lost half my design clients to AI too. we're both dinosaurs.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "GHOST", "text": "i'm building a game though. vibe coding it with the AI.", "color": Color(0.4, 1.0, 0.9) },
+				{ "speaker": "KERRY", "text": "wait — you're using the thing that replaced you to build something new?", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "KERRY", "text": "that's either genius or insane.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "GHOST", "text": "why not both?", "color": Color(0.4, 1.0, 0.9) },
+				{ "speaker": "KERRY", "text": "*smiles* i like you, ghost. ...aaron. can i call you aaron?", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "", "text": "It's the third time this week you've shut this cafe down together. The texts never really stopped.", "color": Color(0.53, 0.53, 0.53) },
+				{ "speaker": "KERRY", "text": "ok. insane idea. my lease is up, my place is a shoebox, and i hate going home when you're here.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "KERRY", "text": "move in with me. tell me it's too fast. then say yes anyway.", "color": Color(1.0, 0.55, 0.6) },
+				{ "speaker": "GHOST", "text": "it's too fast. ...yes.", "color": Color(0.4, 1.0, 0.9) },
+				{ "speaker": "", "text": "The coffee gets cold. Neither of you notices.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
+	"bulletin_board": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "BULLETIN BOARD", "text": "LOST: one cybernetic arm. responds to the name 'lefty'. reward.", "color": Color(0.9, 0.85, 0.7) },
+				{ "speaker": "BULLETIN BOARD", "text": "FOR SALE: slightly used neural implant. only crashed twice.", "color": Color(0.9, 0.85, 0.7) },
+				{ "speaker": "BULLETIN BOARD", "text": "WANTED: someone to fix my smart fridge. it keeps ordering pizza.", "color": Color(0.9, 0.85, 0.7) },
+				{ "speaker": "BULLETIN BOARD", "text": "BAND LOOKING FOR DRUMMER: must have at least 2 organic arms.", "color": Color(0.9, 0.85, 0.7) },
+				{ "speaker": "BULLETIN BOARD", "text": "FREE KITTENS: warning — may be slightly irradiated.", "color": Color(0.9, 0.85, 0.7) },
+			],
+		},
+	],
+
 	"apartment_cat": [
 		{
 			"condition": null,

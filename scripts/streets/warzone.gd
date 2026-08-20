@@ -39,6 +39,7 @@ func _build_street() -> void:
 	_build_ruins()
 	_build_chop_shop()
 	_build_dump_entrance()
+	_build_garage_entrance()
 	_build_jackals()
 	_build_barrel_fires()
 	_build_wrecks()
@@ -49,7 +50,7 @@ func _build_street() -> void:
 	m.position = Vector3(-4.0, 0.0, -2.5)
 	add_child(m)
 
-const RESERVED_LOTS := [[-45.0, -22.0], [14.0, 30.0]]   # dump, chop shop
+const RESERVED_LOTS := [[-45.0, -22.0], [14.0, 30.0], [36.0, 54.0]]   # dump, chop shop, garage
 
 func _lot_reserved(x0: float, x1: float) -> bool:
 	for lot in RESERVED_LOTS:
@@ -184,6 +185,53 @@ func _build_dump_entrance() -> void:
 		"squeeze through the fence — THE DUMP", func():
 			GameState.pending_dungeon = "office"
 			SceneTransition.go("dungeon", "from_city"))
+
+func _build_garage_entrance() -> void:
+	# THE GARAGE — Chrome Jackals' clubhouse. They took the chop shop
+	# mechanic's apprentice. Kick the door in.
+	var gx := 45.0
+	_add_box(Vector3(gx, 3.0, -5.6), Vector3(16.0, 6.0, 1.4),
+		Color(0.13, 0.11, 0.10), 0.2, 0.7)
+	for i in 7:
+		_add_box(Vector3(gx, 0.5 + i * 0.66, -4.85), Vector3(8.0, 0.55, 0.08),
+			Color(0.15, 0.14, 0.13) * (1.0 - float(i) * 0.04), 0.7, 0.4)
+	# Jackals tag over the door
+	var label := Label3D.new()
+	label.text = "GARAGE"
+	label.font_size = 110
+	label.pixel_size = 0.011
+	label.modulate = Color(1.4, 0.6, 0.2)
+	label.outline_size = 16
+	label.outline_modulate = Color(0, 0, 0)
+	label.position = Vector3(gx, 6.9, -4.8)
+	add_child(label)
+	var tag := Label3D.new()
+	tag.text = "JACKALS ONLY"
+	tag.font_size = 54
+	tag.pixel_size = 0.01
+	tag.modulate = Color(1.2, 0.35, 0.15)
+	tag.position = Vector3(gx, 5.6, -4.8)
+	tag.rotation.z = 0.06
+	add_child(tag)
+	# Bikes out front
+	for bx in [gx - 5.0, gx - 3.2, gx + 4.0]:
+		_add_box(Vector3(bx, 0.5, -3.2), Vector3(1.8, 0.7, 0.5),
+			Color(0.12, 0.10, 0.10), 0.5, 0.5)
+		_add_box(Vector3(bx, 0.35, -3.2), Vector3(0.5, 0.5, 0.15),
+			Color(1.2, 0.5, 0.2) * 0.4, 0.0, 0.5, true, Color(1.3, 0.55, 0.2), 0.8)
+	add_interact(Vector3(gx, 1.2, -3.6), Vector3(6.0, 2.4, 2.6),
+		"the garage — jackals only", func():
+			GameState.pending_dungeon = "garage"
+			SceneTransition.go("dungeon", "from_city"))
+	# Return markers for the garage and the dump
+	var mg := Node3D.new()
+	mg.name = "from_garage"
+	mg.position = Vector3(gx, 0.0, -2.4)
+	add_child(mg)
+	var md := Node3D.new()
+	md.name = "from_dump"
+	md.position = Vector3(-34.0, 0.0, -2.4)
+	add_child(md)
 
 func _build_jackals() -> void:
 	# Chrome Jackals loitering — thug sprites with red accents

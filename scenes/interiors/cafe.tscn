@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift47cafe"]
+
+[ext_resource type="Script" path="res://scripts/interiors/cafe.gd" id="1_s"]
+
+[node name="CafeInterior" type="Node3D"]
+script = ExtResource("1_s")

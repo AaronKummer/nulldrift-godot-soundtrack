@@ -731,6 +731,8 @@ func _date_button(text: String, color: Color) -> Button:
 
 func _on_date_vote(profile_id: String, liked_it: bool) -> void:
 	PhoneState.vote(profile_id, liked_it)
+	if profile_id == "kerry" and liked_it and not GameState.has_flag("kerryMatched"):
+		GameState.set_flag("kerryMatched")
 	# Refresh the dating view in-place
 	var top: Dictionary = _stack[-1]
 	(top["node"] as Node).queue_free()

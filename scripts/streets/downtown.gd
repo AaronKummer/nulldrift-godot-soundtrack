@@ -56,6 +56,12 @@ func _build_street() -> void:
 	mc.name = "from_cathode"
 	mc.position = Vector3(-26.0, 0.0, -2.2)
 	add_child(mc)
+	for mk in [["from_casino", -46.0], ["from_sushi", 4.0],
+			["from_cafe", 17.0], ["from_noodle", -17.5]]:
+		var mm := Node3D.new()
+		mm.name = mk[0]
+		mm.position = Vector3(mk[1], 0.0, -2.2)
+		add_child(mm)
 
 func _build_storefronts() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -131,6 +137,9 @@ func _enter_store(id: String, sign_name: String) -> void:
 	if id == "cathode":
 		SceneTransition.go("cathode", "from_street")
 		return
+	if id in ["casino", "sushi", "cafe"]:
+		SceneTransition.go(id, "from_street")
+		return
 	_set_status("(" + sign_name + " interior not built yet)")
 
 func _build_walkers() -> void:
@@ -202,6 +211,9 @@ func _build_fillers() -> void:
 		# A lit doorway so it reads inhabited
 		_add_box(Vector3(cx, 1.4, -4.9), Vector3(1.6, 2.8, 0.08),
 			col * 0.25, 0.0, 0.5, true, col * 0.7, 0.5)
+		if f.sign == "NOODLE":
+			add_interact(Vector3(cx, 1.2, -3.4), Vector3(2.6, 2.4, 2.4),
+				"noodle", func(): SceneTransition.go("noodle", "from_street"))
 
 func _build_dressing() -> void:
 	var rng := RandomNumberGenerator.new()

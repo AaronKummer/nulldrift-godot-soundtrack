@@ -118,6 +118,7 @@ func _ready() -> void:
 		"thug": load("res://assets/sprites/npc-thug.png"),
 		"cop": load("res://assets/sprites/npc-cop.png"),
 		"cat": load("res://assets/sprites/cyberCat.png"),
+		"cyberGirl": load("res://assets/sprites/cyberGirl.png"),
 		"rat": load("res://assets/sprites/creature-rat.png"),
 		"gator": load("res://assets/sprites/creature-gator.png"),
 		"mutant": load("res://assets/sprites/creature-mutant.png"),
@@ -308,7 +309,12 @@ func _tick_player(delta: float) -> void:
 	if _pos.distance_to(_spawn_point) < 60.0:
 		_set_status("[E] " + _def.exit_label)
 	elif _pos.distance_to(_relay_pos) < 70.0:
-		if GameState.has_flag(_def.objective_flag):
+		if _def.get("objective_kind", "relay") == "rescue":
+			if GameState.has_flag(_def.objective_flag):
+				_set_status("the cage hangs open. she's long gone. good.")
+			else:
+				_set_status("[E] break the cage open")
+		elif GameState.has_flag(_def.objective_flag):
 			_set_status("the relay node hums. encrypted traffic.")
 		else:
 			_set_status("[E] jack into the relay node")
@@ -568,7 +574,7 @@ func _die() -> void:
 	l.position = Vector2(640 - 320, 340)
 	cl.add_child(l)
 	await get_tree().create_timer(1.8).timeout
-	SceneTransition.go("city", _def.exit_spawn)
+	SceneTransition.go(_def.get("exit_scene", "city"), _def.exit_spawn)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if _dead:
@@ -580,10 +586,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		var g = _nearby_grate()
 		var ch = _nearby_chest()
 		if _pos.distance_to(_spawn_point) < 60.0:
-			SceneTransition.go("city", _def.exit_spawn)
+			SceneTransition.go(_def.get("exit_scene", "city"), _def.exit_spawn)
 		elif _pos.distance_to(_relay_pos) < 70.0 \
 				and not GameState.has_flag(_def.objective_flag):
-			_open_puzzle("wires", "CRACK THE RELAY", { "kind": "relay" })
+			if _def.get("objective_kind", "relay") == "rescue":
+				_do_rescue()
+			else:
+				_open_puzzle("wires", "CRACK THE RELAY", { "kind": "relay" })
 		elif g != null:
 			_open_puzzle("pipes", "SEAL THE GRATE", { "kind": "grate", "grate": g })
 		elif ch != null:
@@ -601,7 +610,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if _pos.distance_to(e.pos) <= NOVA_RADIUS:
 				_damage_enemy(e, NOVA_DMG)
 	elif event.is_action_pressed("ui_cancel"):
-		SceneTransition.go("city", _def.exit_spawn)
+		SceneTransition.go(_def.get("exit_scene", "city"), _def.exit_spawn)
 	else:
 		for i in range(1, 7):
 			if event.is_action_pressed("hotbar_%d" % i):
@@ -609,6 +618,19 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 
 var _boom_flash := 0.0
+
+func _do_rescue() -> void:
+	GameState.set_flag(_def.objective_flag)
+	GameState.add_credits(_def.objective_credits)
+	var rname: String = _def.get("rescue_name", "???")
+	DialogueOverlay.play_lines([
+		{ "speaker": rname, "text": "took you long enough. the lock's a joke, the twelve guys were the problem.",
+		  "color": Color(1.0, 0.6, 0.8) },
+		{ "speaker": rname, "text": "i can get out the way you came in. faster than you, probably.",
+		  "color": Color(1.0, 0.6, 0.8) },
+		{ "speaker": "", "text": "She's gone before you finish nodding. %d credits were taped under the cage floor." % _def.objective_credits,
+		  "color": Color(0.53, 0.53, 0.53) },
+	], "rescue")
 
 func _use_slot(slot: int) -> void:
 	var id: String = GameState.hotbar.get(str(slot), "")
@@ -869,14 +891,31 @@ func _draw_world(b: Node2D) -> void:
 		b.draw_circle(hole.pos + Vector2(0, -10.0), 16.0, Color(0.015, 0.015, 0.015))
 		b.draw_rect(Rect2(hole.pos + Vector2(-16, -10), Vector2(32, 12)),
 			Color(0.015, 0.015, 0.015), true)
-	# Objective prop — relay pylon
+	# Objective prop — relay pylon, or a cage with someone in it
 	var hacked: bool = GameState.has_flag(_def.objective_flag)
-	b.draw_rect(Rect2(_relay_pos - Vector2(18, 34), Vector2(36, 68)), Color(0.05, 0.04, 0.08), true)
-	var pulse := 0.5 + 0.5 * sin(_anim_t * 3.0)
-	var node_col: Color = Color(0.3, 1.6, 0.6) if hacked else Color(1.6, 0.2, 0.9)
-	for i in 4:
-		b.draw_rect(Rect2(_relay_pos + Vector2(-12, -26 + i * 15), Vector2(24, 6)),
-			node_col * (0.6 + 0.4 * pulse), true)
+	if _def.get("objective_kind", "relay") == "rescue":
+		# Cage: floor plate + bars; the captive stands inside until freed
+		b.draw_rect(Rect2(_relay_pos - Vector2(40, 46), Vector2(80, 88)),
+			Color(0.03, 0.03, 0.04), true)
+		if not hacked:
+			b.draw_texture_rect_region(_sheets["cyberGirl"],
+				Rect2(_relay_pos - Vector2(FRAME_W * 0.5, FRAME_H - 16.0),
+					Vector2(FRAME_W, FRAME_H)),
+				Rect2(0, 0, FRAME_W, FRAME_H), Color(1.1, 0.9, 1.0))
+		var bar_col := Color(0.45, 0.42, 0.38) if not hacked else Color(0.25, 0.23, 0.2)
+		for i in 5:
+			var bx: float = _relay_pos.x - 36.0 + i * 18.0
+			if hacked and i >= 2:
+				continue   # the door side is torn open
+			b.draw_rect(Rect2(bx, _relay_pos.y - 46.0, 6.0, 92.0), bar_col, true)
+		b.draw_rect(Rect2(_relay_pos - Vector2(40, 50), Vector2(80, 6)), bar_col, true)
+	else:
+		b.draw_rect(Rect2(_relay_pos - Vector2(18, 34), Vector2(36, 68)), Color(0.05, 0.04, 0.08), true)
+		var pulse := 0.5 + 0.5 * sin(_anim_t * 3.0)
+		var node_col: Color = Color(0.3, 1.6, 0.6) if hacked else Color(1.6, 0.2, 0.9)
+		for i in 4:
+			b.draw_rect(Rect2(_relay_pos + Vector2(-12, -26 + i * 15), Vector2(24, 6)),
+				node_col * (0.6 + 0.4 * pulse), true)
 	# Pickups
 	for p in _pickups:
 		if p.kind == "medkit":

@@ -39,6 +39,14 @@ const POOL := [
 	  "check": "katana_lt_3_gte_2" },
 	{ "text": "stims from the shop slow the whole world down. don't ask what they speed up." },
 
+	# Downtown + jackals
+	{ "text": "the jackals grabbed the chop shop kid, patch. they're holding her in their garage out east in the warzone.",
+	  "req": { "patchRescued": false } },
+	{ "text": "heard somebody walked into the jackals garage and walked back out. the kid didn't even say thanks. sounds like her.",
+	  "req": { "patchRescued": true } },
+	{ "text": "ex-corpo lady drinks alone at the sushi place downtown. omnicorp compliance, they say. don't bring up the tower." },
+	{ "text": "lucky chrome pays out, sometimes. the pit boss remembers every face that wins twice." },
+
 	# City flavor / future hooks
 	{ "text": "perfect tommy plays the cathode downtown. the synth guy is unreal. godsnack nights are... something else." },
 	{ "text": "downtown's got a casino now. the cathode, growler's, the whole strip. ridenet says soon. soon means soon." },
