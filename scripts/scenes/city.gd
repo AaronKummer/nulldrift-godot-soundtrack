@@ -2191,11 +2191,12 @@ func _build_hud() -> void:
 	credits.position = Vector2(20, 42)
 	cl.add_child(credits)
 	var ca := Label.new()
-	ca.text = "$0"
+	ca.text = "$%d" % GameState.credits
 	ca.add_theme_font_size_override("font_size", 14)
 	ca.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 	ca.position = Vector2(82, 39)
 	cl.add_child(ca)
+	GameState.credits_changed.connect(func(n): ca.text = "$%d" % n)
 	var title := Label.new()
 	title.text = "NEO CITY · BLOCK 1"
 	title.add_theme_font_size_override("font_size", 13)

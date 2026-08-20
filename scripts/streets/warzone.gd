@@ -34,6 +34,8 @@ func _lamp_broken_chance() -> float:
 func _build_street() -> void:
 	Music.play_category("city")
 	build_streetlamps(26.0)
+	build_traffic(3, [Color(0.35, 0.3, 0.25), Color(0.3, 0.25, 0.2),
+		Color(0.4, 0.35, 0.28)])
 	_build_ruins()
 	_build_chop_shop()
 	_build_dump_entrance()

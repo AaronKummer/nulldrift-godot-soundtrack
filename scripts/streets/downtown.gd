@@ -38,7 +38,10 @@ const STORES := [
 func _build_street() -> void:
 	Music.play_category("city")
 	build_streetlamps(20.0)
+	build_traffic(9)
 	_build_storefronts()
+	_build_fillers()
+	_build_dressing()
 	_build_walkers()
 	build_ridenet_terminal(Vector3(-2.0, 0, -3.0))
 	var m := Node3D.new()
@@ -116,14 +119,94 @@ func _enter_store(id: String, sign_name: String) -> void:
 	_set_status("(" + sign_name + " interior not built yet)")
 
 func _build_walkers() -> void:
-	# Different crowd: suits, cops on patrol, a street musician by the venue
-	var crowd := [
-		["res://assets/sprites/npc-corpo.png", Vector3(-38.0, 0.9, -2.4), 2],
-		["res://assets/sprites/npc-corpo.png", Vector3(12.0, 0.9, -2.6), 1],
-		["res://assets/sprites/npc-cop.png", Vector3(-16.0, 0.9, -2.2), 0],
-		["res://assets/sprites/npc-cop2.png", Vector3(36.0, 0.9, -2.5), 0],
-		["res://assets/sprites/cyberGirl.png", Vector3(-26.0, 0.9, -2.7), 0],
-		["res://assets/sprites/npc-cyberpunk.png", Vector3(44.0, 0.9, -2.3), 3],
-	]
-	for c in crowd:
-		add_npc(c[0], c[1], c[2])
+	# Downtown crowd actually goes places: suits commuting, cops on beat
+	add_walker("res://assets/sprites/npc-corpo.png", -50.0, -10.0, -2.4, 2.4)
+	add_walker("res://assets/sprites/npc-corpo.png", -20.0, 30.0, -2.7, 2.1)
+	add_walker("res://assets/sprites/npc-cop.png", -30.0, 20.0, -2.2, 1.6)
+	add_walker("res://assets/sprites/cyberGirl.png", 0.0, 50.0, -2.5, 2.6)
+	add_walker("res://assets/sprites/npc-cyberpunk.png", 10.0, 54.0, -2.3, 2.9)
+	add_walker("res://assets/sprites/npc-thug.png", -54.0, -20.0, -2.6, 1.9)
+	# And a couple of fixtures: door cop at the casino, dealer by the venue
+	add_npc("res://assets/sprites/npc-cop2.png", Vector3(-42.0, 0.9, -3.4), 0)
+	add_npc("res://assets/sprites/smoking_drifter.png", Vector3(-23.0, 0.9, -3.4), 0)
+
+# Narrow filler frontages between the anchors — canon signs from the
+# Phaser downtown zone list, hung as vertical neon
+const FILLERS := [
+	{ "x": -35.0, "w": 4.5, "sign": "BAKERS",  "col": Color(1.3, 0.8, 0.3) },
+	{ "x": -17.5, "w": 4.0, "sign": "NOODLE",  "col": Color(1.5, 0.4, 0.3) },
+	{ "x": -3.0,  "w": 3.4, "sign": "MEDS",    "col": Color(0.3, 1.3, 0.7) },
+	{ "x": 10.8,  "w": 3.0, "sign": "BUDDYS",  "col": Color(0.9, 0.5, 1.4) },
+	{ "x": 23.0,  "w": 2.6, "sign": "8 MILE",  "col": Color(0.4, 0.9, 1.4) },
+	{ "x": 37.8,  "w": 3.8, "sign": "HUDSONS", "col": Color(1.4, 0.9, 0.2) },
+]
+
+func _build_fillers() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xF177
+	for f in FILLERS:
+		var cx: float = f.x
+		var w: float = f.w
+		var h: float = rng.randf_range(7.0, 12.0)
+		var col: Color = f.col
+		_add_box(Vector3(cx, h * 0.5, -9.0), Vector3(w, h, 8.0),
+			Color(0.13, 0.14, 0.18) * rng.randf_range(0.85, 1.1), 0.2, 0.7)
+		# Vertical neon sign down the frontage
+		var txt: String = f.sign
+		var vert := ""
+		for i in txt.length():
+			vert += txt[i] + ("\n" if i < txt.length() - 1 else "")
+		var label := Label3D.new()
+		label.text = vert
+		label.font_size = 58
+		label.pixel_size = 0.011
+		label.modulate = col
+		label.outline_size = 12
+		label.outline_modulate = Color(0, 0, 0)
+		label.position = Vector3(cx, h - 1.0 - txt.length() * 0.34, -4.75)
+		add_child(label)
+		# A lit doorway so it reads inhabited
+		_add_box(Vector3(cx, 1.4, -4.9), Vector3(1.6, 2.8, 0.08),
+			col * 0.25, 0.0, 0.5, true, col * 0.7, 0.5)
+
+func _build_dressing() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xD0D2
+	# Benches + glowing planters along the sidewalk
+	for bx in [-44.0, -12.0, 8.0, 33.0, 51.0]:
+		_add_box(Vector3(bx, 0.35, -4.3), Vector3(2.4, 0.12, 0.6),
+			Color(0.2, 0.16, 0.12), 0.1, 0.7)
+		_add_box(Vector3(bx, 0.18, -4.3), Vector3(2.0, 0.24, 0.4),
+			Color(0.12, 0.12, 0.14), 0.5, 0.5)
+	for px in [-30.0, -1.0, 26.0, 43.0]:
+		_add_box(Vector3(px, 0.3, -4.4), Vector3(1.2, 0.6, 1.2),
+			Color(0.14, 0.15, 0.18), 0.3, 0.6)
+		_add_box(Vector3(px, 0.63, -4.4), Vector3(1.26, 0.05, 1.26),
+			Color(0.2, 1.0, 1.2) * 0.4, 0.0, 0.5, true, Color(0.25, 1.1, 1.3), 1.2)
+		_add_box(Vector3(px, 0.85, -4.4), Vector3(0.8, 0.5, 0.8),
+			Color(0.10, 0.30, 0.14), 0.0, 0.9)
+	# Rooftop holo billboard over the casino — slow color pulse
+	var panel := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(10.0, 4.5, 0.2)
+	panel.mesh = bm
+	panel.position = Vector3(-46.0, 19.5, -8.0)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.1, 0.05, 0.15)
+	mat.emission_enabled = true
+	mat.emission = Color(1.2, 0.3, 1.0)
+	mat.emission_energy_multiplier = 1.2
+	panel.material_override = mat
+	add_child(panel)
+	var tw := create_tween().set_loops()
+	tw.tween_property(mat, "emission", Color(0.2, 0.9, 1.4), 2.4)
+	tw.tween_property(mat, "emission", Color(1.2, 0.3, 1.0), 2.4)
+	var bl := Label3D.new()
+	bl.text = "LUCKY CHROME CASINO"
+	bl.font_size = 72
+	bl.pixel_size = 0.012
+	bl.modulate = Color(1.5, 1.3, 0.4)
+	bl.outline_size = 12
+	bl.outline_modulate = Color(0, 0, 0)
+	bl.position = Vector3(-46.0, 19.5, -7.85)
+	add_child(bl)

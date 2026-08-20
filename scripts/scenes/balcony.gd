@@ -534,7 +534,8 @@ func _build_hud() -> void:
 	credits.position = Vector2(20, 42)
 	cl.add_child(credits)
 	var credits_amt := Label.new()
-	credits_amt.text = "$0"
+	credits_amt.text = "$%d" % GameState.credits
+	GameState.credits_changed.connect(func(n): credits_amt.text = "$%d" % n)
 	credits_amt.add_theme_font_size_override("font_size", 14)
 	credits_amt.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 	credits_amt.position = Vector2(82, 39)

@@ -286,11 +286,137 @@ func _apply_pending_spawn() -> void:
 func _process(delta: float) -> void:
 	_tick_player(delta)
 	_tick_camera(delta)
+	_tick_traffic(delta)
+	_tick_walkers(delta)
 	_street_process(delta)
 
 ## Subclass per-frame hook
 func _street_process(_delta: float) -> void:
 	pass
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# TRAFFIC — self-lit cars, two lanes, follow-the-leader (shared by all
+# streets; the home street has its own hand-built system)
+# ═══════════════════════════════════════════════════════════════════════
+
+var _cars: Array = []
+
+func build_traffic(count: int = 8, palette: Array = []) -> void:
+	if palette.is_empty():
+		palette = [Color(0.7, 0.2, 0.25), Color(0.2, 0.5, 0.8),
+			Color(0.75, 0.7, 0.65), Color(0.25, 0.6, 0.4),
+			Color(0.5, 0.3, 0.7), Color(0.85, 0.6, 0.2)]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(street_id) + 99
+	for i in count:
+		var east := i % 2 == 0
+		var lane_z: float = ROAD_WIDTH * (0.30 if east else 0.72)
+		var node := Node3D.new()
+		node.position = Vector3(rng.randf_range(-block_half_w, block_half_w),
+			0, lane_z + rng.randf_range(-0.4, 0.4))
+		add_child(node)
+		_build_car_visual(node, palette[rng.randi() % palette.size()], east)
+		_cars.append({ "node": node, "lane": lane_z,
+			"speed": (1.0 if east else -1.0) * rng.randf_range(7.0, 11.0) })
+
+func _build_car_visual(parent: Node3D, col: Color, east: bool) -> void:
+	var dir := 1.0 if east else -1.0
+	# Self-lit paint so cars read at night
+	_add_part(parent, Vector3(0, 0.55, 0), Vector3(4.6, 0.9, 2.0),
+		col * 0.55, 0.4, 0.4, true, col * 0.5, 0.35)
+	_add_part(parent, Vector3(-dir * 0.3, 1.25, 0), Vector3(2.4, 0.6, 1.8),
+		col * 0.35, 0.4, 0.3, true, col * 0.35, 0.3)
+	_add_part(parent, Vector3(dir * 0.95, 1.25, 0), Vector3(0.1, 0.5, 1.6),
+		Color(0.1, 0.15, 0.2), 0.8, 0.2)
+	for zz in [-0.7, 0.7]:
+		_add_part(parent, Vector3(dir * 2.32, 0.6, zz), Vector3(0.08, 0.22, 0.3),
+			Color(1, 1, 0.9), 0.0, 0.4, true, Color(1.3, 1.25, 1.0), 3.0)
+		_add_part(parent, Vector3(-dir * 2.32, 0.6, zz), Vector3(0.08, 0.2, 0.3),
+			Color(0.8, 0.1, 0.1), 0.0, 0.4, true, Color(1.5, 0.15, 0.1), 2.2)
+	for wx in [-1.5, 1.5]:
+		for wz in [-1.0, 1.0]:
+			_add_part(parent, Vector3(wx, 0.32, wz), Vector3(0.62, 0.62, 0.22),
+				Color(0.05, 0.05, 0.06), 0.2, 0.8)
+
+## Visual-only box parented to a node (no collision — traffic is set dressing)
+func _add_part(parent: Node3D, pos: Vector3, sz: Vector3, col: Color,
+		metallic: float = 0.0, roughness: float = 0.8, emissive: bool = false,
+		emission: Color = Color.BLACK, energy: float = 1.0) -> void:
+	var mesh := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = sz
+	mesh.mesh = bm
+	mesh.position = pos
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = col
+	mat.metallic = metallic
+	mat.roughness = roughness
+	if emissive:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = energy
+	mesh.material_override = mat
+	parent.add_child(mesh)
+
+func _tick_traffic(delta: float) -> void:
+	for car in _cars:
+		var n: Node3D = car.node
+		var gap := 999.0
+		var lead_speed: float = absf(car.speed)
+		for other in _cars:
+			if other == car or signf(other.speed) != signf(car.speed):
+				continue
+			if absf(other.node.position.z - n.position.z) > 2.5:
+				continue
+			var ahead: float = (other.node.position.x - n.position.x) * signf(car.speed)
+			if ahead > 0.0 and ahead < gap:
+				gap = ahead
+				lead_speed = absf(other.speed)
+		var eff: float = absf(car.speed)
+		if gap < 7.0:
+			eff = 0.0
+		elif gap < 13.0:
+			eff = minf(eff, lead_speed)
+		n.position.x += signf(car.speed) * eff * delta
+		if car.speed > 0 and n.position.x > block_half_w + 14.0:
+			n.position.x = -block_half_w - 14.0
+		elif car.speed < 0 and n.position.x < -block_half_w - 14.0:
+			n.position.x = block_half_w + 14.0
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# WALKERS — sidewalk NPCs that actually walk
+# ═══════════════════════════════════════════════════════════════════════
+
+var _walkers: Array = []
+
+func add_walker(sheet: String, x_min: float, x_max: float, z: float,
+		speed: float = 2.0) -> void:
+	var pivot := Node3D.new()
+	pivot.position = Vector3(randf_range(x_min, x_max), 0.9, z)
+	add_child(pivot)
+	var ab = AnimatedBillboardScript.new()
+	ab.show_floor_shadow = false
+	ab.pixel_size = 0.04
+	pivot.add_child(ab)
+	ab.load_sheet(sheet)
+	ab.set_moving(true)
+	var dir := 1 if randf() < 0.5 else -1
+	ab.facing = AnimatedBillboardScript.Facing.RIGHT if dir > 0 		else AnimatedBillboardScript.Facing.LEFT
+	_walkers.append({ "node": pivot, "ab": ab, "dir": dir,
+		"x_min": x_min, "x_max": x_max, "speed": speed })
+
+func _tick_walkers(delta: float) -> void:
+	for w in _walkers:
+		var n: Node3D = w.node
+		n.position.x += w.dir * w.speed * delta
+		if n.position.x > w.x_max:
+			w.dir = -1
+			w.ab.facing = AnimatedBillboardScript.Facing.LEFT
+		elif n.position.x < w.x_min:
+			w.dir = 1
+			w.ab.facing = AnimatedBillboardScript.Facing.RIGHT
 
 func _tick_player(_delta: float) -> void:
 	if _player == null or _ride_open:
