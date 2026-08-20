@@ -252,7 +252,7 @@ func _build_people() -> void:
 		"the pit boss", func():
 			_set_status("he doesn't blink. 'luck's a system, friend. the house wrote it.'"))
 	add_npc("res://assets/sprites/npc-corpo.png", Vector3(-8.0, 0.9, -5.6), 3)
-	add_npc("res://assets/sprites/streetPeople2.png", Vector3(9.5, 0.9, -4.8), 3)
+	add_npc("res://assets/sprites/civ/civ-b08.png", Vector3(9.5, 0.9, -4.8), 3)
 
 # ── shared game-menu plumbing ────────────────────────────────────────────
 func _open_game(title: String, entries: Array, accent: Color,

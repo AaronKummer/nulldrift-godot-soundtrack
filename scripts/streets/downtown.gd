@@ -182,9 +182,9 @@ func _build_crowd() -> void:
 	add_walker("res://assets/sprites/npc-corpo.png", -50.0, -10.0, -2.4, 2.4)
 	add_walker("res://assets/sprites/lady.png", -20.0, 30.0, -2.7, 2.1)
 	add_walker("res://assets/sprites/npc-cop.png", -30.0, 20.0, -2.2, 1.6)
-	add_walker("res://assets/sprites/streetPeople.png", 0.0, 50.0, -2.5, 2.6)
+	add_walker("res://assets/sprites/Yakuza2.png", 0.0, 50.0, -2.5, 2.6)
 	add_walker("res://assets/sprites/npc-cyberpunk.png", 10.0, 54.0, -2.3, 2.9)
-	add_walker("res://assets/sprites/streetPeople2.png", -54.0, -20.0, -2.6, 1.9)
+	add_walker("res://assets/sprites/npc-cop2.png", -54.0, -20.0, -2.6, 1.9)
 	# And a couple of fixtures: door cop at the casino, dealer by the venue
 	add_npc("res://assets/sprites/npc-cop2.png", Vector3(-44.0, 0.9, -3.6), 0)
 	add_npc("res://assets/sprites/npc-cyberpunk.png", Vector3(-31.0, 0.9, -3.6), 0)

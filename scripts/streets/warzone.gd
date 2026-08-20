@@ -237,7 +237,7 @@ func _build_jackals() -> void:
 	# Chrome Jackals loitering — thug sprites with red accents
 	add_npc("res://assets/sprites/Yakuza1.png", Vector3(8.0, 0, -2.0), 0)
 	add_npc("res://assets/sprites/Yakuza2.png", Vector3(11.0, 0, -3.2), 1)
-	add_npc("res://assets/sprites/streetPeople2.png", Vector3(-18.0, 0, -2.6), 0)
+	add_npc("res://assets/sprites/civ/civ-b02.png", Vector3(-18.0, 0, -2.6), 0)
 	for jpos in [Vector3(9.5, 0, -2.6), Vector3(-18.0, 0, -2.6)]:
 		var light := OmniLight3D.new()
 		light.position = jpos + Vector3(0, 1.0, 0.6)

@@ -163,7 +163,7 @@ func _build_cellar_door() -> void:
 
 func _build_people() -> void:
 	# A patron lost in the stacks, and the library cat on the desk
-	add_npc("res://assets/sprites/streetPeople.png", Vector3(-6.0, 0.9, 0.2), 1)
+	add_npc("res://assets/sprites/civ/civ-a07.png", Vector3(-6.0, 0.9, 0.2), 1)
 	add_npc("res://assets/sprites/whiteCat.png", Vector3(12.4, 1.45, -6.5), 1)
 
 func _build_lamps() -> void:
