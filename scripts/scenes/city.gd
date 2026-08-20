@@ -1539,7 +1539,7 @@ func _build_food_cart() -> void:
 	vendor_ab.pixel_size = 0.04
 	vendor_ab.position = Vector3(0, 0, 0)
 	vendor_pivot.add_child(vendor_ab)
-	vendor_ab.load_sheet("res://assets/sprites/npc-corpo.png")
+	vendor_ab.load_sheet("res://assets/sprites/streetPeople.png")
 	vendor_ab.facing = AnimatedBillboardScript.Facing.DOWN  # toward camera
 	vendor_ab.set_moving(false)
 
@@ -2068,13 +2068,12 @@ func _build_walking_npcs() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC177A
 	var sheets := [
-		"res://assets/sprites/npc-thug.png",
-		"res://assets/sprites/npc-corpo.png",
+		"res://assets/sprites/streetPeople.png",
+		"res://assets/sprites/streetPeople2.png",
+		"res://assets/sprites/lady.png",
+		"res://assets/sprites/Yakuza3.png",
 		"res://assets/sprites/npc-cop.png",
-		"res://assets/sprites/npc-cop2.png",
 		"res://assets/sprites/npc-cyberpunk.png",
-		"res://assets/sprites/npc-ninja.png",
-		"res://assets/sprites/smoking_drifter.png",
 		"res://assets/sprites/smoking_scrapper.png",
 	]
 	# 8 pedestrians along the sidewalk + a few on the south sidewalk too

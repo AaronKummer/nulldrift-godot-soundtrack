@@ -9,6 +9,23 @@
 extends CanvasLayer
 
 const MEDKIT_HEAL := 35
+const ITEM_ICONS := {
+	"medkit": "res://assets/icons/items/medkit.png",
+	"grenade": "res://assets/icons/items/grenade.png",
+	"stim": "res://assets/icons/items/stim.png",
+	"headlamp": "res://assets/icons/items/headlamp.png",
+	"spellbook": "res://assets/icons/items/spellbook.png",
+	"cellar_key": "res://assets/icons/items/cellar_key.png",
+}
+const ITEM_COLORS := {
+	"medkit": Color(1.0, 0.35, 0.4),
+	"grenade": Color(0.5, 0.9, 0.45),
+	"stim": Color(0.35, 0.85, 1.0),
+	"headlamp": Color(1.0, 0.85, 0.45),
+	"spellbook": Color(0.75, 0.5, 1.0),
+	"cellar_key": Color(0.95, 0.8, 0.35),
+}
+var _icon_cache: Dictionary = {}
 
 var _hearts: Array = []
 var _credits_label: Label
@@ -44,33 +61,41 @@ func _ready() -> void:
 	_credits_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 	_credits_label.position = Vector2(82, 39)
 	add_child(_credits_label)
-	# Hotbar — six slots, top-center
+	# Hotbar — six slots, top-center, pixel item icons
 	for i in 6:
 		var box := Panel.new()
-		box.position = Vector2(742 + i * 46, 4)
-		box.size = Vector2(42, 34)
+		box.position = Vector2(736 + i * 48, 4)
+		box.size = Vector2(44, 44)
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.03, 0.04, 0.07, 0.85)
-		sb.border_color = Color(0.25, 0.3, 0.4)
-		sb.set_border_width_all(1)
+		sb.bg_color = Color(0.04, 0.05, 0.09, 0.88)
+		sb.border_color = Color(0.22, 0.26, 0.36)
+		sb.set_border_width_all(2)
+		sb.set_corner_radius_all(6)
 		box.add_theme_stylebox_override("panel", sb)
 		add_child(box)
+		var icon := TextureRect.new()
+		icon.position = Vector2(6, 6)
+		icon.size = Vector2(32, 32)
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_SCALE
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		box.add_child(icon)
 		var num := Label.new()
 		num.text = str(i + 1)
 		num.add_theme_font_size_override("font_size", 9)
-		num.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
+		num.add_theme_color_override("font_color", Color(0.55, 0.65, 0.8))
+		num.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		num.add_theme_constant_override("outline_size", 3)
 		num.position = Vector2(3, 0)
 		box.add_child(num)
-		var glyph := Label.new()
-		glyph.add_theme_font_size_override("font_size", 12)
-		glyph.position = Vector2(9, 10)
-		box.add_child(glyph)
 		var cnt := Label.new()
-		cnt.add_theme_font_size_override("font_size", 10)
-		cnt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-		cnt.position = Vector2(24, 20)
+		cnt.add_theme_font_size_override("font_size", 11)
+		cnt.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
+		cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+		cnt.add_theme_constant_override("outline_size", 3)
+		cnt.position = Vector2(27, 28)
 		box.add_child(cnt)
-		_slots.append({ "glyph": glyph, "cnt": cnt })
+		_slots.append({ "icon": icon, "cnt": cnt, "sb": sb })
 	# Toast line under the hotbar for item feedback
 	_toast = Label.new()
 	_toast.add_theme_font_size_override("font_size", 13)
@@ -104,14 +129,18 @@ func _refresh() -> void:
 		var sd: Dictionary = _slots[i]
 		var id: String = GameState.hotbar.get(str(i + 1), "")
 		if id == "":
-			sd.glyph.text = ""
+			sd.icon.texture = null
 			sd.cnt.text = ""
+			sd.sb.border_color = Color(0.22, 0.26, 0.36)
 		else:
-			sd.glyph.text = GameState.HOTBAR_GLYPHS.get(id, id.left(3).to_upper())
+			if not _icon_cache.has(id) and ITEM_ICONS.has(id):
+				_icon_cache[id] = load(ITEM_ICONS[id])
+			sd.icon.texture = _icon_cache.get(id, null)
 			var n: int = GameState.count_item(id)
 			sd.cnt.text = "x%d" % n
-			sd.glyph.add_theme_color_override("font_color",
-				Color(0.9, 1.0, 1.0) if n > 0 else Color(0.4, 0.45, 0.5))
+			sd.icon.modulate = Color(1, 1, 1) if n > 0 else Color(0.45, 0.45, 0.5)
+			var ic: Color = ITEM_COLORS.get(id, Color(0.5, 0.6, 0.7))
+			sd.sb.border_color = ic if n > 0 else ic * Color(0.4, 0.4, 0.4, 1.0)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible or get_tree().paused:

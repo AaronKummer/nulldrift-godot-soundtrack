@@ -344,6 +344,7 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 		var btn := Button.new()
 		btn.icon = load(icon_path)
 		btn.expand_icon = true
+		btn.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		btn.custom_minimum_size = Vector2(icon_size, icon_size)
 		btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		btn.add_theme_stylebox_override("normal", sb)
