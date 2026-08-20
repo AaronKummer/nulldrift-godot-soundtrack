@@ -211,12 +211,14 @@ func _make_phone_style() -> StyleBoxFlat:
 func open(initial: String = "home") -> void:
 	_open = true
 	visible = true
+	get_tree().paused = true   # the world stops while you're on your phone
 	_clear_stack()
 	_push(initial)
 
 func close() -> void:
 	_open = false
 	visible = false
+	get_tree().paused = false
 	_clear_stack()
 
 func toggle() -> void:
@@ -281,10 +283,13 @@ func _build_home() -> Control:
 	grid.add_theme_constant_override("h_separation", int(gap))
 	grid.add_theme_constant_override("v_separation", 14)
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_home_icons.clear()
+	_home_sel = 0
 	for app in APPS:
 		if app.has("gate") and not GameState.has_flag(str(app.gate)):
 			continue
 		grid.add_child(_build_app_icon(app, icon_size))
+	_apply_home_sel()
 	screen.add_child(grid)
 
 	# Tip
@@ -299,6 +304,9 @@ func _build_home() -> Control:
 	screen.add_child(tip)
 
 	return screen
+
+var _home_icons: Array = []   # { btn, sb, sbh, id } for keyboard nav
+var _home_sel := 0
 
 var _emoji_font_cache: SystemFont
 
@@ -329,6 +337,7 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 	sb_hover.bg_color = Color(0.12, 0.18, 0.26)
 	sb_hover.border_color = Color(color.r, color.g, color.b, 1.0)
 
+	var nav_entry := { "id": app_id, "sb": sb, "sbh": sb_hover }
 	var icon_path: String = app.get("icon_path", "")
 	if icon_path != "" and ResourceLoader.exists(icon_path):
 		# Image-mode icon: Button with icon texture, no text glyph
@@ -342,6 +351,8 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 		btn.add_theme_stylebox_override("pressed", sb_hover)
 		btn.pressed.connect(func(): _push(app_id))
 		cell.add_child(btn)
+		nav_entry["btn"] = btn
+		_home_icons.append(nav_entry)
 	else:
 		# Glyph fallback — Phaser-style emoji, rendered via the system
 		# emoji font so they come out in color
@@ -359,6 +370,8 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 		btn.add_theme_color_override("font_pressed_color", color)
 		btn.pressed.connect(func(): _push(app_id))
 		cell.add_child(btn)
+		nav_entry["btn"] = btn
+		_home_icons.append(nav_entry)
 
 	var label := Label.new()
 	label.text = app.get("label", "")
@@ -1328,6 +1341,18 @@ func _stub_deck(color: Color) -> Control:
 # INPUT — toggle, back, swipe-right-to-back
 # ═══════════════════════════════════════════════════════════════════
 
+func _apply_home_sel() -> void:
+	for i in _home_icons.size():
+		var e: Dictionary = _home_icons[i]
+		(e.btn as Button).add_theme_stylebox_override("normal",
+			e.sbh if i == _home_sel else e.sb)
+
+func _move_home_sel(d: int) -> void:
+	if _home_icons.is_empty():
+		return
+	_home_sel = clampi(_home_sel + d, 0, _home_icons.size() - 1)
+	_apply_home_sel()
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("phone_toggle"):
 		toggle()
@@ -1338,6 +1363,28 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_cancel"):
 		_back()
 		get_viewport().set_input_as_handled()
+		return
+	if _stack.size() <= 1:
+		# Home grid: WASD or arrows to choose, E or ENTER to open
+		if event.is_action_pressed("move_left", true) or event.is_action_pressed("ui_left", true):
+			_move_home_sel(-1)
+		elif event.is_action_pressed("move_right", true) or event.is_action_pressed("ui_right", true):
+			_move_home_sel(1)
+		elif event.is_action_pressed("move_up", true) or event.is_action_pressed("ui_up", true):
+			_move_home_sel(-APP_GRID_COLS)
+		elif event.is_action_pressed("move_down", true) or event.is_action_pressed("ui_down", true):
+			_move_home_sel(APP_GRID_COLS)
+		elif event.is_action_pressed("interact") or event.is_action_pressed("ui_accept"):
+			if _home_sel < _home_icons.size():
+				_push(_home_icons[_home_sel].id)
+		else:
+			return
+		get_viewport().set_input_as_handled()
+	else:
+		# In an app: A or left backs out one screen
+		if event.is_action_pressed("move_left") or event.is_action_pressed("ui_left"):
+			_back()
+			get_viewport().set_input_as_handled()
 
 func _on_global_gui_input(event: InputEvent) -> void:
 	# The backdrop catches swipe drags that miss buttons. We also treat a

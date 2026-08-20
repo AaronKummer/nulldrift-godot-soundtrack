@@ -21,6 +21,7 @@ DialogueOverlay="*res://scripts/systems/dialogue_overlay.gd"
 PhoneState="*res://scripts/systems/phone_state.gd"
 StocksState="*res://scripts/systems/stocks_state.gd"
 Phone="*res://scripts/systems/phone_overlay.gd"
+GlobalHUD="*res://scripts/systems/global_hud.gd"
 SceneTransition="*res://scripts/systems/scene_transition.gd"
 
 [display]

@@ -511,35 +511,6 @@ func _build_hud() -> void:
 	var cl := CanvasLayer.new()
 	add_child(cl)
 
-	# HEALTH label + hearts
-	var hp_label := Label.new()
-	hp_label.text = "HEALTH"
-	hp_label.add_theme_font_size_override("font_size", 11)
-	hp_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	hp_label.position = Vector2(20, 14)
-	cl.add_child(hp_label)
-	for i in 5:
-		var heart := Label.new()
-		heart.text = "♥"
-		heart.add_theme_font_size_override("font_size", 18)
-		heart.add_theme_color_override("font_color", Color(1.0, 0.20, 0.45))
-		heart.position = Vector2(82 + i * 22, 6)
-		cl.add_child(heart)
-
-	# CREDITS / BOUNTY
-	var credits := Label.new()
-	credits.text = "CREDITS"
-	credits.add_theme_font_size_override("font_size", 11)
-	credits.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	credits.position = Vector2(20, 42)
-	cl.add_child(credits)
-	var credits_amt := Label.new()
-	credits_amt.text = "$%d" % GameState.credits
-	GameState.credits_changed.connect(func(n): credits_amt.text = "$%d" % n)
-	credits_amt.add_theme_font_size_override("font_size", 14)
-	credits_amt.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	credits_amt.position = Vector2(82, 39)
-	cl.add_child(credits_amt)
 	var bounty := Label.new()
 	bounty.text = "BOUNTY"
 	bounty.add_theme_font_size_override("font_size", 11)

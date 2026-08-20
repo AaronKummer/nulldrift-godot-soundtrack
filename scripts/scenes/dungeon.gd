@@ -1008,47 +1008,15 @@ func _build_hud() -> void:
 	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 	title.position = Vector2(30, 8)
 	cl.add_child(title)
-	for key in ["hp", "credits", "dash", "nova", "grates"]:
+	for key in ["dash", "nova", "grates"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
 		cl.add_child(l)
 		_hud[key] = l
-	_hud.hp.position = Vector2(280, 10)
-	_hud.hp.add_theme_color_override("font_color", Color(1.0, 0.3, 0.5))
-	_hud.credits.position = Vector2(430, 10)
-	_hud.credits.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
 	_hud.dash.position = Vector2(480, 10)
 	_hud.nova.position = Vector2(600, 10)
 	_hud.grates.position = Vector2(1085, 10)
-	# Hotbar slot boxes — assignments live in the phone GEAR app
-	_hud["slots"] = []
-	for i in 6:
-		var box := Panel.new()
-		box.position = Vector2(742 + i * 46, 4)
-		box.size = Vector2(42, 34)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.03, 0.04, 0.07, 0.85)
-		sb.border_color = Color(0.25, 0.3, 0.4)
-		sb.set_border_width_all(1)
-		box.add_theme_stylebox_override("panel", sb)
-		cl.add_child(box)
-		var num := Label.new()
-		num.text = str(i + 1)
-		num.add_theme_font_size_override("font_size", 9)
-		num.add_theme_color_override("font_color", Color(0.5, 0.6, 0.7))
-		num.position = Vector2(3, 0)
-		box.add_child(num)
-		var glyph := Label.new()
-		glyph.add_theme_font_size_override("font_size", 12)
-		glyph.position = Vector2(9, 10)
-		box.add_child(glyph)
-		var cnt := Label.new()
-		cnt.add_theme_font_size_override("font_size", 10)
-		cnt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.3))
-		cnt.position = Vector2(24, 20)
-		box.add_child(cnt)
-		_hud.slots.append({ "glyph": glyph, "cnt": cnt })
 	_hud.grates.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 17)
@@ -1075,22 +1043,8 @@ func _count_item(id: String) -> int:
 	return n
 
 func _refresh_hud() -> void:
-	_hud.hp.text = "HP %d/%d" % [GameState.hp, GameState.hp_max]
-	_hud.credits.text = "$%d" % GameState.credits
 	_hud.dash.text = "DASH ✓" if _dash_cd <= 0.0 else "DASH %.1f" % _dash_cd
 	_hud.nova.text = "NOVA ✓" if _nova_cd <= 0.0 else "NOVA %.1f" % _nova_cd
-	for i in 6:
-		var sd: Dictionary = _hud.slots[i]
-		var id: String = GameState.hotbar.get(str(i + 1), "")
-		if id == "":
-			sd.glyph.text = ""
-			sd.cnt.text = ""
-		else:
-			sd.glyph.text = GameState.HOTBAR_GLYPHS.get(id, id.left(3).to_upper())
-			var n := _count_item(id)
-			sd.cnt.text = "x%d" % n
-			sd.glyph.add_theme_color_override("font_color",
-				Color(0.9, 1.0, 1.0) if n > 0 else Color(0.4, 0.45, 0.5))
 	var sealed := 0
 	for g in _grates:
 		if g.sealed:

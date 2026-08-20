@@ -1159,56 +1159,10 @@ func _build_hud() -> void:
 	hint.position = Vector2(24, 696)
 	layer.add_child(hint)
 
-	# Hotbar
-	var slot_size := 52
-	var slot_gap := 6
-	var hb_y := 660 - slot_size
-	for i in range(6):
-		var panel := Panel.new()
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.04, 0.05, 0.08, 0.85)
-		sb.border_width_left = 2
-		sb.border_width_top = 2
-		sb.border_width_right = 2
-		sb.border_width_bottom = 2
-		sb.border_color = Color(0.2, 0.3, 0.45)
-		sb.corner_radius_top_left = 4
-		sb.corner_radius_top_right = 4
-		sb.corner_radius_bottom_left = 4
-		sb.corner_radius_bottom_right = 4
-		panel.add_theme_stylebox_override("panel", sb)
-		panel.position = Vector2(24 + i * (slot_size + slot_gap), hb_y)
-		panel.size = Vector2(slot_size, slot_size)
-		layer.add_child(panel)
-
-		var num := Label.new()
-		num.text = str(i + 1)
-		num.add_theme_font_size_override("font_size", 14)
-		num.add_theme_color_override("font_color", Color(0.5, 0.7, 1.0))
-		num.position = Vector2(4, 0)
-		panel.add_child(num)
-		_hotbar_slots.append(panel)
-	_highlight_hotbar()
 
 func _set_status(t: String) -> void:
 	if _hud_status:
 		_hud_status.text = t
-
-func _highlight_hotbar() -> void:
-	for i in _hotbar_slots.size():
-		var panel := _hotbar_slots[i] as Panel
-		var sb := panel.get_theme_stylebox("panel").duplicate() as StyleBoxFlat
-		if i + 1 == _hotbar_active:
-			sb.border_color = Color(0.0, 1.0, 1.0)
-			sb.bg_color = Color(0.1, 0.25, 0.35, 0.95)
-		else:
-			sb.border_color = Color(0.2, 0.3, 0.45)
-			sb.bg_color = Color(0.04, 0.05, 0.08, 0.85)
-		panel.add_theme_stylebox_override("panel", sb)
-
-# ═══════════════════════════════════════════════════════════════════════
-# PROCESS — input, movement, TV / CRT / rain / lightning ticks
-# ═══════════════════════════════════════════════════════════════════════
 
 func _process(delta: float) -> void:
 	if _exiting:
@@ -1294,13 +1248,7 @@ func _input(event: InputEvent) -> void:
 		_interact_bookshelf()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
-	else:
-		for i in range(1, 7):
-			if event.is_action_pressed("hotbar_" + str(i)):
-				_hotbar_active = i
-				_highlight_hotbar()
-				_set_status("[" + str(i) + "] slot active")
-				break
+
 
 func _exit_to_title() -> void:
 	_exiting = true

@@ -2171,32 +2171,6 @@ func _build_player() -> void:
 func _build_hud() -> void:
 	var cl := CanvasLayer.new()
 	add_child(cl)
-	var hp := Label.new()
-	hp.text = "HEALTH"
-	hp.add_theme_font_size_override("font_size", 11)
-	hp.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	hp.position = Vector2(20, 14)
-	cl.add_child(hp)
-	for i in 5:
-		var heart := Label.new()
-		heart.text = "♥"
-		heart.add_theme_font_size_override("font_size", 18)
-		heart.add_theme_color_override("font_color", Color(1.0, 0.20, 0.45))
-		heart.position = Vector2(82 + i * 22, 6)
-		cl.add_child(heart)
-	var credits := Label.new()
-	credits.text = "CREDITS"
-	credits.add_theme_font_size_override("font_size", 11)
-	credits.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	credits.position = Vector2(20, 42)
-	cl.add_child(credits)
-	var ca := Label.new()
-	ca.text = "$%d" % GameState.credits
-	ca.add_theme_font_size_override("font_size", 14)
-	ca.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	ca.position = Vector2(82, 39)
-	cl.add_child(ca)
-	GameState.credits_changed.connect(func(n): ca.text = "$%d" % n)
 	var title := Label.new()
 	title.text = "NEO CITY · BLOCK 1"
 	title.add_theme_font_size_override("font_size", 13)

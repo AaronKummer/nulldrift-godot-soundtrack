@@ -99,6 +99,7 @@ var _all_tracks: Array[String] = []
 var _rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	_rng.randomize()
 	_player = AudioStreamPlayer.new()
 	_player_b = AudioStreamPlayer.new()

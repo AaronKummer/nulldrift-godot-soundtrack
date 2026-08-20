@@ -433,7 +433,8 @@ func build_textured_sign(pos: Vector3, size: Vector2, tex_path: String) -> void:
 
 var _cars: Array = []
 
-func build_traffic(count: int = 8, palette: Array = []) -> void:
+func build_traffic(count: int = 8, palette: Array = [],
+		types: Array = ["sedan", "sedan", "sedan", "boxtruck", "pickup"]) -> void:
 	if palette.is_empty():
 		palette = [Color(0.7, 0.2, 0.25), Color(0.2, 0.5, 0.8),
 			Color(0.75, 0.7, 0.65), Color(0.25, 0.6, 0.4),
@@ -447,25 +448,59 @@ func build_traffic(count: int = 8, palette: Array = []) -> void:
 		node.position = Vector3(rng.randf_range(-block_half_w, block_half_w),
 			0, lane_z + rng.randf_range(-0.4, 0.4))
 		add_child(node)
-		_build_car_visual(node, palette[rng.randi() % palette.size()], east)
+		var kind: String = types[rng.randi() % types.size()]
+		_build_car_visual(node, palette[rng.randi() % palette.size()], east, kind)
+		var base_speed: float = rng.randf_range(7.0, 11.0)
+		if kind == "boxtruck":
+			base_speed *= 0.75
 		_cars.append({ "node": node, "lane": lane_z,
-			"speed": (1.0 if east else -1.0) * rng.randf_range(7.0, 11.0) })
+			"speed": (1.0 if east else -1.0) * base_speed })
 
-func _build_car_visual(parent: Node3D, col: Color, east: bool) -> void:
+func _build_car_visual(parent: Node3D, col: Color, east: bool,
+		kind: String = "sedan") -> void:
 	var dir := 1.0 if east else -1.0
-	# Self-lit paint so cars read at night
-	_add_part(parent, Vector3(0, 0.55, 0), Vector3(4.6, 0.9, 2.0),
-		col * 0.55, 0.4, 0.4, true, col * 0.5, 0.35)
-	_add_part(parent, Vector3(-dir * 0.3, 1.25, 0), Vector3(2.4, 0.6, 1.8),
-		col * 0.35, 0.4, 0.3, true, col * 0.35, 0.3)
-	_add_part(parent, Vector3(dir * 0.95, 1.25, 0), Vector3(0.1, 0.5, 1.6),
-		Color(0.1, 0.15, 0.2), 0.8, 0.2)
+	var body_len := 4.6
+	match kind:
+		"boxtruck":
+			body_len = 6.2
+			# Cab up front, glowing ad panel on the cargo box
+			_add_part(parent, Vector3(0, 0.6, 0), Vector3(body_len, 1.0, 2.1),
+				col * 0.5, 0.4, 0.4, true, col * 0.45, 0.3)
+			_add_part(parent, Vector3(dir * 2.3, 1.3, 0), Vector3(1.6, 0.8, 2.0),
+				col * 0.4, 0.4, 0.3, true, col * 0.4, 0.3)
+			_add_part(parent, Vector3(-dir * 0.9, 1.85, 0), Vector3(3.8, 2.1, 2.1),
+				col * 0.35, 0.3, 0.5, true, col * 0.3, 0.25)
+			var ad: Color = [Color(0.2, 1.2, 1.4), Color(1.5, 0.3, 1.0),
+				Color(1.4, 1.05, 0.3)][randi() % 3]
+			for side in [-1.08, 1.08]:
+				_add_part(parent, Vector3(-dir * 0.9, 1.9, side),
+					Vector3(3.0, 1.4, 0.04), ad * 0.35, 0.0, 0.4, true, ad, 1.0)
+		"pickup":
+			body_len = 5.2
+			_add_part(parent, Vector3(0, 0.6, 0), Vector3(body_len, 1.0, 2.0),
+				col * 0.55, 0.4, 0.4, true, col * 0.5, 0.35)
+			_add_part(parent, Vector3(dir * 1.0, 1.35, 0), Vector3(1.9, 0.7, 1.9),
+				col * 0.4, 0.4, 0.3, true, col * 0.4, 0.3)
+			# Open bed walls
+			for side in [-0.95, 0.95]:
+				_add_part(parent, Vector3(-dir * 1.4, 1.25, side),
+					Vector3(2.2, 0.4, 0.1), col * 0.4, 0.3, 0.5)
+			_add_part(parent, Vector3(-dir * 2.5, 1.25, 0), Vector3(0.1, 0.4, 1.9),
+				col * 0.4, 0.3, 0.5)
+		_:
+			_add_part(parent, Vector3(0, 0.55, 0), Vector3(body_len, 0.9, 2.0),
+				col * 0.55, 0.4, 0.4, true, col * 0.5, 0.35)
+			_add_part(parent, Vector3(-dir * 0.3, 1.25, 0), Vector3(2.4, 0.6, 1.8),
+				col * 0.35, 0.4, 0.3, true, col * 0.35, 0.3)
+			_add_part(parent, Vector3(dir * 0.95, 1.25, 0), Vector3(0.1, 0.5, 1.6),
+				Color(0.1, 0.15, 0.2), 0.8, 0.2)
+	var nose: float = body_len * 0.5 + 0.02
 	for zz in [-0.7, 0.7]:
-		_add_part(parent, Vector3(dir * 2.32, 0.6, zz), Vector3(0.08, 0.22, 0.3),
+		_add_part(parent, Vector3(dir * nose, 0.6, zz), Vector3(0.08, 0.22, 0.3),
 			Color(1, 1, 0.9), 0.0, 0.4, true, Color(1.3, 1.25, 1.0), 3.0)
-		_add_part(parent, Vector3(-dir * 2.32, 0.6, zz), Vector3(0.08, 0.2, 0.3),
+		_add_part(parent, Vector3(-dir * nose, 0.6, zz), Vector3(0.08, 0.2, 0.3),
 			Color(0.8, 0.1, 0.1), 0.0, 0.4, true, Color(1.5, 0.15, 0.1), 2.2)
-	for wx in [-1.5, 1.5]:
+	for wx in [-body_len * 0.33, body_len * 0.33]:
 		for wz in [-1.0, 1.0]:
 			_add_part(parent, Vector3(wx, 0.32, wz), Vector3(0.62, 0.62, 0.22),
 				Color(0.05, 0.05, 0.06), 0.2, 0.8)
