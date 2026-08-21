@@ -462,6 +462,7 @@ func _build_app_default(app_id: String) -> Control:
 func _build_app_body(app_id: String, color: Color) -> Control:
 	# Apps with real data implementations; the rest fall through to a stub.
 	match app_id:
+		"quests":   return _app_quests(color)
 		"messages": return _stub_messages(color)
 		"dating":   return _app_dating(color)
 		"news":     return _app_news(color)
@@ -910,6 +911,74 @@ func _app_gear(color: Color) -> Control:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(list)
 	_gear_render(list, color)
+	return scroll
+
+# ─────────────────────────────────────────────────────────────────────
+# Quests — the log. Active quests with live objective checkmarks, then
+# the completed pile. Reads data/quests.gd + GameState.quest_states.
+# ─────────────────────────────────────────────────────────────────────
+func _app_quests(color: Color) -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 10)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	var flags: Dictionary = GameState.flags
+	var inv: Array = GameState.inventory
+	var active: Array = []
+	var done: Array = []
+	for qid in Quests.ALL:
+		match GameState.quest_states.get(qid, ""):
+			"ACTIVE": active.append(qid)
+			"COMPLETED": done.append(qid)
+	if active.is_empty() and done.is_empty():
+		var none := Label.new()
+		none.text = "no jobs yet. go outside."
+		none.add_theme_font_size_override("font_size", 13)
+		none.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+		list.add_child(none)
+	for qid in active:
+		var q: Dictionary = Quests.get_quest(qid)
+		var title := Label.new()
+		var badge: String = "◆ " if q.get("type", "") == "main" else "◇ "
+		title.text = badge + q.get("title", qid)
+		title.clip_text = true
+		title.add_theme_font_size_override("font_size", 15)
+		title.add_theme_color_override("font_color",
+			Color(1.0, 0.75, 0.3) if q.get("type", "") == "main" else Color(0.55, 0.85, 1.0))
+		list.add_child(title)
+		var desc := Label.new()
+		desc.text = q.get("description", "")
+		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		desc.add_theme_font_size_override("font_size", 11)
+		desc.add_theme_color_override("font_color", Color(0.7, 0.72, 0.82))
+		list.add_child(desc)
+		for obj in q.get("objectives", []):
+			var hit: bool = Quests.objective_done(obj, flags, inv)
+			var ol := Label.new()
+			ol.text = ("● " if hit else "○ ") + obj.get("description", "")
+			ol.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			ol.add_theme_font_size_override("font_size", 11)
+			ol.add_theme_color_override("font_color",
+				Color(0.45, 0.9, 0.55) if hit else Color(0.85, 0.9, 1.0))
+			list.add_child(ol)
+	if not done.is_empty():
+		var dh := Label.new()
+		dh.text = "COMPLETED"
+		dh.add_theme_font_size_override("font_size", 13)
+		dh.add_theme_color_override("font_color", Color(0.45, 0.5, 0.6))
+		list.add_child(dh)
+		for qid in done:
+			var q: Dictionary = Quests.get_quest(qid)
+			var l := Label.new()
+			l.text = "✓ " + q.get("title", qid)
+			l.clip_text = true
+			l.add_theme_font_size_override("font_size", 12)
+			l.add_theme_color_override("font_color", Color(0.4, 0.55, 0.45))
+			list.add_child(l)
 	return scroll
 
 ## Small bordered button for gear rows — default-theme buttons are near

@@ -36,6 +36,12 @@ var _toast_tw: Tween
 func _ready() -> void:
 	layer = 45
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Quest completions announce themselves wherever you are
+	GameState.quest_completed.connect(func(_id: String, title: String, credits: int):
+		var msg := "QUEST COMPLETE · %s" % title
+		if credits > 0:
+			msg += " · +%d cr" % credits
+		_show_toast(msg))
 	# HEALTH + hearts (the home street's original look, now global)
 	var hp_l := Label.new()
 	hp_l.text = "HEALTH"

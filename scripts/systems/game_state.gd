@@ -8,6 +8,7 @@ extends Node
 signal flag_set(name: String)
 signal flag_cleared(name: String)
 signal credits_changed(new_amount: int)
+signal quest_completed(id: String, title: String, credits: int)
 
 var flags: Dictionary = {}
 var credits: int = 0
@@ -37,6 +38,7 @@ func set_flag(name: String, value := true) -> void:
 	if value:
 		flags[name] = true
 		flag_set.emit(name)
+		_recheck_quests()
 	else:
 		clear_flag(name)
 
@@ -55,12 +57,15 @@ func start_quest(id: String) -> void:
 	if not Quests.prerequisites_met(id, flags):
 		return
 	quest_states[id] = "ACTIVE"
+	var q := Quests.get_quest(id)
+	for f in q.get("on_start", {}).get("set_flags", []):
+		set_flag(f)
 	if active_quest == "":
 		active_quest = id
 
 func complete_quest(id: String) -> void:
 	var q := Quests.get_quest(id)
-	if q.is_empty():
+	if q.is_empty() or quest_states.get(id, "") == "COMPLETED":
 		return
 	quest_states[id] = "COMPLETED"
 	var on_complete: Dictionary = q.get("on_complete", {})
@@ -70,6 +75,32 @@ func complete_quest(id: String) -> void:
 		add_credits(on_complete["credits"])
 	if active_quest == id:
 		active_quest = ""
+	quest_completed.emit(id, q.get("title", id), int(on_complete.get("credits", 0)))
+
+## The quest engine — flags drive everything (the Phaser QuestManager
+## pattern): unlocked quests auto-activate, quests whose auto-checkable
+## objectives are all met auto-complete, and completions chain (their
+## flags can unlock and finish the next link in the same pass).
+var _quest_recheck_busy := false
+
+func _recheck_quests() -> void:
+	if _quest_recheck_busy:
+		return
+	_quest_recheck_busy = true
+	var changed := true
+	while changed:
+		changed = false
+		for qid in Quests.ALL:
+			var st: String = quest_states.get(qid, "")
+			if st == "COMPLETED":
+				continue
+			if st != "ACTIVE" and Quests.prerequisites_met(qid, flags):
+				start_quest(qid)
+				changed = true
+			if quest_states.get(qid, "") == "ACTIVE" 					and Quests.all_objectives_done(qid, flags, inventory):
+				complete_quest(qid)
+				changed = true
+	_quest_recheck_busy = false
 
 # ── Currency / inventory ──────────────────────────────────────────────
 
@@ -87,6 +118,7 @@ var hotbar: Dictionary = { "1": "medkit", "2": "grenade", "3": "stim",
 func add_item(item_id: String) -> void:
 	if STACKABLE.has(item_id) or not inventory.has(item_id):
 		inventory.append(item_id)
+	_recheck_quests()
 	# Auto-assign new consumable types to the first empty slot
 	if HOTBAR_GLYPHS.has(item_id) and not hotbar.values().has(item_id):
 		for s in ["1", "2", "3", "4", "5", "6"]:

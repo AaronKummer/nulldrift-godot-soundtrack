@@ -1428,6 +1428,7 @@ func _exit_to_city() -> void:
 	# Front door now leads to the hallway, not straight to the street.
 	# Players reach the city via the hallway's elevator.
 	_exiting = true
+	GameState.complete_quest("wakeUp")   # scene objective: leave the apartment
 	SceneTransition.go("hallway", "from_apt_404")
 
 # ═══════════════════════════════════════════════════════════════════════
