@@ -129,7 +129,7 @@ const APARTMENT := {
 
 const TITLE := {
 	"id": "title",
-	"name": "NULL//DRIFT",
+	"name": "0xFADE",
 	"music_category": "title",
 	"camera": {
 		"perspective": true,
@@ -261,7 +261,7 @@ const CITY := {
 
 const SOUNDTRACK := {
 	"id": "soundtrack",
-	"name": "NULL//DRIFT FM",
+	"name": "0xFADE FM",
 	"music_category": "",  # scene controls its own player (jukebox)
 
 	# Close 3rd-person chase. The scene script tweaks position each frame

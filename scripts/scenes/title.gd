@@ -1,20 +1,22 @@
 extends Node3D
 
-## NULL//DRIFT title screen — Godot port of
+## 0xFADE title screen — Godot port of
 ## hacking-game/src/components/IntroSequence.vue (Three.js + UnrealBloomPass).
 ##
 ## "NULL" purple neon tubes · "_" white · "DRIFT" cyan tubes · pink outline frame,
 ## starfield, rain, bloom. Replaces the previous skyline mockup that didn't
 ## match the current Phaser/Three.js title.
 
-const NULL_COLOR := Color(0.75, 0.37, 1.0)        # #bf5fff
-const DRIFT_COLOR := Color(0.0, 1.0, 1.0)         # #00ffff
-const UNDERSCORE_COLOR := Color(1.0, 1.0, 1.0)
+# "0x" = dim hex prefix, "FADE" = hot magenta that literally fades letter to
+# letter (see _build_neon_logo). Frame stays the danger-pink border.
+const PREFIX_COLOR := Color(0.35, 0.7, 0.85)      # dim steel-cyan hex prefix
+const FADE_HOT := Color(1.0, 0.2, 0.9)            # bright magenta (F)
+const FADE_COLD := Color(0.45, 0.13, 0.55)        # dim magenta (E)
 const FRAME_COLOR := Color(1.0, 0.0, 0.4)         # #ff0066
 
-const NULL_INTENSITY := 2.5
-const DRIFT_INTENSITY := 1.4
-const UNDERSCORE_INTENSITY := 1.0
+const PREFIX_INTENSITY := 1.3
+const FADE_HOT_INTENSITY := 2.6
+const FADE_COLD_INTENSITY := 1.0
 const FRAME_INTENSITY := 1.2
 
 const TUBE_R := 0.06
@@ -46,33 +48,36 @@ func _ready() -> void:
 	Music.play_category(def["music_category"])
 
 # ═══════════════════════════════════════════════════════════════════════
-# NEON LOGO — "NULL_DRIFT" as capsule-tube letters
+# NEON LOGO — "0xFADE" as capsule-tube letters
 # ═══════════════════════════════════════════════════════════════════════
 
 func _build_neon_logo() -> void:
-	var total_width := 11.0 * LETTER_SPACING
-	var start_x := -total_width / 2.0
+	# "0xFADE" — six glyphs. Last x-slot used ≈ 5.3, glyph ≈ 0.6 wide.
+	var span := LETTER_SPACING * 5.3 + 0.6
+	var start_x := -span / 2.0
 
-	var null_mat := _make_emissive(NULL_COLOR, NULL_INTENSITY)
-	var drift_mat := _make_emissive(DRIFT_COLOR, DRIFT_INTENSITY)
-	var under_mat := _make_emissive(UNDERSCORE_COLOR, UNDERSCORE_INTENSITY)
+	var prefix_mat := _make_emissive(PREFIX_COLOR, PREFIX_INTENSITY)
 	var frame_mat := _make_emissive(FRAME_COLOR, FRAME_INTENSITY)
 
-	# NULL
-	_letter_n(start_x + LETTER_SPACING * 0, 0, null_mat)
-	_letter_u(start_x + LETTER_SPACING * 1, 0, null_mat)
-	_letter_l(start_x + LETTER_SPACING * 2, 0, null_mat)
-	_letter_l(start_x + LETTER_SPACING * 3, 0, null_mat)
-	# _
-	_underscore(start_x + LETTER_SPACING * 4.3, 0, under_mat)
-	# DRIFT
-	_letter_d(start_x + LETTER_SPACING * 5.5, 0, drift_mat)
-	_letter_r(start_x + LETTER_SPACING * 6.6, 0, drift_mat)
-	_letter_i(start_x + LETTER_SPACING * 7.7, 0, drift_mat)
-	_letter_f(start_x + LETTER_SPACING * 8.5, 0, drift_mat)
-	_letter_t(start_x + LETTER_SPACING * 9.5, 0, drift_mat)
+	# 0x — the hex prefix, dim
+	_letter_zero(start_x + LETTER_SPACING * 0.0, 0, prefix_mat)
+	_letter_x(start_x + LETTER_SPACING * 1.0, 0, prefix_mat)
+
+	# FADE — each letter fades hot→cold across the word (the name, literally)
+	var fade := ["F", "A", "D", "E"]
+	for i in fade.size():
+		var t: float = float(i) / float(fade.size() - 1)
+		var mat := _make_emissive(FADE_HOT.lerp(FADE_COLD, t),
+			lerpf(FADE_HOT_INTENSITY, FADE_COLD_INTENSITY, t))
+		var lx: float = start_x + LETTER_SPACING * (2.3 + i)
+		match fade[i]:
+			"F": _letter_f(lx, 0, mat)
+			"A": _letter_a(lx, 0, mat)
+			"D": _letter_d(lx, 0, mat)
+			"E": _letter_e(lx, 0, mat)
+
 	# Frame
-	_frame(start_x - 0.8, total_width + 1.2, 2.4, frame_mat)
+	_frame(start_x - 0.8, span + 1.4, 2.4, frame_mat)
 
 func _make_emissive(color: Color, intensity: float) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
@@ -165,6 +170,31 @@ func _letter_f(x: float, y: float, mat: StandardMaterial3D) -> void:
 func _letter_t(x: float, y: float, mat: StandardMaterial3D) -> void:
 	_tube(x + 0.25, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)
 	_tube(x, y + LETTER_H / 2.0 - TUBE_R, 0.6, TUBE_R * 2.0, mat)
+
+# Slash-zero (hex style): rounded rect + a slash through it
+func _letter_zero(x: float, y: float, mat: StandardMaterial3D) -> void:
+	_tube(x, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)              # left
+	_tube(x + 0.5, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)       # right
+	_tube(x, y + LETTER_H / 2.0 - TUBE_R, 0.5 + TUBE_R * 2.0, TUBE_R * 2.0, mat)  # top
+	_tube(x, y - LETTER_H / 2.0, 0.5 + TUBE_R * 2.0, TUBE_R * 2.0, mat)   # bottom
+	_diagonal(x + 0.28, y, LETTER_H, 0.55, mat)                          # slash
+
+func _letter_x(x: float, y: float, mat: StandardMaterial3D) -> void:
+	_diagonal(x + 0.28, y, LETTER_H, 0.62, mat)
+	_diagonal(x + 0.28, y, LETTER_H, -0.62, mat)
+
+# Squared A — verticals + top and middle bars (matches the F/E aesthetic)
+func _letter_a(x: float, y: float, mat: StandardMaterial3D) -> void:
+	_tube(x, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)             # left
+	_tube(x + 0.5, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)       # right
+	_tube(x, y + LETTER_H / 2.0 - TUBE_R, 0.5 + TUBE_R * 2.0, TUBE_R * 2.0, mat)  # top
+	_tube(x, y + 0.1, 0.5 + TUBE_R * 2.0, TUBE_R * 2.0, mat)             # middle bar
+
+func _letter_e(x: float, y: float, mat: StandardMaterial3D) -> void:
+	_tube(x, y - LETTER_H / 2.0, TUBE_R * 2.0, LETTER_H, mat)             # left
+	_tube(x, y + LETTER_H / 2.0 - TUBE_R, 0.5, TUBE_R * 2.0, mat)         # top
+	_tube(x, y + 0.1, 0.4, TUBE_R * 2.0, mat)                            # middle
+	_tube(x, y - LETTER_H / 2.0, 0.5, TUBE_R * 2.0, mat)                 # bottom
 
 func _frame(x: float, width: float, height: float, mat: StandardMaterial3D) -> void:
 	var r := TUBE_R

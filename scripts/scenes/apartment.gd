@@ -69,7 +69,7 @@ var _crt_text_mat: StandardMaterial3D
 var _crt_text_sprite: Sprite3D
 var _crt_lines: PackedStringArray = [
 	"> connecting to grid_node_07...",
-	"> auth: ghost@nulldrift",
+	"> auth: ghost@0xfade",
 	"> 0x4f7a 0x1c92 0x8eff 0x002b",
 	"> packet 17/24 ▒▒▒▒▒░░░░░",
 	"> WARNING: trace probe detected",

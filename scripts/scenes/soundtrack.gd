@@ -1,6 +1,6 @@
 extends Node3D
 
-## NULL//DRIFT FM — first-person midnight-drive music player.
+## 0xFADE FM — first-person midnight-drive music player.
 ##
 ## Permanent night. No cycle. A procedural Sky resource paints a soft
 ## navy-to-violet vertical gradient as the backdrop, with stars sprinkled
@@ -1298,7 +1298,7 @@ void fragment() {
 
 	# Station ID — top-right, small.
 	var station := Label.new()
-	station.text = "NULL//DRIFT FM · 95.3"
+	station.text = "0xFADE FM · 95.3"
 	station.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	station.position = Vector2(-200, 18)
 	station.size = Vector2(180, 22)
@@ -1317,7 +1317,7 @@ void fragment() {
 func _make_console() -> PanelContainer:
 	# A tiny LCD-style readout that fits inside the dashboard's radio
 	# recess. Two stacked rows:
-	#   row 1: small "▶ NULL//DRIFT FM" station tag + tiny amber clock
+	#   row 1: small "▶ 0xFADE FM" station tag + tiny amber clock
 	#   row 2: amber-glowing track name marquee
 	#   row 3: thin pink progress sliver + tiny time + 4 eq bars
 	# All text is small, amber/cyan only — like a real car LCD.
@@ -1384,7 +1384,7 @@ func _make_console() -> PanelContainer:
 	var row3 := HBoxContainer.new()
 	row3.add_theme_constant_override("separation", 4)
 	_np_scene_label = Label.new()
-	_np_scene_label.text = "95.3 NULL//DRIFT"
+	_np_scene_label.text = "95.3 0xFADE"
 	_np_scene_label.add_theme_font_size_override("font_size", 8)
 	_np_scene_label.add_theme_color_override("font_color",
 		Color(0.70, 0.55, 1.0))

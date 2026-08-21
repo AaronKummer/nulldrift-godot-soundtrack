@@ -1,6 +1,6 @@
 extends Node
 
-## Music — autoload. Knows the full nulldrift soundtrack, categorizes
+## Music — autoload. Knows the full 0xFADE soundtrack, categorizes
 ## tracks by filename hint, picks at random per scene type, crossfades
 ## between scenes.
 ##

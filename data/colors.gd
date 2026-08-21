@@ -1,4 +1,4 @@
-## Color palette — the nulldrift neon look in one place.
+## Color palette — the 0xFADE neon look in one place.
 ## Mirrors hacking-game's hex constants used across PhoneUI, scenes, DialogueUI.
 ## Any scene/UI that wants brand colors should reach into here, never hardcode.
 class_name Palette
