@@ -296,6 +296,86 @@ const TREES := {
 			],
 		},
 	],
+
+	# ── GUS — pet store keeper, home street ──────────────────────────────
+	"gus": [
+		{
+			"condition": { "flag": "fish_fed" },
+			"lines": [
+				{ "speaker": "GUS", "text": "fish look better. see? told you it wasn't the filter.", "color": Color(0.55, 0.85, 0.5) },
+				{ "speaker": "GUS", "text": "animals are easy. you feed 'em, they love you. try getting that deal from a person.", "color": Color(0.55, 0.85, 0.5) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "GUS", "text": "pizza kid. your fish are starving and my rent is due. we can fix one of those.", "color": Color(0.55, 0.85, 0.5) },
+				{ "speaker": "GUS", "text": "everything in here is legal in THIS district. don't ask about the gecko.", "color": Color(0.55, 0.85, 0.5) },
+				{ "speaker": "", "text": "Something in the back room knocks over a bowl. Gus doesn't flinch.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
+	# ── HANK — diner owner (Phaser canon lines) ──────────────────────────
+	"hank": [
+		{
+			"condition": { "flag": "garageCleared" },
+			"lines": [
+				{ "speaker": "HANK", "text": "Word on the street is you took on the Chrome Jackals.", "color": Color(1.0, 0.67, 0.27) },
+				{ "speaker": "HANK", "text": "Either you're brave or stupid. Probably both.", "color": Color(1.0, 0.67, 0.27) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "HANK", "text": "Another day, another dollar. Or credit. Whatever.", "color": Color(1.0, 0.67, 0.27) },
+				{ "speaker": "HANK", "text": "Stay out of trouble, kid.", "color": Color(1.0, 0.67, 0.27) },
+			],
+		},
+	],
+
+	# ── ROXY — diner waitress (Phaser canon lines) ───────────────────────
+	"roxy": [
+		{
+			"condition": { "flag": "sewerRelayFound" },
+			"lines": [
+				{ "speaker": "ROXY", "text": "I saw you talking to that girl at the diner.", "color": Color(0.93, 0.4, 1.0) },
+				{ "speaker": "ROXY", "text": "Be careful. She's got connections you don't want to know about.", "color": Color(0.93, 0.4, 1.0) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "ROXY", "text": "This neighborhood used to be quiet. Now look at it.", "color": Color(0.93, 0.4, 1.0) },
+				{ "speaker": "ROXY", "text": "At least the ramen's still good.", "color": Color(0.93, 0.4, 1.0) },
+			],
+		},
+	],
+
+	# ── DEX — comic shop clerk ───────────────────────────────────────────
+	"dex": [
+		{
+			"condition": { "flag": "comicsCollector" },
+			"lines": [
+				{ "speaker": "DEX", "text": "full set. you actually got the full set.", "color": Color(0.4, 0.9, 1.0) },
+				{ "speaker": "DEX", "text": "i've only seen one other person do that. respect.", "color": Color(0.4, 0.9, 1.0) },
+			],
+		},
+		{
+			"condition": { "flag": "chadBeaten" },
+			"lines": [
+				{ "speaker": "DEX", "text": "wait. you're the one who dethroned chad at survivors.", "color": Color(0.4, 0.9, 1.0) },
+				{ "speaker": "DEX", "text": "he pre-ordered a figure of himself. i still have to sell it to him. don't tell him i told you.", "color": Color(0.4, 0.9, 1.0) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "DEX", "text": "welcome to PAGE ZERO. everything's mint unless you touch it.", "color": Color(0.4, 0.9, 1.0) },
+				{ "speaker": "DEX", "text": "new KING CROC dropped. it's about a guy. who is a crocodile. in the sewer. based on a true story.", "color": Color(0.4, 0.9, 1.0) },
+			],
+		},
+	],
 }
 
 static func resolve(npc_id: String, flags: Dictionary, active_quest: String = "",

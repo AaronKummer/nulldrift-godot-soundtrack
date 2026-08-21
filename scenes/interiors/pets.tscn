@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift61pets"]
+
+[ext_resource type="Script" path="res://scripts/interiors/pets.gd" id="1_pets"]
+
+[node name="PetStore" type="Node3D"]
+script = ExtResource("1_pets")

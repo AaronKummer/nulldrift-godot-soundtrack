@@ -1148,6 +1148,12 @@ func _build_arcade_entrance() -> void:
 	mb.name = "from_bar"
 	mb.position = Vector3(22.0, 0.0, -2.0)
 	add_child(mb)
+	# Return markers from the home-street interiors
+	for mk in [["from_diner", -50.0], ["from_pet", -28.0], ["from_comics", -4.0]]:
+		var mi := Node3D.new()
+		mi.name = mk[0]
+		mi.position = Vector3(mk[1], 0.0, -2.0)
+		add_child(mi)
 
 func _build_elevator_back() -> void:
 	# The way home — elevator entrance on the north facade at the west end,
@@ -2381,20 +2387,15 @@ func _on_storefront_interact(def: Dictionary) -> void:
 		SceneTransition.go("bar", "from_street")
 		return
 	if id == "pet":
-		if not GameState.has_item("fish_food"):
-			if GameState.credits >= 20:
-				GameState.add_credits(-20)
-				GameState.add_item("fish_food")
-				_set_status("you buy fish food. shopkeeper: 'feed your damn fish.'")
-			else:
-				# First-time visit: free fish food so the loop completes
-				# even with no credits. The shopkeeper is generous.
-				GameState.add_item("fish_food")
-				_set_status("shopkeeper hands you fish food. 'on the house. and take the cat.'")
-		else:
-			_set_status("shopkeeper: 'go feed your fish, kid.'")
-	else:
-		_set_status("(" + def.get("label", "?") + " interior not built yet)")
+		SceneTransition.go("pets", "from_street")
+		return
+	if id == "diner":
+		SceneTransition.go("diner", "from_street")
+		return
+	if id == "comics":
+		SceneTransition.go("comics", "from_street")
+		return
+	_set_status("(" + def.get("label", "?") + " interior not built yet)")
 
 
 # ─────────────────────────────────────────────────────────────────────────

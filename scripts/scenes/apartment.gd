@@ -121,6 +121,7 @@ func _ready() -> void:
 	_build_door()
 	_build_fishtank()
 	_build_bookshelf()
+	_build_owned_pets()
 	_build_player()
 	_build_lightning()
 	_build_hud()
@@ -712,6 +713,112 @@ func _build_ceiling_lamps() -> void:
 	fill.position = Vector3(0, 2.5, 0)
 	add_child(fill)
 	_track_light(fill)
+
+# ═══════════════════════════════════════════════════════════════════════
+# OWNED PETS — anything bought at PAWS+ lives here now. Same item ids the
+# shop sells; each pet claims a spot in the apartment.
+# ═══════════════════════════════════════════════════════════════════════
+
+func _add_pet_billboard(sheet: String, pos: Vector3, facing: int,
+		tint: Color = Color(1, 1, 1)) -> void:
+	var pivot := Node3D.new()
+	pivot.position = pos
+	add_child(pivot)
+	var ab = AnimatedBillboardScript.new()
+	ab.show_floor_shadow = false
+	ab.pixel_size = 0.04
+	pivot.add_child(ab)
+	ab.tint = tint
+	ab.load_sheet(sheet)
+	ab.facing = facing
+	ab.set_moving(false)
+
+func _build_owned_pets() -> void:
+	var lounge_x := ROOM_W / 2.0 - 7.0
+	var lounge_z := ROOM_D / 2.0 - 5.5
+	var bed_x := -ROOM_W / 2.0 + 5.0
+	var bed_z := ROOM_D / 2.0 - 5.0
+	# NANO FISH — a fourth fish in the tank, gold and quick
+	if GameState.has_item("nano_fish"):
+		_add_box(Vector3(-ROOM_W / 2.0 + 7.5 + 0.45, 1.62, ROOM_D / 2.0 - 3.5),
+			Vector3(0.14, 0.08, 0.05),
+			Color(1.0, 0.8, 0.2) * Color(0.4, 0.4, 0.4, 1.0), 0.0, 0.3,
+			true, Color(1.3, 0.95, 0.25), 1.6, false)
+	# CYBER CAT — owns the couch arm, judges you
+	if GameState.has_item("cyber_cat"):
+		_add_pet_billboard("res://assets/sprites/whiteCat.png",
+			Vector3(lounge_x + 3.4, 1.35, lounge_z + 1.0), 0, Color(0.75, 0.95, 1.2))
+	# SPLICE CAT — took the bed. it was always going to take the bed
+	if GameState.has_item("splice_cat"):
+		_add_pet_billboard("res://assets/sprites/whiteCat.png",
+			Vector3(bed_x + 1.0, 1.05, bed_z + 0.5), 1, Color(1.2, 0.8, 0.85))
+	# MUTANT RAT — patrols the kitchen baseboards
+	if GameState.has_item("mutant_rat"):
+		_add_pet_billboard("res://assets/sprites/sewerRat.png",
+			Vector3(8.0, 0.9, -ROOM_D / 2.0 + 4.5), 1)
+	# GLOW GECKO — terrarium on the bookshelf, lights that corner
+	if GameState.has_item("glow_gecko"):
+		var gx := -ROOM_W / 2.0 + 2.2
+		var gz := ROOM_D / 2.0 - 9.5
+		_add_box(Vector3(gx, 1.9, gz), Vector3(0.9, 0.7, 0.9),
+			Color(0.05, 0.20, 0.10), 0.2, 0.3, true, Color(0.2, 1.2, 0.4), 1.4, false)
+		var gl := OmniLight3D.new()
+		gl.position = Vector3(gx, 2.0, gz + 0.6)
+		gl.light_color = Color(0.3, 1.0, 0.45)
+		gl.light_energy = 1.2
+		gl.omni_range = 4.0
+		gl.omni_attenuation = 1.8
+		add_child(gl)
+	# ROBO DOG — parked by the door, eyes on
+	if GameState.has_item("robo_dog"):
+		var dx := ROOM_W / 2.0 - 4.5
+		var dz := ROOM_D / 5.0 + 3.5
+		_add_box(Vector3(dx, 0.55, dz), Vector3(1.3, 0.6, 0.6),
+			Color(0.25, 0.26, 0.30), 0.8, 0.3)
+		_add_box(Vector3(dx - 0.75, 0.85, dz), Vector3(0.5, 0.4, 0.45),
+			Color(0.22, 0.23, 0.27), 0.8, 0.3)
+		for ez in [-0.12, 0.12]:
+			_add_box(Vector3(dx - 1.02, 0.90, dz + ez), Vector3(0.03, 0.06, 0.06),
+				Color(1.0, 0.2, 0.1), 0.0, 0.3, true, Color(1.5, 0.25, 0.1), 2.5, false)
+		for lx in [-0.45, 0.45]:
+			for lz in [-0.2, 0.2]:
+				_add_box(Vector3(dx + lx, 0.15, dz + lz), Vector3(0.14, 0.35, 0.14),
+					Color(0.18, 0.19, 0.22), 0.8, 0.4)
+	# DRONE BIRD — hovers over the working corner, supervising
+	if GameState.has_item("drone_bird"):
+		var bird := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(0.35, 0.22, 0.2)
+		bird.mesh = bm
+		var bmat := StandardMaterial3D.new()
+		bmat.albedo_color = Color(0.15, 0.3, 0.25)
+		bmat.emission_enabled = true
+		bmat.emission = Color(0.3, 1.0, 0.7)
+		bmat.emission_energy_multiplier = 1.0
+		bird.material_override = bmat
+		bird.position = Vector3(12.0, 2.6, -10.0)
+		add_child(bird)
+		var tw := create_tween().set_loops()
+		tw.tween_property(bird, "position:y", 2.9, 1.3).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(bird, "position:y", 2.6, 1.3).set_trans(Tween.TRANS_SINE)
+	# BIO DRONE — a slow green orb doing laps of the rug
+	if GameState.has_item("bio_drone"):
+		var orb := MeshInstance3D.new()
+		var sm := SphereMesh.new()
+		sm.radius = 0.16
+		sm.height = 0.32
+		orb.mesh = sm
+		var omat := StandardMaterial3D.new()
+		omat.albedo_color = Color(0.1, 0.25, 0.12)
+		omat.emission_enabled = true
+		omat.emission = Color(0.35, 1.1, 0.4)
+		omat.emission_energy_multiplier = 1.3
+		orb.material_override = omat
+		orb.position = Vector3(-3.5, 1.6, 0.0)
+		add_child(orb)
+		var tw2 := create_tween().set_loops()
+		tw2.tween_property(orb, "position", Vector3(3.5, 1.8, 0.0), 4.0) 			.set_trans(Tween.TRANS_SINE)
+		tw2.tween_property(orb, "position", Vector3(-3.5, 1.6, 0.0), 4.0) 			.set_trans(Tween.TRANS_SINE)
 
 # ═══════════════════════════════════════════════════════════════════════
 # DOOR — visible frame + interact trigger
