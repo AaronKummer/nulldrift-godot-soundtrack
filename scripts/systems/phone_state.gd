@@ -40,11 +40,15 @@ func set_choice(thread_id: String, turn: int, choice_index: int) -> void:
 	choices[thread_id][turn] = choice_index
 	choice_made.emit(thread_id, turn, choice_index)
 
-func unread_count(threads: Array) -> int:
+## Unread conversations, given Messages.conversations(flags) output — a
+## convo counts once no matter how many fresh segments it holds.
+func unread_conversations(convos: Array) -> int:
 	var n := 0
-	for t in threads:
-		if not is_read(t.get("id", "")):
-			n += 1
+	for c in convos:
+		for sid in c.get("seg_ids", []):
+			if not is_read(sid):
+				n += 1
+				break
 	return n
 
 # ─────────────────────────────────────────────────────────────────────

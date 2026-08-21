@@ -17,8 +17,6 @@ const APPS := [
 	{ "id": "gear",     "label": "GEAR",     "icon": "🔫", "icon_path": "res://assets/icons/phone/gear.png",     "color": Color(1.0, 0.53, 0.0) },
 	{ "id": "grimoire", "label": "GRIMOIRE", "icon": "🔮", "icon_path": "res://assets/icons/phone/grimoire.png", "color": Color(0.73, 0.53, 1.0), "gate": "grimoire" },
 	{ "id": "quests",   "label": "QUESTS",   "icon": "📋", "icon_path": "res://assets/icons/phone/quests.png",   "color": Color(1.0, 0.53, 0.8) },
-	{ "id": "map",      "label": "MAP",      "icon": "🗺", "icon_path": "res://assets/icons/phone/map.png",      "color": Color(0.22, 1.0, 0.08) },
-
 	{ "id": "messages", "label": "MSGS",     "icon": "📩", "icon_path": "res://assets/icons/phone/messages.png", "color": Color(1.0, 0.0, 1.0) },
 	{ "id": "uber",     "label": "UBER",     "icon": "🚕", "icon_path": "res://assets/icons/phone/uber.png",     "color": Color(0.0, 0.8, 0.4) },
 	{ "id": "runs",     "label": "RUNS",     "icon": "🎯", "icon_path": "res://assets/icons/phone/runs.png",     "color": Color(1.0, 0.27, 0.27) },

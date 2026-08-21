@@ -374,6 +374,27 @@ func _build_app_icon(app: Dictionary, icon_size: float = 64.0) -> Control:
 		nav_entry["btn"] = btn
 		_home_icons.append(nav_entry)
 
+	# Unread badge on MSGS — count of conversations with fresh segments
+	if app_id == "messages":
+		var flags: Dictionary = GameState.flags if GameState else {}
+		var n: int = PhoneState.unread_conversations(MessagesData.conversations(flags))
+		if n > 0:
+			var badge := Label.new()
+			badge.text = str(n)
+			badge.add_theme_font_size_override("font_size", 12)
+			badge.add_theme_color_override("font_color", Color(1, 1, 1))
+			var bsb := StyleBoxFlat.new()
+			bsb.bg_color = Color(0.9, 0.1, 0.25)
+			bsb.corner_radius_top_left = 8; bsb.corner_radius_top_right = 8
+			bsb.corner_radius_bottom_left = 8; bsb.corner_radius_bottom_right = 8
+			bsb.content_margin_left = 5; bsb.content_margin_right = 5
+			var bp := PanelContainer.new()
+			bp.add_theme_stylebox_override("panel", bsb)
+			bp.add_child(badge)
+			bp.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+			bp.position = Vector2(icon_size - 14.0, -6.0)
+			nav_entry["btn"].add_child(bp)
+
 	var label := Label.new()
 	label.text = app.get("label", "")
 	label.add_theme_font_size_override("font_size", 11)
@@ -449,7 +470,6 @@ func _build_app_body(app_id: String, color: Color) -> Control:
 		"profile":  return _app_profile(color)
 		"gear":     return _app_gear(color)
 		"settings": return _app_settings(color)
-		"map":      return _stub_map(color)
 		"deck":     return _stub_deck(color)
 		_:          return _stub_generic(app_id, color)
 
@@ -929,17 +949,17 @@ func _stub_generic(app_id: String, color: Color) -> Control:
 
 # Messages app — reads res://data/messages.gd, mutates PhoneState (read flags,
 # choice picks). Phone overlay is purely a view; data + state live elsewhere.
+# Conversations are GROUPED by contact (the Phaser _getGroupedMessages port):
+# flag-unlocked segments append to the contact's history, choices are keyed
+# (segment id, index) in PhoneState, so nothing ever replays.
 const MessagesData := preload("res://data/messages.gd")
 
-# Tracks how far we've revealed each thread (so player choices can advance
-# the conversation). Lives at PhoneOverlay scope, not on Messages data.
-var _msg_open_thread: String = ""
-var _msg_progress: Dictionary = {}   # { thread_id: revealed_count }
+var _msg_open_from: String = ""
 
 func _stub_messages(color: Color) -> Control:
-	# Reading: ask data layer for visible threads given current flags
+	# Reading: ask data layer for visible conversations given current flags
 	var flags: Dictionary = GameState.flags if GameState else {}
-	var threads: Array = MessagesData.visible_threads(flags)
+	var convos: Array = MessagesData.conversations(flags)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -947,14 +967,20 @@ func _stub_messages(color: Color) -> Control:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 6)
 	scroll.add_child(list)
-	for t in threads:
-		list.add_child(_message_row(t, color))
+	for c in convos:
+		list.add_child(_message_row(c, color))
 	return scroll
 
 func _message_row(t: Dictionary, app_color: Color) -> Control:
 	var color: Color = t.get("color", app_color)
-	var thread_id: String = t.get("id", "")
-	var unread: bool = not PhoneState.is_read(thread_id)
+	var from_name: String = t.get("from", "")
+	# Unread if ANY visible segment of this conversation is unread — a new
+	# story segment re-lights a long-read thread.
+	var unread := false
+	for sid in t.get("seg_ids", []):
+		if not PhoneState.is_read(sid):
+			unread = true
+			break
 	var row := Button.new()
 	row.toggle_mode = false
 	row.flat = true
@@ -983,7 +1009,7 @@ func _message_row(t: Dictionary, app_color: Color) -> Control:
 	row.add_theme_stylebox_override("hover", sb_hover)
 	row.add_theme_stylebox_override("pressed", sb_hover)
 
-	row.pressed.connect(func(): _open_thread(thread_id))
+	row.pressed.connect(func(): _open_convo(from_name))
 
 	# Build the content into a vbox added as a child of the button (Buttons
 	# render their `text` but we want richer content, so we use children)
@@ -1023,12 +1049,14 @@ func _message_row(t: Dictionary, app_color: Color) -> Control:
 # Thread view — chat bubbles, player choices push more bubbles
 # ─────────────────────────────────────────────────────────────────────
 
-func _open_thread(thread_id: String) -> void:
-	_msg_open_thread = thread_id
-	# A new thread opens fully (no slow-reveal yet — that's animation polish).
-	if not _msg_progress.has(thread_id):
-		_msg_progress[thread_id] = 999
-	PhoneState.mark_read(thread_id)
+func _open_convo(from_name: String) -> void:
+	_msg_open_from = from_name
+	# Opening marks every currently-visible segment read; segments unlocked
+	# later arrive unread and re-light the row.
+	var flags: Dictionary = GameState.flags if GameState else {}
+	var convo: Dictionary = MessagesData.get_conversation(from_name, flags)
+	for sid in convo.get("seg_ids", []):
+		PhoneState.mark_read(sid)
 	_push("messages_thread")
 
 # Special-case nav: "messages_thread" is an app id we render with state above
@@ -1038,7 +1066,8 @@ func _build_app(app_id: String) -> Control:
 	return _build_app_default(app_id)
 
 func _build_thread_view() -> Control:
-	var thread: Dictionary = MessagesData.get_thread(_msg_open_thread)
+	var flags: Dictionary = GameState.flags if GameState else {}
+	var thread: Dictionary = MessagesData.get_conversation(_msg_open_from, flags)
 	var color: Color = thread.get("color", Color(1, 0, 1))
 
 	var screen := VBoxContainer.new()
@@ -1073,19 +1102,20 @@ func _build_thread_view() -> Control:
 	scroll.add_child(bubbles)
 	screen.add_child(scroll)
 
-	# Render the thread up to recorded progress; player-choice nodes become
-	# interactive buttons that, when pressed, record the choice in PhoneState.
-	var msgs: Array = thread.get("thread", [])
-	for i in msgs.size():
-		var m: Dictionary = msgs[i]
+	# Render the merged history; answered choices replay as plain bubbles
+	# (never re-asked), the first unanswered choice becomes buttons and
+	# blocks the rest — story segments queue up behind it.
+	var items: Array = thread.get("items", [])
+	for item in items:
+		var m: Dictionary = item.get("msg", {})
 		if m.get("sender", "") == "you" and m.has("choices"):
-			var picked := PhoneState.choice_for(_msg_open_thread, i)
+			var picked := PhoneState.choice_for(item.get("seg", ""), item.get("i", 0))
 			if picked >= 0:
 				var ch: Dictionary = m["choices"][picked]
 				bubbles.add_child(_bubble(ch.get("text", ""), color, true))
 				bubbles.add_child(_bubble(ch.get("reply", ""), color, false))
 			else:
-				bubbles.add_child(_choice_buttons(m["choices"], i, color))
+				bubbles.add_child(_choice_buttons(m["choices"], item, color))
 				break  # stop rendering until they pick
 		else:
 			var is_player: bool = m.get("sender", "") == "you"
@@ -1132,7 +1162,7 @@ func _bubble(text: String, color: Color, is_player: bool) -> Control:
 	row.add_child(bubble)
 	return row
 
-func _choice_buttons(choices: Array, turn: int, color: Color) -> Control:
+func _choice_buttons(choices: Array, item: Dictionary, color: Color) -> Control:
 	var v := VBoxContainer.new()
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v.add_theme_constant_override("separation", 6)
@@ -1170,12 +1200,13 @@ func _choice_buttons(choices: Array, turn: int, color: Color) -> Control:
 		btn.add_theme_stylebox_override("hover", sb_hover)
 		btn.add_theme_stylebox_override("pressed", sb_hover)
 		var captured_i := i
-		btn.pressed.connect(func(): _on_choice_picked(turn, captured_i))
+		btn.pressed.connect(func():
+			_on_choice_picked(item.get("seg", ""), item.get("i", 0), captured_i))
 		v.add_child(btn)
 	return v
 
-func _on_choice_picked(turn: int, choice_index: int) -> void:
-	PhoneState.set_choice(_msg_open_thread, turn, choice_index)
+func _on_choice_picked(seg_id: String, turn: int, choice_index: int) -> void:
+	PhoneState.set_choice(seg_id, turn, choice_index)
 	# Rebuild the thread view in place
 	var top: Dictionary = _stack[-1]
 	(top["node"] as Node).queue_free()
@@ -1258,39 +1289,6 @@ func _stub_dating(color: Color) -> Control:
 	like_btn.custom_minimum_size = Vector2(64, 64)
 	hb.add_child(like_btn)
 	v.add_child(hb)
-	return v
-
-func _stub_map(color: Color) -> Control:
-	var v := VBoxContainer.new()
-	var l := Label.new()
-	l.text = "city map"
-	l.add_theme_font_size_override("font_size", 14)
-	l.add_theme_color_override("font_color", color)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(l)
-	# Simple cyber map block
-	var p := Panel.new()
-	p.custom_minimum_size = Vector2(0, 380)
-	p.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.02, 0.05, 0.08)
-	sb.border_color = Color(color.r, color.g, color.b, 0.5)
-	sb.border_width_left = 1
-	sb.border_width_top = 1
-	sb.border_width_right = 1
-	sb.border_width_bottom = 1
-	sb.corner_radius_top_left = 8
-	sb.corner_radius_top_right = 8
-	sb.corner_radius_bottom_left = 8
-	sb.corner_radius_bottom_right = 8
-	p.add_theme_stylebox_override("panel", sb)
-	v.add_child(p)
-	var legend := Label.new()
-	legend.text = "▲ your apartment   ◉ neo city block 7"
-	legend.add_theme_font_size_override("font_size", 11)
-	legend.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
-	legend.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(legend)
 	return v
 
 func _stub_profile(color: Color) -> Control:
