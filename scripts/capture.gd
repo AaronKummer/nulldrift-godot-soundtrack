@@ -41,11 +41,17 @@ func _ready() -> void:
 	for i in range(WAIT_FRAMES):
 		await RenderingServer.frame_post_draw
 
-	# Optional 3rd arg: open the phone overlay before the final shot
+	# Optional 3rd arg: open the phone overlay before the final shot.
+	# A 5th arg opens a specific MSGS conversation and waits out the
+	# typing reveal (e.g. ... with_phone messages Nyx).
 	if args.size() > 2 and args[2] == "with_phone":
 		var phone := get_node_or_null("/root/Phone")
 		if phone:
 			phone.open(args[3] if args.size() > 3 else "home")
+			if args.size() > 4 and phone.has_method("_open_convo"):
+				await RenderingServer.frame_post_draw
+				phone._open_convo(args[4])
+				await get_tree().create_timer(9.0).timeout
 		for j in range(10):
 			await RenderingServer.frame_post_draw
 

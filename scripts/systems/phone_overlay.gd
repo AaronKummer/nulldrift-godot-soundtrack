@@ -1126,12 +1126,9 @@ func _message_row(t: Dictionary, app_color: Color) -> Control:
 
 func _open_convo(from_name: String) -> void:
 	_msg_open_from = from_name
-	# Opening marks every currently-visible segment read; segments unlocked
-	# later arrive unread and re-light the row.
-	var flags: Dictionary = GameState.flags if GameState else {}
-	var convo: Dictionary = MessagesData.get_conversation(from_name, flags)
-	for sid in convo.get("seg_ids", []):
-		PhoneState.mark_read(sid)
+	# Read state is earned, not granted: a segment is marked read only after
+	# it has fully PLAYED OUT in the live reveal (see _msg_tick), so the
+	# unread dot survives until you've actually had the conversation.
 	_push("messages_thread")
 
 # Special-case nav: "messages_thread" is an app id we render with state above
@@ -1177,25 +1174,243 @@ func _build_thread_view() -> Control:
 	scroll.add_child(bubbles)
 	screen.add_child(scroll)
 
-	# Render the merged history; answered choices replay as plain bubbles
-	# (never re-asked), the first unanswered choice becomes buttons and
-	# blocks the rest — story segments queue up behind it.
-	var items: Array = thread.get("items", [])
-	for item in items:
-		var m: Dictionary = item.get("msg", {})
-		if m.get("sender", "") == "you" and m.has("choices"):
-			var picked := PhoneState.choice_for(item.get("seg", ""), item.get("i", 0))
-			if picked >= 0:
-				var ch: Dictionary = m["choices"][picked]
-				bubbles.add_child(_bubble(ch.get("text", ""), color, true))
-				bubbles.add_child(_bubble(ch.get("reply", ""), color, false))
-			else:
-				bubbles.add_child(_choice_buttons(m["choices"], item, color))
-				break  # stop rendering until they pick
-		else:
-			var is_player: bool = m.get("sender", "") == "you"
-			bubbles.add_child(_bubble(m.get("text", ""), color, is_player))
+	# Wire up the live-reveal state (the Phaser typing state machine):
+	# fully-played segments render instantly as history, everything newer
+	# plays out with typing indicators and randomized delays.
+	_msg_scroll = scroll
+	_msg_bubbles = bubbles
+	_msg_color = color
+	_msg_items = thread.get("items", [])
+	_msg_reveal_gen += 1
+
+	# Input bar — always at the bottom, like a real messaging app. Idle it's
+	# a dim pill; at a choice point it holds the reply chips.
+	_msg_input_bar = PanelContainer.new()
+	var bar_sb := StyleBoxFlat.new()
+	bar_sb.bg_color = Color(0.04, 0.05, 0.09)
+	bar_sb.border_width_top = 1
+	bar_sb.border_color = Color(color.r, color.g, color.b, 0.25)
+	bar_sb.content_margin_left = 8
+	bar_sb.content_margin_right = 8
+	bar_sb.content_margin_top = 8
+	bar_sb.content_margin_bottom = 8
+	_msg_input_bar.add_theme_stylebox_override("panel", bar_sb)
+	screen.add_child(_msg_input_bar)
+	_msg_input_idle()
+
+	# Instant history: leading items whose segment has already been played
+	_msg_revealed = 0
+	while _msg_revealed < _msg_items.size():
+		var item: Dictionary = _msg_items[_msg_revealed]
+		if not PhoneState.is_read(item.get("seg", "")):
+			break
+		_msg_add_item_bubbles(item)
+		_msg_revealed += 1
+	_msg_scroll_to_bottom()
+	var gen := _msg_reveal_gen
+	get_tree().create_timer(0.45).timeout.connect(func(): _msg_tick(gen))
 	return screen
+
+# ─────────────────────────────────────────────────────────────────────
+# Live reveal — the Phaser _msgRevealState machine, Godot-native.
+# NPC messages arrive behind a "<name> is typing..." indicator with the
+# Phaser delay (600 + rand*1000 ms); scripted player lines auto-send;
+# choice points dock reply chips in the input bar. A segment is marked
+# read (persisted) only once its last message has been shown.
+# ─────────────────────────────────────────────────────────────────────
+
+var _msg_items: Array = []
+var _msg_revealed := 0
+var _msg_reveal_gen := 0
+var _msg_scroll: ScrollContainer
+var _msg_bubbles: VBoxContainer
+var _msg_input_bar: PanelContainer
+var _msg_color := Color(1, 0, 1)
+var _msg_typing_row: Label
+
+func _msg_alive(gen: int) -> bool:
+	return gen == _msg_reveal_gen and is_instance_valid(_msg_bubbles)
+
+## One already-played item, rendered instantly (history never re-asks)
+func _msg_add_item_bubbles(item: Dictionary) -> void:
+	var m: Dictionary = item.get("msg", {})
+	if m.get("sender", "") == "you" and m.has("choices"):
+		var picked := PhoneState.choice_for(item.get("seg", ""), item.get("i", 0))
+		if picked >= 0:
+			var ch: Dictionary = m["choices"][picked]
+			_msg_bubbles.add_child(_bubble(ch.get("text", ""), _msg_color, true))
+			_msg_bubbles.add_child(_bubble(ch.get("reply", ""), _msg_color, false))
+	else:
+		_msg_bubbles.add_child(_bubble(m.get("text", ""), _msg_color,
+			m.get("sender", "") == "you"))
+
+func _msg_scroll_to_bottom() -> void:
+	# Wait a beat for the container to lay out the new bubble, then pin
+	get_tree().create_timer(0.06).timeout.connect(func():
+		if is_instance_valid(_msg_scroll):
+			_msg_scroll.scroll_vertical = 999999)
+
+func _msg_advance_and_continue(gen: int, delay: float) -> void:
+	var item: Dictionary = _msg_items[_msg_revealed]
+	_msg_revealed += 1
+	# Segment fully shown? Persist it as read/played.
+	var seg: String = item.get("seg", "")
+	if _msg_revealed >= _msg_items.size() 			or _msg_items[_msg_revealed].get("seg", "") != seg:
+		PhoneState.mark_read(seg)
+	get_tree().create_timer(delay).timeout.connect(func(): _msg_tick(gen))
+
+func _msg_tick(gen: int) -> void:
+	if not _msg_alive(gen) or _msg_revealed >= _msg_items.size():
+		return
+	var item: Dictionary = _msg_items[_msg_revealed]
+	var m: Dictionary = item.get("msg", {})
+	if m.get("sender", "") == "you" and m.has("choices"):
+		var picked := PhoneState.choice_for(item.get("seg", ""), item.get("i", 0))
+		if picked >= 0:
+			# Chosen in a past session — replay instantly
+			_msg_add_item_bubbles(item)
+			_msg_scroll_to_bottom()
+			_msg_advance_and_continue(gen, 0.5)
+		else:
+			_msg_show_choices(item, gen)
+	elif m.get("sender", "") == "you":
+		# Scripted player line — auto-sends like you typed it
+		_msg_bubbles.add_child(_bubble(m.get("text", ""), _msg_color, true))
+		_msg_scroll_to_bottom()
+		_msg_advance_and_continue(gen, 0.55)
+	else:
+		_msg_start_typing(item, gen)
+
+func _msg_start_typing(item: Dictionary, gen: int) -> void:
+	_msg_typing_row = Label.new()
+	_msg_typing_row.text = _msg_open_from.to_lower() + " is typing."
+	_msg_typing_row.add_theme_font_size_override("font_size", 11)
+	_msg_typing_row.add_theme_color_override("font_color", Color(0.45, 0.5, 0.65))
+	_msg_bubbles.add_child(_msg_typing_row)
+	_msg_scroll_to_bottom()
+	_msg_animate_dots(gen, 1)
+	var wait := 0.6 + randf() * 1.0   # Phaser: 600 + rand*1000 ms
+	get_tree().create_timer(wait).timeout.connect(func():
+		if not _msg_alive(gen):
+			return
+		if is_instance_valid(_msg_typing_row):
+			_msg_typing_row.queue_free()
+		var m: Dictionary = item.get("msg", {})
+		_msg_bubbles.add_child(_bubble(m.get("text", ""), _msg_color, false))
+		_msg_scroll_to_bottom()
+		_msg_advance_and_continue(gen, 0.35))
+
+func _msg_animate_dots(gen: int, step: int) -> void:
+	if not _msg_alive(gen) or not is_instance_valid(_msg_typing_row):
+		return
+	_msg_typing_row.text = _msg_open_from.to_lower() + " is typing" + ".".repeat(1 + step % 3)
+	get_tree().create_timer(0.35).timeout.connect(func(): _msg_animate_dots(gen, step + 1))
+
+## Idle input bar — the dim "message" pill with a send arrow, purely
+## cosmetic, there so the thread always ends in a text box like a real app
+func _msg_input_idle() -> void:
+	if not is_instance_valid(_msg_input_bar):
+		return
+	for c in _msg_input_bar.get_children():
+		c.queue_free()
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 8)
+	var pill := PanelContainer.new()
+	pill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.10, 0.16)
+	sb.border_width_left = 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.border_color = Color(0.22, 0.27, 0.38)
+	sb.corner_radius_top_left = 14
+	sb.corner_radius_top_right = 14
+	sb.corner_radius_bottom_left = 14
+	sb.corner_radius_bottom_right = 14
+	sb.content_margin_left = 12
+	sb.content_margin_right = 12
+	sb.content_margin_top = 5
+	sb.content_margin_bottom = 5
+	pill.add_theme_stylebox_override("panel", sb)
+	var ph := Label.new()
+	ph.text = "message"
+	ph.add_theme_font_size_override("font_size", 12)
+	ph.add_theme_color_override("font_color", Color(0.35, 0.4, 0.52))
+	pill.add_child(ph)
+	hb.add_child(pill)
+	var send := Label.new()
+	send.text = "➤"
+	send.add_theme_font_size_override("font_size", 16)
+	send.add_theme_color_override("font_color", Color(0.25, 0.3, 0.42))
+	send.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hb.add_child(send)
+	_msg_input_bar.add_child(hb)
+
+## Choice point — the reply chips live IN the input bar, like quick replies
+func _msg_show_choices(item: Dictionary, gen: int) -> void:
+	if not is_instance_valid(_msg_input_bar):
+		return
+	for c in _msg_input_bar.get_children():
+		c.queue_free()
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	var choices: Array = item.get("msg", {}).get("choices", [])
+	for i in choices.size():
+		var ch: Dictionary = choices[i]
+		var btn := Button.new()
+		btn.text = ch.get("text", "")
+		btn.add_theme_font_size_override("font_size", 13)
+		btn.add_theme_color_override("font_color", Color(0.8, 1.0, 1.0))
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.07, 0.12, 0.18)
+		sb.border_color = Color(0.0, 1.0, 1.0, 0.4)
+		sb.border_width_left = 1
+		sb.border_width_top = 1
+		sb.border_width_right = 1
+		sb.border_width_bottom = 1
+		sb.corner_radius_top_left = 14
+		sb.corner_radius_top_right = 14
+		sb.corner_radius_bottom_left = 14
+		sb.corner_radius_bottom_right = 14
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		sb.content_margin_top = 7
+		sb.content_margin_bottom = 7
+		btn.add_theme_stylebox_override("normal", sb)
+		var sb_hover := sb.duplicate() as StyleBoxFlat
+		sb_hover.bg_color = Color(0.1, 0.2, 0.3)
+		btn.add_theme_stylebox_override("hover", sb_hover)
+		btn.add_theme_stylebox_override("pressed", sb_hover)
+		var captured_i := i
+		btn.pressed.connect(func(): _msg_pick(item, captured_i, gen))
+		v.add_child(btn)
+	_msg_input_bar.add_child(v)
+
+func _msg_pick(item: Dictionary, idx: int, gen: int) -> void:
+	if not _msg_alive(gen):
+		return
+	PhoneState.set_choice(item.get("seg", ""), item.get("i", 0), idx)
+	_msg_input_idle()
+	var ch: Dictionary = item.get("msg", {}).get("choices", [])[idx]
+	_msg_bubbles.add_child(_bubble(ch.get("text", ""), _msg_color, true))
+	_msg_scroll_to_bottom()
+	# The NPC types their branching reply back
+	_msg_typing_row = Label.new()
+	_msg_typing_row.text = _msg_open_from.to_lower() + " is typing."
+	_msg_typing_row.add_theme_font_size_override("font_size", 11)
+	_msg_typing_row.add_theme_color_override("font_color", Color(0.45, 0.5, 0.65))
+	_msg_bubbles.add_child(_msg_typing_row)
+	_msg_animate_dots(gen, 1)
+	get_tree().create_timer(0.6 + randf() * 0.8).timeout.connect(func():
+		if not _msg_alive(gen):
+			return
+		if is_instance_valid(_msg_typing_row):
+			_msg_typing_row.queue_free()
+		_msg_bubbles.add_child(_bubble(ch.get("reply", ""), _msg_color, false))
+		_msg_scroll_to_bottom()
+		_msg_advance_and_continue(gen, 0.4))
 
 func _bubble(text: String, color: Color, is_player: bool) -> Control:
 	var row := HBoxContainer.new()
@@ -1236,61 +1451,6 @@ func _bubble(text: String, color: Color, is_player: bool) -> Control:
 	bubble.size_flags_horizontal = Control.SIZE_SHRINK_END if is_player else Control.SIZE_SHRINK_BEGIN
 	row.add_child(bubble)
 	return row
-
-func _choice_buttons(choices: Array, item: Dictionary, color: Color) -> Control:
-	var v := VBoxContainer.new()
-	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v.add_theme_constant_override("separation", 6)
-	var head := Label.new()
-	head.text = "— reply —"
-	head.add_theme_font_size_override("font_size", 10)
-	head.add_theme_color_override("font_color", Color(0.5, 0.6, 0.75))
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(head)
-	for i in choices.size():
-		var ch: Dictionary = choices[i]
-		var btn := Button.new()
-		btn.text = ch.get("text", "")
-		btn.add_theme_font_size_override("font_size", 13)
-		btn.add_theme_color_override("font_color", Color(0.8, 1.0, 1.0))
-		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.07, 0.12, 0.18)
-		sb.border_color = Color(0.0, 1.0, 1.0, 0.4)
-		sb.border_width_left = 1
-		sb.border_width_top = 1
-		sb.border_width_right = 1
-		sb.border_width_bottom = 1
-		sb.corner_radius_top_left = 10
-		sb.corner_radius_top_right = 10
-		sb.corner_radius_bottom_left = 10
-		sb.corner_radius_bottom_right = 10
-		sb.content_margin_left = 12
-		sb.content_margin_right = 12
-		sb.content_margin_top = 10
-		sb.content_margin_bottom = 10
-		btn.add_theme_stylebox_override("normal", sb)
-		var sb_hover := sb.duplicate() as StyleBoxFlat
-		sb_hover.bg_color = Color(0.1, 0.2, 0.3)
-		btn.add_theme_stylebox_override("hover", sb_hover)
-		btn.add_theme_stylebox_override("pressed", sb_hover)
-		var captured_i := i
-		btn.pressed.connect(func():
-			_on_choice_picked(item.get("seg", ""), item.get("i", 0), captured_i))
-		v.add_child(btn)
-	return v
-
-func _on_choice_picked(seg_id: String, turn: int, choice_index: int) -> void:
-	PhoneState.set_choice(seg_id, turn, choice_index)
-	# Rebuild the thread view in place
-	var top: Dictionary = _stack[-1]
-	(top["node"] as Node).queue_free()
-	var screen := _build_thread_view()
-	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
-	screen.mouse_filter = Control.MOUSE_FILTER_PASS
-	_app_container.add_child(screen)
-	top["node"] = screen
-	_stack[-1] = top
 
 func _back_button(color: Color) -> Button:
 	var back := Button.new()
