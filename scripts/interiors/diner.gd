@@ -114,13 +114,44 @@ func _build_booths() -> void:
 		tag.position = Vector3(bx - 0.8, 1.9, bz)
 		tag.rotation.y = PI / 2.0
 		add_child(tag)
-	# Booth two (middle) — the story booth. Reserved until Act 1 wires up.
-	add_interact(Vector3(bx + 3.2, 1.0, 0.9), Vector3(1.8, 2.2, 3.0),
-		"booth two", func():
-			DialogueOverlay.play_lines([
-				{ "speaker": "", "text": "The booth sits empty. A coffee cup, still warm. Magenta lipstick on the rim.", "color": Color(0.53, 0.53, 0.53) },
-				{ "speaker": "", "text": "Someone's carved into the table edge: 0xFADE.", "color": Color(0.53, 0.53, 0.53) },
-			], "booth_two"))
+	# Booth two (middle) — the story booth. Nyx waits here through Act 1.
+	var booth_two_z := 0.9
+	if _nyx_present():
+		# NYX at the booth (smoking_drifter = her canon hooded sprite),
+		# seated at the table end so she isn't standing in the bench
+		add_npc("res://assets/sprites/smoking_drifter.png",
+			Vector3(bx + 2.9, 0.9, booth_two_z), 2, Color(1.0, 0.9, 1.0))
+		add_interact(Vector3(bx + 3.2, 1.0, booth_two_z), Vector3(1.8, 2.2, 3.0),
+			"talk to the girl in booth two", _talk_to_nyx)
+	else:
+		add_interact(Vector3(bx + 3.2, 1.0, booth_two_z), Vector3(1.8, 2.2, 3.0),
+			"booth two", func():
+				DialogueOverlay.play_lines([
+					{ "speaker": "", "text": "The booth sits empty. A coffee cup, still warm. Magenta lipstick on the rim.", "color": Color(0.53, 0.53, 0.53) },
+					{ "speaker": "", "text": "Someone's carved into the table edge: 0xFADE.", "color": Color(0.53, 0.53, 0.53) },
+				], "booth_two"))
+
+## Nyx is at booth two from the first-hack meeting until Act 1 wraps.
+func _nyx_present() -> bool:
+	return GameState.has_flag("firstHackDone") and not GameState.has_flag("actOneComplete")
+
+func _talk_to_nyx() -> void:
+	# Snapshot the quest-relevant state BEFORE the talk, apply the payoff
+	# when the dialogue finishes.
+	var was_met: bool = GameState.has_flag("metCyberGirl")
+	var report_ready: bool = GameState.has_flag("securedTerminalHacked") 			and not GameState.has_flag("actOneComplete")
+	if not DialogueOverlay.finished.is_connected(_on_nyx_talk_done):
+		DialogueOverlay.finished.connect(_on_nyx_talk_done.bind(was_met, report_ready),
+			CONNECT_ONE_SHOT)
+	DialogueOverlay.play("nyx_diner")
+
+func _on_nyx_talk_done(_npc: String, was_met: bool, report_ready: bool) -> void:
+	# First sit-down completes the meeting (grants metCyberGirl + 500 cr)
+	if not was_met and GameState.has_flag("firstHackDone"):
+		GameState.complete_quest("dinerMeeting")
+	# Reporting the terminal data back closes Act 1
+	elif report_ready:
+		GameState.set_flag("reportedToNyx")   # completes goingDeeper → actOneComplete
 
 func _build_roxy() -> void:
 	# Roxy works the floor — standing at the end of booth three's table

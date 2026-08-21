@@ -297,6 +297,64 @@ const TREES := {
 		},
 	],
 
+	# ── NYX — the diner meeting and its Act 1 follow-ups (Phaser canon,
+	# ordered most-progressed first so the right branch resolves). She sits
+	# at booth two in HANK'S DINER; talking advances the story. ──────────
+	"nyx_diner": [
+		# After the secured-terminal hack: she reads the relay data, closes Act 1
+		{
+			"condition": { "flag": "securedTerminalHacked", "not_flag": "actOneComplete" },
+			"lines": [
+				{ "speaker": "NYX", "text": "You got the data? Let me see...", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Relay node coordinates. The Jackals were guarding Cortex hardware.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "There are more of these across the city. This is bigger than we thought.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "I know someone on the inside. Let me dig around.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "", "text": "Your phone buzzes. A message from an unknown number.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+		# After clearing the garage: she sends you to hack the terminal
+		{
+			"condition": { "flag": "garageCleared", "not_flag": "securedTerminalHacked" },
+			"lines": [
+				{ "speaker": "NYX", "text": "You actually did it. Rezz ran like a coward.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "But the Jackals... they're connected to something bigger.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "I need you to hack into one of their secured terminals. Get me intel.", "color": Color(1.0, 0.53, 0.8) },
+			],
+		},
+		# Met her, still hasn't cleared the garage
+		{
+			"condition": { "flag": "metCyberGirl", "not_flag": "garageCleared" },
+			"lines": [
+				{ "speaker": "NYX", "text": "Still here? Go check out that garage I told you about.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "And be careful. Rezz doesn't play nice.", "color": Color(1.0, 0.53, 0.8) },
+			],
+		},
+		# THE MEETING — first sit-down (quest dinerMeeting active via firstHackDone)
+		{
+			"condition": { "flag": "firstHackDone", "not_flag": "metCyberGirl" },
+			"lines": [
+				{ "speaker": "???", "text": "Booth two, Ghost. ...God, you look terrible.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "GHOST", "text": "...Nyx? HR Nyx? From Quantix?", "color": Color(0.0, 1.0, 1.0) },
+				{ "speaker": "NYX", "text": "EX-Quantix. They automated HR six weeks after they automated you. Karma's efficient.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "The girl at the ATM works for me. The deck landing at your feet wasn't luck. It was a test.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "I saw what you did with it. Not bad for a laid-off code monkey.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "I read your file for five years. I WROTE half of it. You're wasted on unemployment.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "There's a gang — the Chrome Jackals. They've been terrorizing this block.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Their boss, Rezz, holes up in the parking garage in the warzone.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Clear them out. I'll make it worth your while.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "", "text": "Nyx slides 500 credits across the table.", "color": Color(0.27, 1.0, 0.53) },
+			],
+		},
+		# Before the first hack — she won't talk yet
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "???", "text": "...", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "", "text": "She doesn't seem interested in talking right now.", "color": Color(0.53, 0.53, 0.53) },
+			],
+		},
+	],
+
 	# ── GUS — pet store keeper, home street ──────────────────────────────
 	"gus": [
 		{
