@@ -348,6 +348,43 @@ const SEGMENTS := [
 		],
 	},
 
+	# ── Fizzled dating-app matches (Phaser FIZZLED_THREADS) ────────────
+	{
+		"id": "glitch_fizzle",
+		"from": "GLITCH_QU33N",
+		"color": Color(1.0, 0.27, 1.0),
+		"time": "NEW",
+		"preview": "heyyyyy",
+		"require_flag": "glitchMatched",
+		"thread": [
+			{ "sender": "them", "text": "heyyyyy" },
+			{ "sender": "you", "text": "hey, whats up?" },
+			{ "sender": "them", "text": "the walls are breathing again lol" },
+			{ "sender": "them", "text": "wanna come watch?" },
+			{ "sender": "you", "text": "..." },
+			{ "sender": "them", "text": "ur loss" },
+		],
+	},
+	{
+		"id": "spike_fizzle",
+		"from": "Spike",
+		"color": Color(1.0, 0.4, 0.2),
+		"time": "NEW",
+		"preview": "yo, you busy tonight?",
+		"require_flag": "spikeMatched",
+		"thread": [
+			{ "sender": "them", "text": "yo, you busy tonight?" },
+			{ "sender": "you", "text": "depends. whats up?" },
+			{ "sender": "them", "text": "got a bounty to collect in sector 9" },
+			{ "sender": "them", "text": "could use backup" },
+			{ "sender": "you", "text": "i thought this was a dating app" },
+			{ "sender": "them", "text": "it is. this is how i date." },
+			{ "sender": "them", "text": "so... you in or not?" },
+			{ "sender": "you", "text": "im good. thanks." },
+			{ "sender": "them", "text": "your loss. the last person who said no is still in sector 9." },
+		],
+	},
+
 	# ── The finale threads ─────────────────────────────────────────────
 	{
 		"id": "laura_library",

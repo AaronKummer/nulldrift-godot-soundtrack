@@ -767,6 +767,11 @@ func _on_date_vote(profile_id: String, liked_it: bool) -> void:
 	PhoneState.vote(profile_id, liked_it)
 	if profile_id == "kerry" and liked_it and not GameState.has_flag("kerryMatched"):
 		GameState.set_flag("kerryMatched")
+	# Matching the wrong people gets you their fizzled thread in MSGS
+	if profile_id == "spike" and liked_it:
+		GameState.set_flag("spikeMatched")
+	if profile_id == "glitch_qu33n" and liked_it:
+		GameState.set_flag("glitchMatched")
 	# Refresh the dating view in-place
 	var top: Dictionary = _stack[-1]
 	(top["node"] as Node).queue_free()
