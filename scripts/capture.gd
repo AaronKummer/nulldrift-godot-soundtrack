@@ -19,6 +19,12 @@ func _ready() -> void:
 	var scene_path := args[0] if args.size() > 0 else "res://scenes/title.tscn"
 	var out_name := args[1] if args.size() > 1 else "render"
 
+	# Optional "flag <name>" pairs anywhere in the args: set story flags
+	# before the scene builds (e.g. ... flag apartmentLightsOff)
+	for i in range(2, args.size() - 1):
+		if args[i] == "flag":
+			GameState.set_flag(args[i + 1])
+
 	var packed := load(scene_path) as PackedScene
 	if packed == null:
 		printerr("Failed to load scene: ", scene_path)

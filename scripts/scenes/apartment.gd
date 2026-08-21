@@ -117,6 +117,7 @@ func _ready() -> void:
 	_build_lounge()
 	_build_center_rug()
 	_build_ceiling_lamps()
+	_build_light_switch()
 	_build_door()
 	_build_fishtank()
 	_build_bookshelf()
@@ -549,9 +550,9 @@ func _build_cozy_corner() -> void:
 	_add_box(Vector3(bx + 3.1, 0.7, bz - 2.4), Vector3(1.4, 1.4, 1.4),
 		Color(0.12, 0.09, 0.08), 0.0, 0.75)
 	# Bedside lamp — warm
-	_add_box(Vector3(bx + 3.1, 1.6, bz - 2.4), Vector3(0.45, 0.45, 0.45),
+	_track_shade(_add_box(Vector3(bx + 3.1, 1.6, bz - 2.4), Vector3(0.45, 0.45, 0.45),
 		Color(0.95, 0.85, 0.6), 0.0, 0.3,
-		true, Color(1.0, 0.85, 0.5), 2.4)
+		true, Color(1.0, 0.85, 0.5), 2.4))
 	var lamp := OmniLight3D.new()
 	lamp.light_color = Color(1.0, 0.85, 0.5)
 	lamp.light_energy = 2.4
@@ -559,6 +560,7 @@ func _build_cozy_corner() -> void:
 	lamp.omni_attenuation = 1.5
 	lamp.position = Vector3(bx + 3.1, 1.85, bz - 2.4)
 	add_child(lamp)
+	_track_light(lamp)
 
 	# Plant in the corner — vase + emissive cyan-green leaves
 	_add_box(Vector3(bx - 1.6, 0.5, bz + 2.6), Vector3(0.8, 1.0, 0.8),
@@ -650,9 +652,9 @@ func _build_lounge() -> void:
 		Color(0.05, 0.05, 0.06), 0.5, 0.4)
 	_add_box(Vector3(cx + 4.0, 1.5, cz + 1.5), Vector3(0.1, 2.8, 0.1),
 		Color(0.07, 0.07, 0.08), 0.5, 0.4)
-	_add_box(Vector3(cx + 4.0, 3.0, cz + 1.5), Vector3(0.7, 0.6, 0.7),
+	_track_shade(_add_box(Vector3(cx + 4.0, 3.0, cz + 1.5), Vector3(0.7, 0.6, 0.7),
 		Color(0.95, 0.85, 0.55), 0.0, 0.3,
-		true, Color(1.0, 0.8, 0.45), 2.0)
+		true, Color(1.0, 0.8, 0.45), 2.0))
 	var fl := OmniLight3D.new()
 	fl.light_color = Color(1.0, 0.8, 0.45)
 	fl.light_energy = 2.4
@@ -660,6 +662,7 @@ func _build_lounge() -> void:
 	fl.omni_attenuation = 1.3
 	fl.position = Vector3(cx + 4.0, 3.1, cz + 1.5)
 	add_child(fl)
+	_track_light(fl)
 
 # ═══════════════════════════════════════════════════════════════════════
 # CENTER — anchor rug
@@ -687,9 +690,9 @@ func _build_ceiling_lamps() -> void:
 	for p in lamp_positions:
 		_add_box(Vector3(p.x, ROOM_H - 0.15, p.z), Vector3(0.9, 0.14, 0.9),
 			Color(0.05, 0.05, 0.06), 0.5, 0.4)
-		_add_box(Vector3(p.x, ROOM_H - 0.32, p.z), Vector3(0.4, 0.22, 0.4),
+		_track_shade(_add_box(Vector3(p.x, ROOM_H - 0.32, p.z), Vector3(0.4, 0.22, 0.4),
 			Color(1.0, 0.9, 0.6), 0.0, 0.3,
-			true, Color(1.0, 0.85, 0.55), 1.6)
+			true, Color(1.0, 0.85, 0.55), 1.6))
 		var l := OmniLight3D.new()
 		l.light_color = Color(1.0, 0.88, 0.6)
 		l.light_energy = 3.8
@@ -698,6 +701,7 @@ func _build_ceiling_lamps() -> void:
 		l.shadow_enabled = (p == Vector3.ZERO)
 		l.position = Vector3(p.x, ROOM_H - 0.4, p.z)
 		add_child(l)
+		_track_light(l)
 
 	# Soft purple fill — broad
 	var fill := OmniLight3D.new()
@@ -707,6 +711,7 @@ func _build_ceiling_lamps() -> void:
 	fill.omni_attenuation = 1.4
 	fill.position = Vector3(0, 2.5, 0)
 	add_child(fill)
+	_track_light(fill)
 
 # ═══════════════════════════════════════════════════════════════════════
 # DOOR — visible frame + interact trigger
@@ -725,6 +730,62 @@ var _fishtank_water: MeshInstance3D
 var _fishtank_water_mat: StandardMaterial3D
 
 var _on_bookshelf := false
+
+# ── Room lights — wall switch by the door toggles the warm lamps. The
+# mood lighting (TV, neon, fishtank, window) stays on so lights-off is
+# movie-night dark, not void-dark. State persists via apartmentLightsOff.
+var _on_light_switch := false
+var _lights_on := true
+var _room_lights: Array = []   # { node: OmniLight3D, energy: float }
+var _room_shades: Array = []   # { mat: StandardMaterial3D, energy: float }
+
+func _track_light(l: OmniLight3D) -> void:
+	_room_lights.append({ "node": l, "energy": l.light_energy })
+
+func _track_shade(mi: MeshInstance3D) -> void:
+	var mat := mi.material_override as StandardMaterial3D
+	if mat and mat.emission_enabled:
+		_room_shades.append({ "mat": mat, "energy": mat.emission_energy_multiplier })
+
+func _build_light_switch() -> void:
+	var dx := ROOM_W / 2.0
+	var sz := ROOM_D / 5.0 - 1.9   # beside the door frame, handle side
+	# Wall plate + toggle nub
+	_add_box(Vector3(dx - 0.10, 1.5, sz), Vector3(0.06, 0.28, 0.18),
+		Color(0.75, 0.75, 0.8), 0.3, 0.4, false, Color.BLACK, 0.0, false)
+	_add_box(Vector3(dx - 0.15, 1.5, sz), Vector3(0.05, 0.08, 0.06),
+		Color(0.9, 0.8, 0.5), 0.2, 0.3, true, Color(1.0, 0.85, 0.4), 1.2, false)
+	var zone := Area3D.new()
+	zone.position = Vector3(dx - 0.9, 1.2, sz)
+	var col := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(1.6, 2.2, 1.6)
+	col.shape = shape
+	zone.add_child(col)
+	zone.body_entered.connect(func(b):
+		if b == _player:
+			_on_light_switch = true
+			_set_status("[E] lights " + ("off" if _lights_on else "on")))
+	zone.body_exited.connect(func(b):
+		if b == _player:
+			_on_light_switch = false
+			_set_status(""))
+	add_child(zone)
+	# Restore saved state
+	_lights_on = not GameState.has_flag("apartmentLightsOff")
+	_apply_room_lights()
+
+func _toggle_room_lights() -> void:
+	_lights_on = not _lights_on
+	GameState.set_flag("apartmentLightsOff", not _lights_on)
+	_apply_room_lights()
+	_set_status("[E] lights " + ("off" if _lights_on else "on"))
+
+func _apply_room_lights() -> void:
+	for e in _room_lights:
+		(e.node as OmniLight3D).visible = _lights_on
+	for e in _room_shades:
+		(e.mat as StandardMaterial3D).emission_energy_multiplier = 			e.energy if _lights_on else 0.04
 
 func _build_fishtank() -> void:
 	# Position near the bed in the cozy corner — slightly east of the bed
@@ -1246,6 +1307,8 @@ func _input(event: InputEvent) -> void:
 		_interact_fishtank()
 	elif event.is_action_pressed("interact") and _on_bookshelf:
 		_interact_bookshelf()
+	elif event.is_action_pressed("interact") and _on_light_switch:
+		_toggle_room_lights()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
 
