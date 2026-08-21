@@ -142,6 +142,7 @@ const DEFS := {
 	"corpo": {
 		"name": "CORTEX HQ",
 		"exit_label": "extract via the loading dock",
+		"exit_scene": "street_stack",
 		"exit_spawn": "from_corpo",
 		"grid_w": 25, "grid_h": 21,
 		"rooms": 9, "room_min": 4, "room_max": 7,

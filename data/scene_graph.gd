@@ -30,6 +30,7 @@ const SCENES := {
 	"sushi":     "res://scenes/interiors/sushi.tscn",
 	"cafe":      "res://scenes/interiors/cafe.tscn",
 	"street_warzone": "res://scenes/streets/warzone.tscn",
+	"street_stack": "res://scenes/streets/stack.tscn",
 	"snake":     "res://scenes/minigames/snake.tscn",
 	"breakout":  "res://scenes/minigames/breakout.tscn",
 	"invaders":  "res://scenes/minigames/invaders.tscn",

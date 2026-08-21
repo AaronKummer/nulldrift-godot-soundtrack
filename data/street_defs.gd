@@ -24,7 +24,7 @@ const STREETS := {
 		"stops": ["houses", "stephens beach house", "central park"],
 	},
 	"stack": {
-		"name": "THE STACK", "cost": 25, "scene": "",
+		"name": "THE STACK", "cost": 25, "scene": "street_stack",
 		"stops": ["omnicorp", "nexus tower", "cortex hq"],
 	},
 	"financial": {

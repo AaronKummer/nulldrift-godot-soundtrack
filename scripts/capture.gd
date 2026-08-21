@@ -8,6 +8,9 @@ extends Node
 ##   godot --path . res://scenes/_capture.tscn -- <scene_path> <out_name>
 ## Example:
 ##   godot --path . res://scenes/_capture.tscn -- res://scenes/title.tscn title
+## Optional extras after <out_name>:
+##   with_phone [app]   open the phone overlay before the shot
+##   at <x,z>           teleport the scene's player there first (streets etc.)
 
 const WAIT_FRAMES := 45
 
@@ -23,6 +26,16 @@ func _ready() -> void:
 		return
 	var inst := packed.instantiate()
 	add_child(inst)
+
+	# Optional: teleport the player so the camera settles on a specific spot
+	if args.size() > 3 and args[2] == "at":
+		await RenderingServer.frame_post_draw
+		var parts := (args[3] as String).split(",")
+		if parts.size() == 2:
+			var player := _find_player(inst)
+			if player:
+				player.global_position = Vector3(parts[0].to_float(), 0.9,
+					parts[1].to_float())
 
 	# Let the renderer settle (bloom + emissive prepass)
 	for i in range(WAIT_FRAMES):
@@ -52,3 +65,12 @@ func _ready() -> void:
 		return
 	print("Saved: ", ProjectSettings.globalize_path(out_path))
 	get_tree().quit(0)
+
+func _find_player(root: Node) -> CharacterBody3D:
+	if root is CharacterBody3D:
+		return root
+	for child in root.get_children():
+		var found := _find_player(child)
+		if found:
+			return found
+	return null
