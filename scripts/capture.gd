@@ -26,6 +26,10 @@ func _ready() -> void:
 			GameState.set_flag(args[i + 1])
 		elif args[i] == "item":
 			GameState.add_item(args[i + 1])
+		elif args[i] == "equip":
+			GameState.add_item(args[i + 1])
+			if not GameState.equip_weapon(args[i + 1]):
+				GameState.toggle_gear(args[i + 1])
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:
@@ -36,9 +40,10 @@ func _ready() -> void:
 	add_child(inst)
 
 	# Optional: teleport the player so the camera settles on a specific spot
-	if args.size() > 3 and args[2] == "at":
+	var at_i := args.find("at")
+	if at_i >= 2 and at_i + 1 < args.size():
 		await RenderingServer.frame_post_draw
-		var parts := (args[3] as String).split(",")
+		var parts := (args[at_i + 1] as String).split(",")
 		if parts.size() == 2:
 			var player := _find_player(inst)
 			if player:
@@ -52,13 +57,14 @@ func _ready() -> void:
 	# Optional 3rd arg: open the phone overlay before the final shot.
 	# A 5th arg opens a specific MSGS conversation and waits out the
 	# typing reveal (e.g. ... with_phone messages Nyx).
-	if args.size() > 2 and args[2] == "with_phone":
+	var wp_i := args.find("with_phone")
+	if wp_i >= 2:
 		var phone := get_node_or_null("/root/Phone")
 		if phone:
-			phone.open(args[3] if args.size() > 3 else "home")
-			if args.size() > 4 and phone.has_method("_open_convo"):
+			phone.open(args[wp_i + 1] if wp_i + 1 < args.size() else "home")
+			if wp_i + 2 < args.size() and phone.has_method("_open_convo"):
 				await RenderingServer.frame_post_draw
-				phone._open_convo(args[4])
+				phone._open_convo(args[wp_i + 2])
 				await get_tree().create_timer(9.0).timeout
 		for j in range(10):
 			await RenderingServer.frame_post_draw

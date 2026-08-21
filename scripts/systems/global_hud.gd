@@ -132,6 +132,12 @@ func _refresh() -> void:
 			sd.icon.texture = null
 			sd.cnt.text = ""
 			sd.sb.border_color = Color(0.22, 0.26, 0.36)
+		elif GameState.Equip.is_weapon(id):
+			# Weapons show their short name; gold border when wielded
+			sd.icon.texture = null
+			sd.cnt.text = GameState.Equip.glyph(id)
+			var wielded: bool = GameState.equipped_weapon == id
+			sd.sb.border_color = Color(1.0, 0.8, 0.3) if wielded 					else Color(0.6, 0.55, 0.35)
 		else:
 			if not _icon_cache.has(id) and ITEM_ICONS.has(id):
 				_icon_cache[id] = load(ITEM_ICONS[id])
@@ -158,6 +164,11 @@ func _use_slot_global(slot: int) -> void:
 	var id: String = GameState.hotbar.get(str(slot), "")
 	if id == "":
 		_show_toast("slot %d empty · assign in phone GEAR" % slot)
+		return
+	if GameState.Equip.is_weapon(id):
+		if GameState.equip_weapon(id):
+			_show_toast("%s equipped" % GameState.weapon_def().get("name", id))
+			_refresh()
 		return
 	if GameState.count_item(id) <= 0:
 		_show_toast("no %s left" % id)

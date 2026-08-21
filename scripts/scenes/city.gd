@@ -639,13 +639,27 @@ func _build_one_storefront(def: Dictionary) -> void:
 	area.body_exited.connect(func(b): _on_store_far(def, b))
 	add_child(area)
 
-const KATANA_PRICES := { 2: 500, 3: 1200 }
+# GUNS+ stock — consumables plus the street tier of the canon Phaser
+# weapon/armor tables (data/equipment.gd). The exotic tiers belong to
+# PLATINUM ARMS in the financial district when it's built.
 const SHOP_ITEMS := [
-	{ "id": "katana", "label": "KATANA UPGRADE" },
 	{ "id": "medkit", "label": "MEDKIT", "price": 40 },
 	{ "id": "grenade", "label": "GRENADE", "price": 60 },
 	{ "id": "stim", "label": "STIM", "price": 50 },
 	{ "id": "headlamp", "label": "HEADLAMP", "price": 120 },
+	{ "id": "baton", "gear": true },
+	{ "id": "pipe", "gear": true },
+	{ "id": "bat", "gear": true },
+	{ "id": "machete", "gear": true },
+	{ "id": "taser", "gear": true },
+	{ "id": "pistol", "gear": true },
+	{ "id": "shotgun", "gear": true },
+	{ "id": "smg", "gear": true },
+	{ "id": "revolver", "gear": true },
+	{ "id": "flak_vest", "gear": true },
+	{ "id": "combat_armor", "gear": true },
+	{ "id": "heavy_plate", "gear": true },
+	{ "id": "berserker_stim", "gear": true },
 ]
 
 func _open_shop() -> void:
@@ -664,13 +678,16 @@ func _shop_entries() -> Array:
 	var out: Array = []
 	for i in SHOP_ITEMS.size():
 		var item: Dictionary = SHOP_ITEMS[i]
-		if item.id == "katana":
-			if GameState.katana_level >= 3:
-				out.append({ "label": "KATANA MK-III · MAXED OUT", "dim": true })
+		if item.get("gear", false):
+			var def: Dictionary = GameState.Equip.WEAPONS.get(item.id,
+				GameState.Equip.GEAR.get(item.id, {}))
+			if GameState.has_item(item.id):
+				out.append({ "label": "%s · OWNED" % def.name, "dim": true })
+			elif def.has("damage"):
+				out.append({ "label": "%s · %d cr (dmg %d · spd %dms · rng %d)"
+					% [def.name, def.price, def.damage, def.speed, def.range] })
 			else:
-				var price: int = KATANA_PRICES[GameState.katana_level + 1]
-				out.append({ "label": "KATANA MK-%d · %d cr (more damage + reach)"
-					% [GameState.katana_level + 1, price] })
+				out.append({ "label": "%s · %d cr" % [def.name, def.price] })
 		elif item.id == "headlamp" and GameState.has_item("headlamp"):
 			out.append({ "label": "HEADLAMP · OWNED", "dim": true })
 		else:
@@ -680,17 +697,18 @@ func _shop_entries() -> Array:
 func _shop_buy(idx: int) -> void:
 	var item: Dictionary = SHOP_ITEMS[idx]
 	var msg := ""
-	if item.id == "katana":
-		if GameState.katana_level >= 3:
-			_shop_menu.set_footer("shopkeep: 'that blade is already singing, kid.'")
+	if item.get("gear", false):
+		var def: Dictionary = GameState.Equip.WEAPONS.get(item.id,
+			GameState.Equip.GEAR.get(item.id, {}))
+		if GameState.has_item(item.id):
+			_shop_menu.set_footer("shopkeep: 'you own one. they don't wear out.'")
 			return
-		var price: int = KATANA_PRICES[GameState.katana_level + 1]
-		if GameState.credits < price:
+		if GameState.credits < int(def.get("price", 0)):
 			_shop_menu.set_footer("shopkeep: 'come back with real money.'")
 			return
-		GameState.add_credits(-price)
-		GameState.katana_level += 1
-		msg = "KATANA MK-%d acquired. it hums." % GameState.katana_level
+		GameState.add_credits(-int(def.get("price", 0)))
+		GameState.add_item(item.id)
+		msg = "%s acquired. equip it in the phone GEAR app." % def.name
 	else:
 		if item.id == "headlamp" and GameState.has_item("headlamp"):
 			_shop_menu.set_footer("shopkeep: 'one head, one lamp.'")

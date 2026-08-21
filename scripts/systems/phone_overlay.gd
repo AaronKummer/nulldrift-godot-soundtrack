@@ -903,6 +903,8 @@ func _app_gear(color: Color) -> Control:
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# Rows must compress to phone width — never scroll sideways
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	var list := VBoxContainer.new()
 	list.add_theme_constant_override("separation", 10)
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -910,11 +912,45 @@ func _app_gear(color: Color) -> Control:
 	_gear_render(list, color)
 	return scroll
 
+## Small bordered button for gear rows — default-theme buttons are near
+## invisible on the phone's dark panel
+func _mini_btn(text: String, accent: Color = Color(0.0, 1.0, 1.0)) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.add_theme_font_size_override("font_size", 11)
+	b.add_theme_color_override("font_color", Color(0.85, 1.0, 1.0))
+	b.add_theme_color_override("font_disabled_color", Color(1.0, 0.85, 0.4))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.07, 0.12, 0.18)
+	sb.border_color = Color(accent.r, accent.g, accent.b, 0.5)
+	sb.border_width_left = 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 8
+	sb.corner_radius_top_right = 8
+	sb.corner_radius_bottom_left = 8
+	sb.corner_radius_bottom_right = 8
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	b.add_theme_stylebox_override("normal", sb)
+	var sbh := sb.duplicate() as StyleBoxFlat
+	sbh.bg_color = Color(0.1, 0.2, 0.3)
+	b.add_theme_stylebox_override("hover", sbh)
+	b.add_theme_stylebox_override("pressed", sbh)
+	var sbd := sb.duplicate() as StyleBoxFlat
+	sbd.border_color = Color(1.0, 0.8, 0.3, 0.5)
+	b.add_theme_stylebox_override("disabled", sbd)
+	return b
+
 func _gear_render(list: VBoxContainer, color: Color) -> void:
 	for c in list.get_children():
 		c.queue_free()
 	var title := Label.new()
 	title.text = "HOTBAR · field keys 1-6"
+	title.clip_text = true
 	title.add_theme_font_size_override("font_size", 16)
 	title.add_theme_color_override("font_color", color)
 	list.add_child(title)
@@ -934,9 +970,7 @@ func _gear_render(list: VBoxContainer, color: Color) -> void:
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
 		if id != "":
-			var btn := Button.new()
-			btn.text = "CLEAR"
-			btn.add_theme_font_size_override("font_size", 12)
+			var btn := _mini_btn("CLEAR", Color(1.0, 0.4, 0.4))
 			btn.pressed.connect(func():
 				GameState.hotbar[slot] = ""
 				_gear_render(list, color))
@@ -944,6 +978,7 @@ func _gear_render(list: VBoxContainer, color: Color) -> void:
 		list.add_child(row)
 	var t2 := Label.new()
 	t2.text = "ITEMS · tap a number to assign"
+	t2.clip_text = true
 	t2.add_theme_font_size_override("font_size", 16)
 	t2.add_theme_color_override("font_color", color)
 	list.add_child(t2)
@@ -953,21 +988,109 @@ func _gear_render(list: VBoxContainer, color: Color) -> void:
 		var l := Label.new()
 		var n: int = GameState.count_item(id)
 		l.text = "%s x%d" % [id.to_upper(), n]
-		l.add_theme_font_size_override("font_size", 15)
+		l.clip_text = true
+		l.custom_minimum_size = Vector2(70, 0)
+		l.add_theme_font_size_override("font_size", 13)
 		l.add_theme_color_override("font_color",
 			Color(0.9, 0.95, 1.0) if n > 0 else Color(0.45, 0.5, 0.58))
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
 		for i in range(1, 7):
-			var b := Button.new()
-			b.text = str(i)
-			b.add_theme_font_size_override("font_size", 12)
+			var b := _mini_btn(str(i))
 			var slot := str(i)
 			var iid: String = id
 			b.pressed.connect(func():
 				GameState.hotbar[slot] = iid
 				_gear_render(list, color))
 			row.add_child(b)
+		list.add_child(row)
+	# ── WEAPONS — owned arsenal; EQUIP wields, numbers put it on the hotbar
+	var t3 := Label.new()
+	t3.text = "WEAPONS · equip one · numbers = hotbar quick-swap"
+	t3.clip_text = true
+	t3.add_theme_font_size_override("font_size", 16)
+	t3.add_theme_color_override("font_color", color)
+	list.add_child(t3)
+	for wid in GameState.Equip.WEAPONS:
+		if not GameState.has_item(wid):
+			continue
+		var w: Dictionary = GameState.Equip.weapon(wid)
+		var wielded: bool = GameState.equipped_weapon == wid
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var l := Label.new()
+		var sub: String = "d%d · %dms" % [w.damage, w.speed]
+		if w.get("type", "") == "ranged":
+			sub += " · %d/%d" % [GameState.ammo_left(wid), w.get("max_ammo", 0)]
+		l.text = "%s · %s" % [w.name, sub]
+		l.clip_text = true
+		l.add_theme_font_size_override("font_size", 12)
+		l.add_theme_color_override("font_color",
+			Color(1.0, 0.85, 0.4) if wielded else Color(0.9, 0.95, 1.0))
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		var eb := _mini_btn("WIELDING" if wielded else "EQUIP",
+			Color(1.0, 0.8, 0.3) if wielded else Color(0.0, 1.0, 1.0))
+		eb.disabled = wielded
+		var cwid: String = wid
+		eb.pressed.connect(func():
+			GameState.equip_weapon(cwid)
+			_gear_render(list, color))
+		row.add_child(eb)
+		# One-tap hotbar assign — first free slot (slot 6 if all taken)
+		var in_slot := ""
+		for s in range(1, 7):
+			if GameState.hotbar.get(str(s), "") == cwid:
+				in_slot = str(s)
+				break
+		var hb := _mini_btn(("[%s]" % in_slot) if in_slot != "" else "»HB")
+		hb.disabled = in_slot != ""
+		hb.pressed.connect(func():
+			var target := "6"
+			for s in range(1, 7):
+				if GameState.hotbar.get(str(s), "") == "":
+					target = str(s)
+					break
+			GameState.hotbar[target] = cwid
+			_gear_render(list, color))
+		row.add_child(hb)
+		list.add_child(row)
+	# ── EQUIPMENT — 2 slots, canon armor/shield/passive stack
+	var t4 := Label.new()
+	t4.text = "EQUIPMENT · %d/2 slots" % GameState.equipment.size()
+	t4.clip_text = true
+	t4.add_theme_font_size_override("font_size", 16)
+	t4.add_theme_color_override("font_color", color)
+	list.add_child(t4)
+	for gid in GameState.Equip.GEAR:
+		if not GameState.has_item(gid):
+			continue
+		var g: Dictionary = GameState.Equip.gear(gid)
+		var worn: bool = GameState.equipment.has(gid)
+		var row := HBoxContainer.new()
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var stats: Array = []
+		if g.has("armor"): stats.append("armor %d" % g.armor)
+		if g.has("shield"): stats.append("shield %d" % g.shield)
+		if g.has("hp_regen"): stats.append("regen")
+		if g.has("damage_bonus"): stats.append("+%d%% dmg" % int(g.damage_bonus * 100))
+		if g.has("speed_bonus"): stats.append("+%d%% spd" % int(g.speed_bonus * 100))
+		if g.has("speed_penalty"): stats.append("-%d%% spd" % int(g.speed_penalty * 100))
+		var l := Label.new()
+		l.text = "%s · %s" % [g.name, " · ".join(stats)]
+		l.clip_text = true
+		l.add_theme_font_size_override("font_size", 12)
+		l.add_theme_color_override("font_color",
+			Color(0.45, 0.95, 1.0) if worn else Color(0.9, 0.95, 1.0))
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		var eb := _mini_btn("REMOVE" if worn else "EQUIP",
+			Color(0.45, 0.95, 1.0) if worn else Color(0.0, 1.0, 1.0))
+		var cgid: String = gid
+		eb.pressed.connect(func():
+			GameState.toggle_gear(cgid)
+			_gear_render(list, color))
+		row.add_child(eb)
 		list.add_child(row)
 	# Passive gear
 	if GameState.has_item("headlamp"):

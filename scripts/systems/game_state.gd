@@ -23,6 +23,7 @@ func _ready() -> void:
 	for qid in Quests.auto_start_quests():
 		start_quest(qid)
 	_apply_dev_bankroll()
+	_ensure_weapon()
 
 ## Debug builds start flush so testing never stalls on credits.
 ## Exported release builds are unaffected (is_debug_build() is false).
@@ -103,8 +104,88 @@ func count_item(item_id: String) -> int:
 var arcade_scores: Dictionary = {}   # game id -> best score
 var pending_dungeon: String = "sewer"   # which dungeon the next dungeon.tscn load builds
 var dungeon_seeds: Dictionary = {}      # dungeon id -> layout seed (per save)
-var katana_level: int = 1               # weapon-store upgrades (1-3)
+var katana_level: int = 1               # legacy MK ladder (superseded by equipment)
 var settings: Dictionary = { "lights": "full" }   # "full" | "low" (weak GPUs)
+
+# ── Equipment — ported from the Phaser InventoryManager model ─────────
+const Equip := preload("res://data/equipment.gd")
+
+var equipped_weapon := "katana"
+var equipment: Array = []            # gear ids, max 2 slots (canon)
+var weapon_ammo: Dictionary = {}     # weapon id -> rounds left in the mag
+var shield_hp := 0.0                 # transient; generators recharge it
+
+func weapon_def() -> Dictionary:
+	return Equip.weapon(equipped_weapon)
+
+func equip_weapon(id: String) -> bool:
+	if not Equip.is_weapon(id) or not has_item(id):
+		return false
+	equipped_weapon = id
+	return true
+
+## Toggle a gear piece in/out of the 2 slots. Returns true if now equipped.
+func toggle_gear(id: String) -> bool:
+	if equipment.has(id):
+		equipment.erase(id)
+		shield_hp = minf(shield_hp, max_shield())
+		return false
+	if equipment.size() >= 2 or not Equip.is_gear(id) or not has_item(id):
+		return false
+	equipment.append(id)
+	# Generators come online charged (canon recalc behavior)
+	shield_hp = max_shield()
+	return true
+
+func _gear_sum(stat: String) -> float:
+	var total := 0.0
+	for id in equipment:
+		total += float(Equip.gear(id).get(stat, 0))
+	return total
+
+func armor_rating() -> int:
+	return int(_gear_sum("armor"))
+
+func max_shield() -> float:
+	return _gear_sum("shield")
+
+func shield_recharge() -> float:
+	return _gear_sum("recharge")
+
+func damage_bonus() -> float:
+	return _gear_sum("damage_bonus")
+
+func hp_regen() -> float:
+	return _gear_sum("hp_regen")
+
+func gear_speed_mult() -> float:
+	return 1.0 + _gear_sum("speed_bonus") - _gear_sum("speed_penalty")
+
+## Canon damage-taken formula (DungeonScene.js): flat armor reduction
+## (never below 1), then shields absorb before health.
+func take_damage(amount: int) -> void:
+	var amt := amount
+	if armor_rating() > 0:
+		amt = maxi(1, amt - armor_rating())
+	if shield_hp > 0.0:
+		var absorbed := minf(float(amt), shield_hp)
+		shield_hp -= absorbed
+		amt -= int(absorbed)
+	hp = maxi(0, hp - amt)
+
+func ammo_left(id: String) -> int:
+	return int(weapon_ammo.get(id, Equip.weapon(id).get("max_ammo", 0)))
+
+func set_ammo(id: String, n: int) -> void:
+	weapon_ammo[id] = n
+
+## Everyone owns their starter blade — grant + equip if missing (new games
+## and legacy saves from the katana_level era alike)
+func _ensure_weapon() -> void:
+	if not has_item("katana"):
+		inventory.append("katana")
+	if not Equip.is_weapon(equipped_weapon) or not has_item(equipped_weapon):
+		equipped_weapon = "katana"
 
 func arcade_best(game: String) -> int:
 	return int(arcade_scores.get(game, 0))
@@ -136,6 +217,9 @@ func to_dict() -> Dictionary:
 		"dungeon_seeds": dungeon_seeds.duplicate(true),
 		"hotbar": hotbar.duplicate(true),
 		"settings": settings.duplicate(true),
+		"equipped_weapon": equipped_weapon,
+		"equipment": equipment.duplicate(),
+		"weapon_ammo": weapon_ammo.duplicate(true),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -152,5 +236,10 @@ func from_dict(d: Dictionary) -> void:
 	hotbar = d.get("hotbar", { "1": "medkit", "2": "grenade", "3": "stim",
 		"4": "", "5": "", "6": "" }).duplicate(true)
 	settings = d.get("settings", { "lights": "full" }).duplicate(true)
+	equipped_weapon = d.get("equipped_weapon", "katana")
+	equipment = d.get("equipment", []).duplicate()
+	weapon_ammo = d.get("weapon_ammo", {}).duplicate(true)
+	shield_hp = max_shield()
 	_apply_dev_bankroll()
+	_ensure_weapon()
 	last_scene_id = d.get("last_scene_id", "")

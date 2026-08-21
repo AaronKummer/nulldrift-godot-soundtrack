@@ -274,6 +274,8 @@ func _process(delta: float) -> void:
 	_anim_t += delta
 	_tick_player(delta)
 	_tick_katana(delta)
+	_tick_bullets(delta)
+	_tick_gear(delta)
 	_tick_skills(delta)
 	_tick_enemies(delta)
 	_tick_spawners(delta)
@@ -341,24 +343,140 @@ func _nearby_chest() -> Variant:
 			return ch
 	return null
 
+# ── Equipped-weapon combat — the Phaser SharedCombat port. Melee honors
+# weapon.speed/range/damage; ranged weapons auto-aim with ammo + reload;
+# specials (pierce, pellets, burst, chain, double strike, life steal,
+# status effects) are canon. Phaser px → dungeon px via WEAPON_SCALE.
+const WEAPON_SCALE := 3.5
+const BULLET_SPEED := 950.0
+const RELOAD_TIME := 1.5
+
+var _bullets: Array = []
+var _reload_t := 0.0
+var _regen_acc := 0.0
+
 func _tick_katana(delta: float) -> void:
 	_katana_t -= delta
+	_reload_t = maxf(0.0, _reload_t - delta)
 	if not _slash.is_empty():
 		_slash.life -= delta
 		if _slash.life <= 0.0:
 			_slash = {}
-	if _katana_t <= 0.0:
-		var reach: float = KATANA_REACH + (GameState.katana_level - 1) * 14.0
-		var dmg: int = 2 + GameState.katana_level * 2
+	var w: Dictionary = GameState.weapon_def()
+	var cd: float = float(w.get("speed", 280)) / 1000.0
+	var dmg: int = maxi(1, roundi(float(w.get("damage", 1)) * (1.0 + GameState.damage_bonus())))
+	if w.get("type", "melee") == "melee":
+		if _katana_t > 0.0:
+			return
+		var reach: float = float(w.get("range", 24)) * WEAPON_SCALE + 12.0
 		var target := _nearest_enemy(reach + 24.0)
-		if not target.is_empty():
-			var dir: Vector2 = (target.pos - _pos).normalized()
+		if target.is_empty():
+			return
+		var dir: Vector2 = (target.pos - _pos).normalized()
+		var strikes: int = 2 if w.get("double_strike", false) else 1
+		var hit_any := false
+		for s in strikes:
 			for e in _enemies:
 				var to: Vector2 = e.pos - _pos
 				if to.length() <= reach + _def.enemies[e.type].size 						and absf(to.angle_to(dir)) < deg_to_rad(60.0):
-					_damage_enemy(e, dmg)
-			_katana_t = KATANA_CD
-			_slash = { "angle": dir.angle(), "life": 0.12, "reach": reach }
+					_hit_enemy(e, dmg, w)
+					hit_any = true
+		# Chain (mjolnir): arcs to N extra enemies beyond the swing
+		if hit_any and w.has("chain"):
+			var extra: int = w.get("chain", 0)
+			for e in _enemies:
+				if extra <= 0:
+					break
+				var to: Vector2 = e.pos - _pos
+				if to.length() > reach and to.length() <= reach + 160.0:
+					_hit_enemy(e, dmg, w)
+					extra -= 1
+		_katana_t = cd
+		_slash = { "angle": dir.angle(), "life": 0.12, "reach": reach }
+	else:
+		# Ranged — auto-aim nearest in range, honor ammo + auto-reload
+		if _reload_t > 0.0 or _katana_t > 0.0:
+			return
+		var rng_px: float = float(w.get("range", 150)) * WEAPON_SCALE
+		var target := _nearest_enemy(rng_px)
+		if target.is_empty():
+			return
+		var wid: String = GameState.equipped_weapon
+		var ammo: int = GameState.ammo_left(wid)
+		if ammo <= 0:
+			_reload_t = RELOAD_TIME
+			GameState.set_ammo(wid, int(w.get("max_ammo", 1)))
+			_set_status("reloading...")
+			return
+		var dir: Vector2 = (target.pos - _pos).normalized()
+		var shots: int = int(w.get("pellets", w.get("burst", 1)))
+		var spread: float = 0.16 if w.has("pellets") else 0.05
+		for s in shots:
+			var jitter: float = 0.0 if shots == 1 else (s - (shots - 1) * 0.5) * spread
+			_bullets.append({
+				"pos": _pos + dir * 20.0,
+				"dir": dir.rotated(jitter),
+				"dmg": dmg,
+				"left": rng_px,
+				"pierce": w.get("piercing", false),
+				"explosive": w.get("explosive", false),
+				"w": w,
+				"hit": [],
+			})
+		GameState.set_ammo(wid, ammo - 1)
+		_katana_t = cd
+
+func _tick_bullets(delta: float) -> void:
+	var dead: Array = []
+	for b in _bullets:
+		var step: float = BULLET_SPEED * delta
+		b.pos += b.dir * step
+		b.left -= step
+		if b.left <= 0.0 or _collide(b.pos, 3.0) != b.pos:
+			dead.append(b)
+			continue
+		for e in _enemies:
+			if b.hit.has(e):
+				continue
+			if b.pos.distance_to(e.pos) <= _def.enemies[e.type].size + 6.0:
+				_hit_enemy(e, b.dmg, b.w)
+				b.hit.append(e)
+				if b.explosive:
+					_boom_flash = maxf(_boom_flash, 0.4)
+					for e2 in _enemies:
+						if e2 != e and e.pos.distance_to(e2.pos) <= 70.0:
+							_hit_enemy(e2, maxi(1, b.dmg / 2), b.w)
+				if not b.pierce:
+					dead.append(b)
+					break
+	for b in dead:
+		_bullets.erase(b)
+
+## One weapon hit landing on an enemy — damage + canon specials
+func _hit_enemy(e: Dictionary, dmg: int, w: Dictionary) -> void:
+	_damage_enemy(e, dmg)
+	var ls: float = w.get("life_steal", 0.0)
+	if ls > 0.0:
+		GameState.hp = mini(GameState.hp_max, GameState.hp + maxi(1, roundi(dmg * ls)))
+	match w.get("status", ""):
+		"stun", "emp":
+			e["stun_t"] = 1.2
+		"slow":
+			e["slow_t"] = 2.2
+		"burn":
+			e["burn_t"] = 3.0
+
+## Gear passives — shield recharge + hp regen (generators, nanoweave...)
+func _tick_gear(delta: float) -> void:
+	var ms: float = GameState.max_shield()
+	if ms > 0.0:
+		GameState.shield_hp = minf(ms, GameState.shield_hp + GameState.shield_recharge() * delta)
+	var regen: float = GameState.hp_regen()
+	if regen > 0.0 and GameState.hp < GameState.hp_max:
+		_regen_acc += regen * delta
+		if _regen_acc >= 1.0:
+			_regen_acc -= 1.0
+			GameState.hp += 1
 
 func _tick_skills(delta: float) -> void:
 	_dash_cd = maxf(0.0, _dash_cd - delta)
@@ -381,6 +499,27 @@ func _tick_enemies(delta: float) -> void:
 	for e in _enemies:
 		var def: Dictionary = _def.enemies[e.type]
 		var dir: Vector2 = (_pos - e.pos).normalized()
+		# Status effects from weapon hits (canon: stun/emp freeze, slow
+		# halves speed, burn ticks 1 dmg)
+		if e.get("stun_t", 0.0) > 0.0:
+			e["stun_t"] = e.get("stun_t", 0.0) - delta
+			e.contact_t = maxf(0.0, e.contact_t - delta)
+			e.flash = maxf(0.0, e.flash - delta)
+			if e.hp <= 0:
+				dead_list.append(e)
+			continue
+		var speed_mult := 1.0
+		if e.get("slow_t", 0.0) > 0.0:
+			e["slow_t"] = e.get("slow_t", 0.0) - delta
+			speed_mult = 0.5
+		if e.get("burn_t", 0.0) > 0.0:
+			e["burn_t"] = e.get("burn_t", 0.0) - delta
+			e["burn_tick"] = e.get("burn_tick", 0.0) - delta
+			if e.get("burn_tick", 0.0) <= 0.0:
+				e["burn_tick"] = 0.8
+				_damage_enemy(e, 1)
+		def = def.duplicate()
+		def.speed = def.speed * speed_mult
 		if def.get("lunge", false):
 			# Gator: slow stalk → freeze wind-up → explosive dash → cooldown
 			var st: int = e.get("lunge_st", 0)
@@ -414,7 +553,7 @@ func _tick_enemies(delta: float) -> void:
 				and e.pos.distance_to(_pos) < def.size + 14.0:
 			e.contact_t = CONTACT_CD
 			_invuln = INVULN
-			GameState.hp = maxi(0, GameState.hp - def.dmg)
+			GameState.take_damage(def.dmg)
 			e.pos = _collide(e.pos + (e.pos - _pos).normalized() * 50.0, def.size * 0.7)
 			if not _puzzle.is_empty():
 				_cancel_puzzle("seal interrupted — they got to you!")
@@ -640,6 +779,11 @@ func _use_slot(slot: int) -> void:
 	var id: String = GameState.hotbar.get(str(slot), "")
 	if id == "":
 		_set_status("slot %d empty. assign items in the phone GEAR app." % slot)
+		return
+	# Weapons on the hotbar swap on keypress (Phaser: select = wield)
+	if GameState.Equip.is_weapon(id):
+		if GameState.equip_weapon(id):
+			_set_status("%s out." % GameState.weapon_def().get("name", id))
 		return
 	_use_item(id)
 
@@ -967,6 +1111,15 @@ func _draw_world(b: Node2D) -> void:
 			Rect2(e.pos - Vector2(FRAME_W * 0.5 * sc, (FRAME_H - 12.0) * sc),
 				Vector2(FRAME_W * sc, FRAME_H * sc)),
 			Rect2(frame * FRAME_W, row * FRAME_H, FRAME_W, FRAME_H), tint)
+	# Bullets — glowing tracers in the weapon's palette
+	for bl in _bullets:
+		var bcol := Color(1.6, 1.3, 0.4)
+		if bl.w.get("status", "") == "burn" or bl.w.get("explosive", false):
+			bcol = Color(1.7, 0.6, 0.25)
+		elif bl.w.get("status", "") in ["emp", "stun"]:
+			bcol = Color(0.5, 1.4, 1.7)
+		b.draw_line(bl.pos - bl.dir * 14.0, bl.pos, bcol, 3.0)
+		b.draw_circle(bl.pos, 3.2, bcol)
 	# Slash
 	if not _slash.is_empty():
 		var alpha: float = _slash.life / 0.12
@@ -1012,7 +1165,7 @@ func _build_hud() -> void:
 	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 	title.position = Vector2(30, 8)
 	cl.add_child(title)
-	for key in ["dash", "nova", "grates"]:
+	for key in ["dash", "nova", "grates", "wpn", "shield"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
@@ -1022,6 +1175,10 @@ func _build_hud() -> void:
 	_hud.nova.position = Vector2(600, 10)
 	_hud.grates.position = Vector2(1085, 10)
 	_hud.grates.add_theme_color_override("font_color", Color(1.0, 0.5, 0.3))
+	_hud.wpn.position = Vector2(720, 10)
+	_hud.wpn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
+	_hud.shield.position = Vector2(930, 10)
+	_hud.shield.add_theme_color_override("font_color", Color(0.45, 0.9, 1.0))
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 17)
 	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
@@ -1049,6 +1206,17 @@ func _count_item(id: String) -> int:
 func _refresh_hud() -> void:
 	_hud.dash.text = "DASH ✓" if _dash_cd <= 0.0 else "DASH %.1f" % _dash_cd
 	_hud.nova.text = "NOVA ✓" if _nova_cd <= 0.0 else "NOVA %.1f" % _nova_cd
+	var w: Dictionary = GameState.weapon_def()
+	if w.get("type", "melee") == "ranged":
+		if _reload_t > 0.0:
+			_hud.wpn.text = "%s · RELOADING" % w.get("name", "?")
+		else:
+			_hud.wpn.text = "%s · %d/%d" % [w.get("name", "?"),
+				GameState.ammo_left(GameState.equipped_weapon), w.get("max_ammo", 0)]
+	else:
+		_hud.wpn.text = str(w.get("name", "?"))
+	var ms: float = GameState.max_shield()
+	_hud.shield.text = "" if ms <= 0.0 else "SHIELD %d/%d" % [int(GameState.shield_hp), int(ms)]
 	var sealed := 0
 	for g in _grates:
 		if g.sealed:
