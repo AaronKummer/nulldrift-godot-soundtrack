@@ -74,6 +74,7 @@ func _ready() -> void:
 	_build_duel_table()
 	_build_east_side()
 	_build_prize_counter()
+	_build_secured_terminal()
 	_build_crt_stack()
 	_build_posters()
 	_build_npcs()
@@ -829,7 +830,40 @@ func _add_interact_area(pos: Vector3, size: Vector3, zone: Dictionary) -> void:
 			_set_status(""))
 	add_child(area)
 
+# Secured terminal in the back corner — the goingDeeper (Act 1) hack.
+# Only appears once you're on that quest; a red-locked deck box.
+func _build_secured_terminal() -> void:
+	if not GameState.has_flag("metCyberGirl") or GameState.has_flag("securedTerminalHacked"):
+		return
+	var tx := -8.5
+	var tz := -7.5
+	_add_box(Vector3(tx, 0.7, tz), Vector3(1.2, 1.4, 0.8),
+		Color(0.06, 0.05, 0.08), 0.5, 0.3, true, Color(1.2, 0.15, 0.25), 0.6)
+	_add_box(Vector3(tx, 1.5, tz + 0.42), Vector3(0.9, 0.6, 0.05),
+		Color(0.10, 0.02, 0.04), 0.0, 0.2, true, Color(1.4, 0.15, 0.2), 1.8)
+	var lock := Label3D.new()
+	lock.text = "SECURED"
+	lock.font_size = 44
+	lock.pixel_size = 0.008
+	lock.modulate = Color(1.4, 0.2, 0.25)
+	lock.position = Vector3(tx, 2.1, tz + 0.3)
+	add_child(lock)
+	var gl := OmniLight3D.new()
+	gl.position = Vector3(tx, 1.4, tz + 1.0)
+	gl.light_color = Color(1.3, 0.2, 0.3)
+	gl.light_energy = 1.4
+	gl.omni_range = 4.0
+	add_child(gl)
+	_add_interact_area(Vector3(tx, 1.2, tz + 1.4), Vector3(2.4, 2.4, 2.2),
+		{ "kind": "terminal" })
+
 func _show_zone_prompt(zone: Dictionary) -> void:
+	if zone.get("kind", "") == "terminal":
+		if GameState.has_item("cyberDeck"):
+			_set_status("[E] jack the secured terminal")
+		else:
+			_set_status("locked terminal — you'd need a CyberDeck")
+		return
 	match zone.get("kind", ""):
 		"cabinet":
 			var cab: Dictionary = zone.cab
@@ -1003,8 +1037,20 @@ func _unhandled_input(event: InputEvent) -> void:
 				_set_status(_near_zone.get("line", "..."))
 			"npc":
 				DialogueOverlay.play(_near_zone.get("npc", ""))
+			"terminal":
+				if GameState.has_item("cyberDeck"):
+					if not HackOverlay.finished.is_connected(_on_terminal_hacked):
+						HackOverlay.finished.connect(_on_terminal_hacked, CONNECT_ONE_SHOT)
+					HackOverlay.open(2, false)
+				else:
+					_set_status("locked. you'd need a CyberDeck.")
 	elif event.is_action_pressed("ui_cancel"):
 		SceneTransition.go("city", "from_arcade")
+
+func _on_terminal_hacked(success: bool) -> void:
+	if success and not GameState.has_flag("securedTerminalHacked"):
+		GameState.set_flag("securedTerminalHacked")
+		_set_status("terminal cracked. the jackals answer to something bigger.")
 
 
 # ═══════════════════════════════════════════════════════════════════════

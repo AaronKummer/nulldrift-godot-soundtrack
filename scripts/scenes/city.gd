@@ -106,6 +106,7 @@ var _atm_beam: SpotLight3D
 var _cyberdeck_pivot: Node3D
 var _cyberdeck_glow: OmniLight3D
 var _near_cyberdeck: bool = false
+var _near_atm: bool = false
 
 
 func _ready() -> void:
@@ -1354,6 +1355,7 @@ func _build_atm_scene() -> void:
 	atm_light.omni_attenuation = 2.0
 	add_child(atm_light)
 
+	_build_atm_hack_zone(ax)
 	var hacker_pos := Vector3(ax + 0.9, 0, -SIDEWALK_W + 0.9)
 	var cop_pos := Vector3(ax - 4.5, 0, -SIDEWALK_W + 1.5)
 
@@ -1422,6 +1424,40 @@ func _build_atm_scene() -> void:
 		# Event already fired this session but the player wandered off
 		# without grabbing the deck — keep it on the ground for them.
 		_spawn_cyberdeck_pickup(hacker_pos)
+
+# Jack-in zone at the ATM cabinet — active once you carry the CyberDeck.
+# First hack runs the Cyber Girl tutorial and opens the story (+DECK app).
+func _build_atm_hack_zone(ax: float) -> void:
+	var zone := Area3D.new()
+	zone.position = Vector3(ax, 1.2, -SIDEWALK_W + 1.6)
+	var zc := CollisionShape3D.new()
+	var zs := BoxShape3D.new()
+	zs.size = Vector3(2.6, 2.4, 2.2)
+	zc.shape = zs
+	zone.add_child(zc)
+	zone.body_entered.connect(func(b):
+		if b is CharacterBody3D and GameState.has_item("cyberDeck"):
+			_near_atm = true
+			_set_status("[E] jack into the ATM"))
+	zone.body_exited.connect(func(b):
+		if b is CharacterBody3D:
+			_near_atm = false
+			_set_status(""))
+	add_child(zone)
+
+func _jack_into_atm() -> void:
+	if not GameState.has_item("cyberDeck"):
+		return
+	var first: bool = not GameState.has_flag("firstHackDone")
+	if not HackOverlay.finished.is_connected(_on_atm_hack_done):
+		HackOverlay.finished.connect(_on_atm_hack_done, CONNECT_ONE_SHOT)
+	HackOverlay.open(1, first)
+
+func _on_atm_hack_done(success: bool) -> void:
+	if success and not GameState.has_flag("firstHackDone"):
+		GameState.set_flag("firstHackDone")
+		GameState.set_flag("deck")   # the DECK app comes online
+		_set_status("first hack banked. she said to meet her at the diner.")
 
 # Player walked into the ATM trigger zone. Hacker bolts, cop "chases" off
 # screen, leaves a CyberDeck behind. Sets atmEventDone flag (used by the
@@ -2389,6 +2425,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# at the ATM end of the block.
 		if _near_cyberdeck:
 			_pickup_cyberdeck()
+		elif _near_atm:
+			_jack_into_atm()
 		elif not _near_store.is_empty():
 			_on_storefront_interact(_near_store)
 

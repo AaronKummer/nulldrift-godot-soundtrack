@@ -59,6 +59,13 @@ func _ready() -> void:
 	# Optional 3rd arg: open the phone overlay before the final shot.
 	# A 5th arg opens a specific MSGS conversation and waits out the
 	# typing reveal (e.g. ... with_phone messages Nyx).
+	var hk_i := args.find("hack")
+	if hk_i >= 2:
+		var hk := get_node_or_null("/root/HackOverlay")
+		if hk:
+			hk.open(int(args[hk_i + 1]) if hk_i + 1 < args.size() else 1, true)
+			for j in range(6):
+				await RenderingServer.frame_post_draw
 	var wp_i := args.find("with_phone")
 	if wp_i >= 2:
 		var phone := get_node_or_null("/root/Phone")
