@@ -157,11 +157,15 @@ static func generate(def: Dictionary, rng_seed: int) -> Dictionary:
 		if not chests.has(spot) and not medkits.has(spot) and not grates.has(spot) 				and spot != stash and spot != objective:
 			chests.append(spot)
 
+	# Boss arena — the farthest room doubles as the arena (the stash there
+	# becomes the post-fight loot); harmless extras when the def has no boss
+	var boss_room: Rect2i = by_dist[0] if by_dist.size() > 0 else entrance_room
 	return {
 		"w": w, "h": h, "tiles": tiles, "rooms": rooms,
 		"flavor": flavor_cells, "entrance": entrance,
 		"grates": grates, "holes": holes, "medkits": medkits,
 		"chests": chests, "stash": stash, "objective": objective,
+		"boss_pos": Vector2i(boss_room.get_center()), "boss_room": boss_room,
 	}
 
 static func _carve_l(tiles: Array, a: Vector2i, b: Vector2i, x_first: bool) -> void:

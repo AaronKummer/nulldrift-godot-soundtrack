@@ -60,8 +60,8 @@ const DEFS := {
 		"exit_label": "roll out under the door",
 		"exit_scene": "street_warzone",
 		"exit_spawn": "from_garage",
-		"grid_w": 21, "grid_h": 17,
-		"rooms": 6, "room_min": 3, "room_max": 6,
+		"grid_w": 29, "grid_h": 23,
+		"rooms": 10, "room_min": 4, "room_max": 7,
 		"water_room_chance": 0.0,
 		"flavor_chance": 0.25,               # oil-slick bays, sodium glow
 		"pal": {
@@ -78,19 +78,27 @@ const DEFS := {
 			"conduit": Color(1.3, 0.7, 0.2),
 		},
 		"enemies": {
-			"jackal_runner": { "sheet": "yak1", "hp": 4, "speed": 105.0, "size": 15.0,
+			"jackal_runner": { "sheet": "yak1", "hp": 4, "speed": 115.0, "size": 15.0,
 				"dmg": 10, "credits": 12, "tint": Color(1.1, 0.95, 0.8), "scale": 1.0 },
-			"jackal_bruiser": { "sheet": "yak2", "hp": 9, "speed": 55.0, "size": 19.0,
+			"jackal_bruiser": { "sheet": "yak2", "hp": 10, "speed": 55.0, "size": 19.0,
 				"dmg": 15, "credits": 18, "tint": Color(1.1, 0.9, 0.75), "scale": 1.15 },
+			# Keeps distance and shoots — dodge or close the gap
+			"jackal_gunner": { "sheet": "yak3", "hp": 6, "speed": 70.0, "size": 16.0,
+				"dmg": 6, "credits": 22, "tint": Color(0.95, 0.9, 1.05), "scale": 1.0,
+				"shoot": { "range": 380.0, "cd": 1.7, "dmg": 8, "keep": 240.0 } },
+			# Chromed-up knife jackal — gator-style lunge, dies fast
+			"jackal_blade": { "sheet": "ninja", "hp": 3, "speed": 95.0, "size": 14.0,
+				"dmg": 13, "credits": 16, "tint": Color(1.3, 1.3, 1.45), "scale": 1.0,
+				"lunge": true },
 			"jackal_boss": { "sheet": "yakboss", "hp": 20, "speed": 62.0, "size": 22.0,
 				"dmg": 22, "credits": 60, "tint": Color(1.2, 0.9, 0.7), "scale": 1.35,
 				"lunge": true },
 		},
 		"grate_pool": ["jackal_runner", "jackal_runner", "jackal_bruiser",
-			"jackal_bruiser", "jackal_boss"],
-		"hole_pool": ["jackal_runner"],
-		"grates": 4, "rat_holes": 2, "chests": 2,
-		"medkits_min": 2, "medkits_max": 3,
+			"jackal_gunner", "jackal_gunner", "jackal_blade", "jackal_boss"],
+		"hole_pool": ["jackal_runner", "jackal_blade"],
+		"grates": 6, "rat_holes": 3, "chests": 3,
+		"medkits_min": 3, "medkits_max": 4,
 		"stash_credits": 300,
 		"objective_prop": "cage",
 		"objective_kind": "rescue",
@@ -98,6 +106,24 @@ const DEFS := {
 		"objective_flag": "patchRescued",
 		"objective_credits": 500,
 		"seal_reward": 30, "seal_all_reward": 250,
+		# REZZ — Chrome Jackals leader. Canon Act 1 boss: flees at low HP
+		# ("flees to return as a dungeon encounter"), clearing sets
+		# garageCleared (Hank reacts, act one progresses).
+		"boss": {
+			"name": "REZZ", "sheet": "yakboss", "hp": 70, "speed": 80.0,
+			"size": 26.0, "dmg": 18, "scale": 1.6,
+			"tint": Color(1.35, 0.85, 0.55),
+			"charge": true,
+			"spray": { "count": 6, "dmg": 8, "cd": 4.5 },
+			"summon": { "pool": ["jackal_runner", "jackal_blade"],
+				"count": 2, "cd": 9.0, "max": 5 },
+			"flee_at": 0.15,
+			"credits": 400,
+			"flag": "garageCleared",
+			"drops": ["power_fist"],
+			"bark_intro": "REZZ: 'you're the pizza rat been cutting up my crew? chrome him, boys.'",
+			"bark_flee": "REZZ: 'this ain't over, rat. the jackals remember.'",
+		},
 	},
 
 	"office": {

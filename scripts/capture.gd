@@ -30,6 +30,8 @@ func _ready() -> void:
 			GameState.add_item(args[i + 1])
 			if not GameState.equip_weapon(args[i + 1]):
 				GameState.toggle_gear(args[i + 1])
+		elif args[i] == "dungeon":
+			GameState.pending_dungeon = args[i + 1]
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:

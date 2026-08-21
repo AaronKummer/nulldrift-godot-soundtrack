@@ -125,6 +125,7 @@ func _ready() -> void:
 		"troll": load("res://assets/sprites/sewerTroll.png"),
 		"yak1": load("res://assets/sprites/Yakuza1.png"),
 		"yak2": load("res://assets/sprites/Yakuza2.png"),
+		"yak3": load("res://assets/sprites/Yakuza3.png"),
 		"yakboss": load("res://assets/sprites/YakuzaBoss.png"),
 	}
 	_player_sheet = load("res://assets/sprites/player-pizza.png")
@@ -228,6 +229,20 @@ func _bake_geometry() -> void:
 		_chests.append({ "pos": _cell_center(ch), "opened": false })
 	_pickups.append({ "pos": _cell_center(_gen.stash), "kind": "stash" })
 	_relay_pos = _cell_center(_gen.objective)
+	# Boss arena in the farthest room — skipped once its flag is earned
+	# (Rezz fled; the rematch is its own encounter later)
+	if _def.has("boss") and not GameState.has_flag(str(_def.boss.get("flag", ""))):
+		var br: Rect2i = _gen.boss_room
+		_boss = {
+			"pos": _cell_center(_gen.boss_pos),
+			"room": Rect2(br.position.x * CELL, br.position.y * CELL,
+				br.size.x * CELL, br.size.y * CELL).grow(CELL * 0.4),
+			"hp": _def.boss.hp, "hp_max": _def.boss.hp,
+			"active": false, "done": false,
+			"state": "chase", "state_t": 0.0, "charge_dir": Vector2.RIGHT,
+			"spray_cd": 3.0, "summon_cd": 4.0, "charge_cd": 5.5,
+			"contact_t": 0.0, "flash": 0.0, "flee_t": 0.0,
+		}
 	# Blackout rooms — no fixtures, near-zero visibility. Selection is
 	# seeded off the layout seed so the same rooms are dark every re-entry.
 	var brng := RandomNumberGenerator.new()
@@ -275,6 +290,8 @@ func _process(delta: float) -> void:
 	_tick_player(delta)
 	_tick_katana(delta)
 	_tick_bullets(delta)
+	_tick_boss(delta)
+	_tick_ebullets(delta)
 	_tick_gear(delta)
 	_tick_skills(delta)
 	_tick_enemies(delta)
@@ -354,6 +371,8 @@ const RELOAD_TIME := 1.5
 var _bullets: Array = []
 var _reload_t := 0.0
 var _regen_acc := 0.0
+var _boss: Dictionary = {}     # boss encounter state (empty = no boss here)
+var _ebullets: Array = []      # enemy + boss projectiles
 
 func _tick_katana(delta: float) -> void:
 	_katana_t -= delta
@@ -369,7 +388,7 @@ func _tick_katana(delta: float) -> void:
 		if _katana_t > 0.0:
 			return
 		var reach: float = float(w.get("range", 24)) * WEAPON_SCALE + 12.0
-		var target := _nearest_enemy(reach + 24.0)
+		var target := _acquire_target(reach + 24.0)
 		if target.is_empty():
 			return
 		var dir: Vector2 = (target.pos - _pos).normalized()
@@ -380,6 +399,11 @@ func _tick_katana(delta: float) -> void:
 				var to: Vector2 = e.pos - _pos
 				if to.length() <= reach + _def.enemies[e.type].size 						and absf(to.angle_to(dir)) < deg_to_rad(60.0):
 					_hit_enemy(e, dmg, w)
+					hit_any = true
+			if not _boss.is_empty() and _boss.active and not _boss.done:
+				var tob: Vector2 = _boss.pos - _pos
+				if tob.length() <= reach + _def.boss.size 						and absf(tob.angle_to(dir)) < deg_to_rad(60.0):
+					_hit_boss(dmg, w)
 					hit_any = true
 		# Chain (mjolnir): arcs to N extra enemies beyond the swing
 		if hit_any and w.has("chain"):
@@ -398,7 +422,7 @@ func _tick_katana(delta: float) -> void:
 		if _reload_t > 0.0 or _katana_t > 0.0:
 			return
 		var rng_px: float = float(w.get("range", 150)) * WEAPON_SCALE
-		var target := _nearest_enemy(rng_px)
+		var target := _acquire_target(rng_px)
 		if target.is_empty():
 			return
 		var wid: String = GameState.equipped_weapon
@@ -435,6 +459,12 @@ func _tick_bullets(delta: float) -> void:
 		if b.left <= 0.0 or _collide(b.pos, 3.0) != b.pos:
 			dead.append(b)
 			continue
+		if not _boss.is_empty() and _boss.active and not _boss.done 				and not b.hit.has("boss") 				and b.pos.distance_to(_boss.pos) <= _def.boss.size + 8.0:
+			_hit_boss(b.dmg, b.w)
+			b.hit.append("boss")
+			if not b.pierce:
+				dead.append(b)
+				continue
 		for e in _enemies:
 			if b.hit.has(e):
 				continue
@@ -465,6 +495,129 @@ func _hit_enemy(e: Dictionary, dmg: int, w: Dictionary) -> void:
 			e["slow_t"] = 2.2
 		"burn":
 			e["burn_t"] = 3.0
+
+# ── Boss encounter — Phaser act-climax fights, def-driven. Patterns:
+# chase, telegraphed charge, bullet spray, add summons. Bosses with
+# flee_at escape at low HP (Rezz canon: "flees to return").
+func _tick_boss(delta: float) -> void:
+	if _boss.is_empty() or _boss.done:
+		return
+	var bdef: Dictionary = _def.boss
+	if not _boss.active:
+		if _boss.room.has_point(_pos):
+			_boss.active = true
+			Music.play_category("boss")
+			DialogueOverlay.play_lines([{ "speaker": "", 					"text": bdef.get("bark_intro", "..."),
+					"color": Color(1.3, 0.5, 0.3) }], "boss_intro")
+		return
+	_boss.flash = maxf(0.0, _boss.flash - delta)
+	_boss.contact_t = maxf(0.0, _boss.contact_t - delta)
+	if _boss.state == "flee":
+		_boss.flee_t -= delta
+		_boss.pos += _boss.charge_dir * bdef.speed * 3.5 * delta
+		if _boss.flee_t <= 0.0:
+			_boss_end(true)
+		return
+	var to_player: Vector2 = _pos - _boss.pos
+	var dir: Vector2 = to_player.normalized()
+	match _boss.state:
+		"chase":
+			_boss.pos = _collide(_boss.pos + dir * bdef.speed * delta, bdef.size * 0.7)
+			_boss.charge_cd -= delta
+			_boss.spray_cd -= delta
+			_boss.summon_cd -= delta
+			if bdef.get("charge", false) and _boss.charge_cd <= 0.0 					and to_player.length() < 520.0:
+				_boss.state = "telegraph"
+				_boss.state_t = 0.55
+			elif bdef.has("spray") and _boss.spray_cd <= 0.0:
+				var n: int = bdef.spray.count
+				for i in n:
+					var a: float = dir.angle() + (i - (n - 1) * 0.5) * 0.22
+					_ebullets.append({ "pos": _boss.pos, "dir": Vector2.from_angle(a),
+						"dmg": bdef.spray.dmg, "left": 900.0 })
+				_boss.spray_cd = bdef.spray.cd
+			elif bdef.has("summon") and _boss.summon_cd <= 0.0 					and _enemies.size() < int(bdef.summon.get("max", 5)):
+				for i in int(bdef.summon.count):
+					_spawn_enemy(_boss.pos, bdef.summon.pool)
+				_boss.summon_cd = bdef.summon.cd
+		"telegraph":
+			_boss.state_t -= delta
+			_boss.charge_dir = dir
+			if _boss.state_t <= 0.0:
+				_boss.state = "charge"
+				_boss.state_t = 0.7
+		"charge":
+			_boss.state_t -= delta
+			_boss.pos = _collide(_boss.pos + _boss.charge_dir * bdef.speed * 4.2 * delta,
+				bdef.size * 0.7)
+			if _boss.state_t <= 0.0:
+				_boss.state = "chase"
+				_boss.charge_cd = 5.5
+	# Contact damage — charging hits harder
+	if _boss.contact_t <= 0.0 and _invuln <= 0.0 and _dash_t <= 0.0 			and _boss.pos.distance_to(_pos) < bdef.size + 16.0:
+		_boss.contact_t = CONTACT_CD
+		_invuln = INVULN
+		GameState.take_damage(bdef.dmg + (6 if _boss.state == "charge" else 0))
+		if GameState.hp <= 0:
+			_die()
+
+func _hit_boss(dmg: int, w: Dictionary) -> void:
+	if _boss.is_empty() or not _boss.active or _boss.done or _boss.state == "flee":
+		return
+	_boss.hp -= dmg * int(w.get("boss_multiplier", 1))
+	_boss.flash = 0.12
+	var ls: float = w.get("life_steal", 0.0)
+	if ls > 0.0:
+		GameState.hp = mini(GameState.hp_max, GameState.hp + maxi(1, roundi(dmg * ls)))
+	var flee_at: float = _def.boss.get("flee_at", 0.0)
+	if flee_at > 0.0 and _boss.hp <= _boss.hp_max * flee_at:
+		_boss.state = "flee"
+		_boss.flee_t = 1.2
+		_boss.charge_dir = (_boss.pos - _pos).normalized()
+		DialogueOverlay.play_lines([{ "speaker": "", 				"text": _def.boss.get("bark_flee", "..."),
+				"color": Color(1.3, 0.5, 0.3) }], "boss_flee")
+	elif _boss.hp <= 0:
+		_boss_end(false)
+
+func _boss_end(fled: bool) -> void:
+	_boss.done = true
+	var bdef: Dictionary = _def.boss
+	GameState.add_credits(int(bdef.get("credits", 0)))
+	for d in bdef.get("drops", []):
+		if not GameState.has_item(d):
+			GameState.add_item(d)
+			_set_status("%s %s: %s dropped — equip it in the phone GEAR app" 					% [bdef.name, "bolted" if fled else "down", str(d).to_upper()])
+	if str(bdef.get("flag", "")) != "":
+		GameState.set_flag(str(bdef.flag))
+	Music.play_category("dungeon")
+
+## Weapon targeting that sees the boss as well as the mobs
+func _acquire_target(max_d: float) -> Dictionary:
+	var t := _nearest_enemy(max_d)
+	if not _boss.is_empty() and _boss.active and not _boss.done and _boss.state != "flee":
+		var bd: float = _pos.distance_to(_boss.pos)
+		if bd <= max_d and (t.is_empty() or bd < _pos.distance_to(t.pos)):
+			return { "pos": _boss.pos, "is_boss": true }
+	return t
+
+func _tick_ebullets(delta: float) -> void:
+	var dead: Array = []
+	for eb in _ebullets:
+		var step: float = 420.0 * delta
+		eb.pos += eb.dir * step
+		eb.left -= step
+		if eb.left <= 0.0 or _collide(eb.pos, 3.0) != eb.pos:
+			dead.append(eb)
+			continue
+		if _invuln <= 0.0 and _dash_t <= 0.0 and eb.pos.distance_to(_pos) < 16.0:
+			GameState.take_damage(int(eb.dmg))
+			_invuln = INVULN * 0.6
+			dead.append(eb)
+			if GameState.hp <= 0:
+				_die()
+				return
+	for eb in dead:
+		_ebullets.erase(eb)
 
 ## Gear passives — shield recharge + hp regen (generators, nanoweave...)
 func _tick_gear(delta: float) -> void:
@@ -542,6 +695,19 @@ func _tick_enemies(delta: float) -> void:
 					lt = 2.6
 			e["lunge_st"] = st
 			e["lunge_t"] = lt
+		elif def.has("shoot"):
+			# Gunner: hold range, back off when crowded, fire on cooldown
+			var sh: Dictionary = def.shoot
+			var d: float = e.pos.distance_to(_pos)
+			if d < float(sh.get("keep", 220.0)):
+				e.pos = _collide(e.pos - dir * def.speed * delta, def.size * 0.7)
+			elif d > float(sh.range) * 0.9:
+				e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
+			e["shoot_t"] = e.get("shoot_t", randf() * float(sh.cd)) - delta
+			if e.get("shoot_t", 0.0) <= 0.0 and d <= float(sh.range):
+				e["shoot_t"] = float(sh.cd)
+				_ebullets.append({ "pos": e.pos, "dir": dir,
+					"dmg": sh.dmg, "left": float(sh.range) + 120.0 })
 		else:
 			e.pos = _collide(e.pos + dir * def.speed * delta, def.size * 0.7)
 		e.contact_t = maxf(0.0, e.contact_t - delta)
@@ -1111,6 +1277,31 @@ func _draw_world(b: Node2D) -> void:
 			Rect2(e.pos - Vector2(FRAME_W * 0.5 * sc, (FRAME_H - 12.0) * sc),
 				Vector2(FRAME_W * sc, FRAME_H * sc)),
 			Rect2(frame * FRAME_W, row * FRAME_H, FRAME_W, FRAME_H), tint)
+	# Boss — bigger sprite, telegraph ring before the charge
+	if not _boss.is_empty() and _boss.active and not _boss.done:
+		var bdef: Dictionary = _def.boss
+		if _boss.state == "telegraph":
+			b.draw_circle(_boss.pos, bdef.size + 20.0, Color(1.5, 0.25, 0.15, 0.30))
+			b.draw_arc(_boss.pos, bdef.size + 20.0, 0, TAU, 28, Color(1.7, 0.3, 0.2, 0.9), 3.5)
+		var bto: Vector2 = _pos - _boss.pos
+		var brow := Facing.DOWN
+		if absf(bto.x) >= absf(bto.y):
+			brow = Facing.RIGHT if bto.x > 0 else Facing.LEFT
+		else:
+			brow = Facing.DOWN if bto.y > 0 else Facing.UP
+		var btint: Color = bdef.tint if _boss.flash <= 0.0 else Color(2.2, 2.2, 2.2)
+		if _boss.state == "flee":
+			btint.a = maxf(0.0, _boss.flee_t / 1.2)
+		var bsc: float = bdef.get("scale", 1.5)
+		var bframe := int(_anim_t * 8.0) % 3
+		b.draw_texture_rect_region(_sheets[bdef.sheet],
+			Rect2(_boss.pos - Vector2(FRAME_W * 0.5 * bsc, (FRAME_H - 12.0) * bsc),
+				Vector2(FRAME_W * bsc, FRAME_H * bsc)),
+			Rect2(bframe * FRAME_W, brow * FRAME_H, FRAME_W, FRAME_H), btint)
+	# Enemy fire — hot red tracers
+	for eb in _ebullets:
+		b.draw_line(eb.pos - eb.dir * 10.0, eb.pos, Color(1.7, 0.35, 0.2), 3.0)
+		b.draw_circle(eb.pos, 3.0, Color(1.8, 0.4, 0.2))
 	# Bullets — glowing tracers in the weapon's palette
 	for bl in _bullets:
 		var bcol := Color(1.6, 1.3, 0.4)
@@ -1165,7 +1356,7 @@ func _build_hud() -> void:
 	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 	title.position = Vector2(30, 8)
 	cl.add_child(title)
-	for key in ["dash", "nova", "grates", "wpn", "shield"]:
+	for key in ["dash", "nova", "grates", "wpn", "shield", "boss"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
@@ -1179,6 +1370,9 @@ func _build_hud() -> void:
 	_hud.wpn.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
 	_hud.shield.position = Vector2(930, 10)
 	_hud.shield.add_theme_color_override("font_color", Color(0.45, 0.9, 1.0))
+	_hud.boss.position = Vector2(420, 44)
+	_hud.boss.add_theme_font_size_override("font_size", 20)
+	_hud.boss.add_theme_color_override("font_color", Color(1.4, 0.4, 0.25))
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 17)
 	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
@@ -1217,6 +1411,13 @@ func _refresh_hud() -> void:
 		_hud.wpn.text = str(w.get("name", "?"))
 	var ms: float = GameState.max_shield()
 	_hud.shield.text = "" if ms <= 0.0 else "SHIELD %d/%d" % [int(GameState.shield_hp), int(ms)]
+	if not _boss.is_empty() and _boss.active and not _boss.done:
+		var frac: float = clampf(float(_boss.hp) / float(_boss.hp_max), 0.0, 1.0)
+		var cells: int = int(ceil(frac * 16.0))
+		_hud.boss.text = "%s  %s%s" % [_def.boss.name,
+			"█".repeat(cells), "░".repeat(16 - cells)]
+	else:
+		_hud.boss.text = ""
 	var sealed := 0
 	for g in _grates:
 		if g.sealed:
