@@ -232,6 +232,28 @@ const SEGMENTS := [
 	},
 
 	# ── Kerry — match → move-in → sick → cured → rescued ───────────────
+	# The moment of the match (Phaser KERRY_THREAD): lands immediately when
+	# you both like each other, and sends you to the cafe.
+	{
+		"id": "kerry_thread",
+		"from": "Kerry",
+		"color": Color(1.0, 0.53, 0.6),
+		"time": "NEW",
+		"preview": "hey, we matched! this is weird right?",
+		"require_flag": "kerryMatched",
+		"thread": [
+			{ "sender": "kerry", "text": "hey! so... we matched." },
+			{ "sender": "kerry", "text": "this is weird right? matching with someone on an app?" },
+			{ "sender": "you", "text": "little bit. but here we are." },
+			{ "sender": "kerry", "text": "i read your bio. programmer huh?" },
+			{ "sender": "kerry", "text": "my ex was a programmer. dont worry thats not why i swiped." },
+			{ "sender": "you", "text": "thats... reassuring?" },
+			{ "sender": "kerry", "text": "lol. look, lets skip the awkward texting phase." },
+			{ "sender": "kerry", "text": "meet me at the cafe? Byte Brew on 5th." },
+			{ "sender": "kerry", "text": "i promise im not a bot. mostly." },
+			{ "sender": "you", "text": "on my way." },
+		],
+	},
 	# After the dating-app match, BEFORE the cafe date. Builds rapport so
 	# the relationship isn't stranger-to-live-in in one beat.
 	{

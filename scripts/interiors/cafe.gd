@@ -12,7 +12,11 @@ func _ready() -> void:
 	exit_scene = "street_downtown"
 	exit_spawn = "from_cafe"
 	super._ready()
-	Music.play_category("apartment")
+	# Kerry's date gets her canon track (Phaser CafeScene); shops otherwise
+	if GameState.has_flag("kerryMatched") and not GameState.has_flag("kerryDated"):
+		Music.play_category("kerry_date")
+	else:
+		Music.play_category("shops")
 
 func _ambient() -> Color:
 	return Color(0.34, 0.29, 0.22)

@@ -170,7 +170,7 @@ func _ready() -> void:
 	SceneTransition.consume_spawn()
 	if not GameState.has_item("headlamp"):
 		_set_status("pitch black down here. GUNS+ sells headlamps.")
-	Music.play_category("city")
+	Music.play_category("dungeon")
 
 class _Board extends Node2D:
 	var game

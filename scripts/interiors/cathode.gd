@@ -57,7 +57,7 @@ func _ready() -> void:
 	exit_spawn = "from_cathode"
 	_is_godsnack = randi() % 2 == 0
 	super._ready()
-	Music.play_category("title")
+	Music.play_category("live_band")
 	var band := "GODSNACK" if _is_godsnack else "PERFECT TOMMY"
 	_set_status(band + " is on stage tonight.")
 

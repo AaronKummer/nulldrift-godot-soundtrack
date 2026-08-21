@@ -81,7 +81,7 @@ func _ready() -> void:
 	_build_player()
 	_build_hud()
 	_apply_pending_spawn()
-	Music.play_category("city")   # street mood until an arcade track exists
+	Music.play_category("arcade_zone")
 
 
 # ═══════════════════════════════════════════════════════════════════════

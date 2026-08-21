@@ -17,17 +17,37 @@ const TARGET_DB := -8.0
 # Maps category → list of filename stems (no .mp3). At play time we pick one
 # at random. If a category is empty we fall back to "any".
 const CATEGORIES := {
+	# Scene categories follow the Phaser game's fixed track-per-scene
+	# mapping (soundManager.playMusic calls) — Aaron: "do the music like
+	# the phaser game". The soundtrack originals stay reachable via the
+	# soundtrack scene and the bar jukebox.
 	"title": [
-		"nulldrift-bestfriends",
-		"nulldrift-intheend",
-		"vector-race",
+		"title-theme",
 	],
 	"apartment": [
 		"intro-apartment",
-		"alone",
-		"alone-full",
-		"theres-a-draft-in-here",
-		"violet-archive",
+	],
+	"shops": [
+		"shops",
+	],
+	"arcade_zone": [
+		"arcade",
+	],
+	"dungeon": [
+		"dungeon",
+	],
+	"boss": [
+		"boss",
+	],
+	"kerry_date": [
+		"kerry-date",
+	],
+	# The Cathode's live sets — the band originals the title screen used
+	# to play before it switched to the canon title theme
+	"live_band": [
+		"nulldrift-bestfriends",
+		"nulldrift-intheend",
+		"vector-race",
 	],
 	"story": [
 		"rooftop-meet",
@@ -65,6 +85,8 @@ const CATEGORIES := {
 		"null-drift-softgoodye",
 	],
 	"ending": [
+		"ending",
+		"endgame",
 		"ending-rain-full",
 		"ending-rain-2-full",
 	],
@@ -76,12 +98,10 @@ const CATEGORIES := {
 		"bill-evans-ydkwli-snes",
 		"you-dont-know-what-love-is-fantasia",
 	],
-	# Walking the city block — jazz that holds up to a long stroll
+	# The city streets — Phaser GameScene ambience
 	"city": [
-		"bill-evans-ydkwli-snes",
-		"you-dont-know-what-love-is-fantasia",
-		"ydkwli-fantasia-reverb",
-		"ydkwli-snes",
+		"city-ambient",
+		"city-night",
 	],
 	# Same set used on the balcony for now
 	"balcony": [

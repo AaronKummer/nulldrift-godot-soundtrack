@@ -83,7 +83,7 @@ func _ready() -> void:
 func _setup_camera() -> void:
 	_camera = Camera3D.new()
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	_camera.size = 9.0   # vertical meters in frame — corridor is 3.6 tall
+	_camera.size = 13.0   # vertical meters in frame — corridor is 3.6 tall
 	_camera.current = true
 	add_child(_camera)
 	_camera.position = CAMERA_OFFSET

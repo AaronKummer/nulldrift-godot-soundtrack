@@ -14,7 +14,7 @@ func _ready() -> void:
 	exit_scene = "street_downtown"
 	exit_spawn = "from_library"
 	super._ready()
-	Music.play_category("apartment")
+	Music.play_category("shops")
 
 func _ambient() -> Color:
 	return Color(0.30, 0.27, 0.22)

@@ -765,22 +765,92 @@ func _date_button(text: String, color: Color) -> Button:
 
 func _on_date_vote(profile_id: String, liked_it: bool) -> void:
 	PhoneState.vote(profile_id, liked_it)
+	var kerry_match := false
 	if profile_id == "kerry" and liked_it and not GameState.has_flag("kerryMatched"):
 		GameState.set_flag("kerryMatched")
+		kerry_match = true
 	# Matching the wrong people gets you their fizzled thread in MSGS
 	if profile_id == "spike" and liked_it:
 		GameState.set_flag("spikeMatched")
 	if profile_id == "glitch_qu33n" and liked_it:
 		GameState.set_flag("glitchMatched")
-	# Refresh the dating view in-place
+	# Refresh the dating view in-place — Kerry gets the match splash first
 	var top: Dictionary = _stack[-1]
 	(top["node"] as Node).queue_free()
-	var screen := _build_app("dating")
+	var screen: Control
+	if kerry_match:
+		screen = _build_match_splash()
+	else:
+		screen = _build_app("dating")
 	screen.set_anchors_preset(Control.PRESET_FULL_RECT)
 	screen.mouse_filter = Control.MOUSE_FILTER_PASS
 	_app_container.add_child(screen)
 	top["node"] = screen
 	_stack[-1] = top
+
+## IT'S A MATCH! — the Phaser match notification, phone-native. Shown once,
+## the moment both of you have liked each other.
+func _build_match_splash() -> Control:
+	var pink := Color(1.0, 0.4, 0.55)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 14)
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var spacer_top := Control.new()
+	spacer_top.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(spacer_top)
+	var heart := Label.new()
+	heart.text = "❤️"
+	heart.add_theme_font_override("font", _emoji_font())
+	heart.add_theme_font_size_override("font_size", 64)
+	heart.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(heart)
+	var title := Label.new()
+	title.text = "IT'S A MATCH!"
+	title.add_theme_font_size_override("font_size", 26)
+	title.add_theme_color_override("font_color", pink)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(title)
+	var sub := Label.new()
+	sub.text = "you and Kerry liked each other"
+	sub.add_theme_font_size_override("font_size", 14)
+	sub.add_theme_color_override("font_color", Color(0.85, 0.8, 0.9))
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(sub)
+	var hint := Label.new()
+	hint.text = "she already texted you — check MSGS"
+	hint.add_theme_font_size_override("font_size", 12)
+	hint.add_theme_color_override("font_color", Color(0.6, 0.65, 0.8))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(hint)
+	var btn := Button.new()
+	btn.text = "keep swiping"
+	btn.add_theme_font_size_override("font_size", 14)
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.18, 0.07, 0.12)
+	sb.border_color = pink
+	sb.border_width_left = 1; sb.border_width_top = 1
+	sb.border_width_right = 1; sb.border_width_bottom = 1
+	sb.corner_radius_top_left = 12; sb.corner_radius_top_right = 12
+	sb.corner_radius_bottom_left = 12; sb.corner_radius_bottom_right = 12
+	sb.content_margin_left = 18; sb.content_margin_right = 18
+	sb.content_margin_top = 8; sb.content_margin_bottom = 8
+	btn.add_theme_stylebox_override("normal", sb)
+	btn.add_theme_color_override("font_color", pink)
+	btn.pressed.connect(func():
+		var top: Dictionary = _stack[-1]
+		(top["node"] as Node).queue_free()
+		var screen := _build_app("dating")
+		screen.set_anchors_preset(Control.PRESET_FULL_RECT)
+		screen.mouse_filter = Control.MOUSE_FILTER_PASS
+		_app_container.add_child(screen)
+		top["node"] = screen
+		_stack[-1] = top)
+	v.add_child(btn)
+	var spacer_bot := Control.new()
+	spacer_bot.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(spacer_bot)
+	return v
 
 # ─────────────────────────────────────────────────────────────────────
 # Profile — pulls from GameState (credits, hp, inventory size, active quest)
