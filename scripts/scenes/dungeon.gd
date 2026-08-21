@@ -136,7 +136,10 @@ func _ready() -> void:
 	var did: String = GameState.pending_dungeon
 	if not GameState.dungeon_seeds.has(did):
 		GameState.dungeon_seeds[did] = randi()
-	_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did])
+	if _def.has("layout"):
+		_gen = DungeonGenSys.from_layout(_def)   # authored — never random
+	else:
+		_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did])
 	_bake_geometry()
 	_pos = _cell_center(_gen.entrance)
 	_spawn_point = _pos

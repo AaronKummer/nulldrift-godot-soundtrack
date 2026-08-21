@@ -168,6 +168,57 @@ static func generate(def: Dictionary, rng_seed: int) -> Dictionary:
 		"boss_pos": Vector2i(boss_room.get_center()), "boss_room": boss_room,
 	}
 
+## Hand-authored layouts — def "layout" is an array of equal-length strings.
+## Chars: '#' wall · '.' floor · '~' water · 'F' flavor floor · 'E' entrance
+## · 'B' boss · 'O' objective · 'S' stash · 'G' grate · 'H' rat hole
+## · 'M' medkit · 'C' chest. Fixed every visit (no seed) — for encounters
+## that shouldn't be random, like the garage.
+static func from_layout(def: Dictionary) -> Dictionary:
+	var rows: Array = def.layout
+	var h: int = rows.size()
+	var w: int = (rows[0] as String).length()
+	var tiles: Array = []
+	for y in h:
+		var row: Array = []
+		row.resize(w)
+		row.fill(T_WALL)
+		tiles.append(row)
+	var entrance := Vector2i(1, 1)
+	var boss_pos := Vector2i(1, 1)
+	var objective := Vector2i(1, 1)
+	var stash := Vector2i(1, 1)
+	var flavor_cells: Array = []
+	var grates: Array = []
+	var holes: Array = []
+	var medkits: Array = []
+	var chests: Array = []
+	for y in h:
+		var line: String = rows[y]
+		for x in w:
+			var c := line[x]
+			if c == "#":
+				continue
+			tiles[y][x] = T_WATER if c == "~" else T_FLOOR
+			var p := Vector2i(x, y)
+			match c:
+				"F": flavor_cells.append(p)
+				"E": entrance = p
+				"B": boss_pos = p
+				"O": objective = p
+				"S": stash = p
+				"G": grates.append(p)
+				"H": holes.append(p)
+				"M": medkits.append(p)
+				"C": chests.append(p)
+	return {
+		"w": w, "h": h, "tiles": tiles, "rooms": [],
+		"flavor": flavor_cells, "entrance": entrance,
+		"grates": grates, "holes": holes, "medkits": medkits,
+		"chests": chests, "stash": stash, "objective": objective,
+		"boss_pos": boss_pos,
+		"boss_room": Rect2i(boss_pos - Vector2i(3, 3), Vector2i(7, 7)),
+	}
+
 static func _carve_l(tiles: Array, a: Vector2i, b: Vector2i, x_first: bool) -> void:
 	var corner := Vector2i(b.x, a.y) if x_first else Vector2i(a.x, b.y)
 	for p in [[a, corner], [corner, b]]:

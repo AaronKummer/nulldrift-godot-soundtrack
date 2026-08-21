@@ -64,6 +64,32 @@ const DEFS := {
 		"rooms": 10, "room_min": 4, "room_max": 7,
 		"water_room_chance": 0.0,
 		"flavor_chance": 0.25,               # oil-slick bays, sodium glow
+		# Hand-authored floor plan (Aaron: "doesn't have to be random") —
+		# service bays top-left, Rezz's shop-floor arena top-right, drive
+		# aisle, office maze, Patch's cage in the locked back room.
+		"layout": [
+			"##############################",
+			"#....G....#...C...#..........#",
+			"#..FF.....#.FF....#....FF....#",
+			"#..FF.....+..FF...+..B.......#",
+			"#.........#.......#..........#",
+			"#####.#########.###....S.....#",
+			"#...............#............#",
+			"#.G..........M..#......G.....#",
+			"#...............##.....##..###",
+			"######.#####.....#....#####..#",
+			"#....#.#...##.#####.###...#..#",
+			"#.M..+.#.C..+.#...+.#..M..+..#",
+			"#....#.#....#.#.G.#.#.....#..#",
+			"##.###.######.#...#.#..H..#..#",
+			"#..#........#.#####.#######..#",
+			"#..#.FF..G..+.......+........#",
+			"#..+.FF.....#..###..#..####..#",
+			"#..#........#..#O#..#..#C....#",
+			"#..#...H....#..#.#..#..#.....#",
+			"#E.#........#..+.+..#..+..M..#",
+			"##############################",
+		],
 		"pal": {
 			"floor": Color(0.105, 0.100, 0.095),
 			"floor_flavor": Color(0.130, 0.095, 0.045),
@@ -164,6 +190,20 @@ const DEFS := {
 		"objective_flag": "officeRelayFound",
 		"objective_credits": 300,
 		"seal_reward": 30, "seal_all_reward": 250,
+		# WHISTLER — rogue phreaker squatting the dead tower (canon bounty
+		# target). Spray-and-pray, hides behind summoned drones, fights to
+		# the end.
+		"boss": {
+			"name": "WHISTLER", "sheet": "thug", "hp": 40, "speed": 95.0,
+			"size": 18.0, "dmg": 12, "scale": 1.25,
+			"tint": Color(0.8, 1.0, 1.2),
+			"spray": { "count": 4, "dmg": 7, "cd": 3.0 },
+			"summon": { "pool": ["drone"], "count": 2, "cd": 7.0, "max": 6 },
+			"credits": 300,
+			"flag": "whistlerDefeated",
+			"drops": ["smg"],
+			"bark_intro": "WHISTLER: 'this tower's MINE. every dead floor of it. leave or get unplugged.'",
+		},
 	},
 	"corpo": {
 		"name": "CORTEX HQ",
@@ -204,6 +244,20 @@ const DEFS := {
 		"objective_flag": "corpoRelayFound",
 		"objective_credits": 600,
 		"seal_reward": 40, "seal_all_reward": 400,
+		# THE COMPLIANCE OFFICER — corporate enforcement made flesh (canon
+		# Cortex HQ boss). Slow, armored, hits like a severance package.
+		"boss": {
+			"name": "COMPLIANCE OFFICER", "sheet": "cop", "hp": 90,
+			"speed": 65.0, "size": 26.0, "dmg": 20, "scale": 1.6,
+			"tint": Color(0.85, 0.9, 1.3),
+			"charge": true,
+			"spray": { "count": 8, "dmg": 9, "cd": 5.0 },
+			"summon": { "pool": ["corpo_ninja"], "count": 2, "cd": 10.0, "max": 5 },
+			"credits": 600,
+			"flag": "corpoBossDefeated",
+			"drops": ["tesla_blade"],
+			"bark_intro": "COMPLIANCE OFFICER: 'unauthorized presence detected. initiating termination review.'",
+		},
 	},
 }
 
