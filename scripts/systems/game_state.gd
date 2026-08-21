@@ -173,6 +173,10 @@ func take_damage(amount: int) -> void:
 		amt -= int(absorbed)
 	hp = maxi(0, hp - amt)
 
+## Headlamp is owned gear with a switch (GEAR app) — on by default
+func headlamp_on() -> bool:
+	return has_item("headlamp") and not has_flag("headlampOff")
+
 func ammo_left(id: String) -> int:
 	return int(weapon_ammo.get(id, Equip.weapon(id).get("max_ammo", 0)))
 

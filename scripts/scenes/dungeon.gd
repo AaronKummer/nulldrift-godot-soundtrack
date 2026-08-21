@@ -996,8 +996,9 @@ func _build_lights() -> void:
 	_light_tex.fill = GradientTexture2D.FILL_RADIAL
 	_light_tex.fill_from = Vector2(0.5, 0.5)
 	_light_tex.fill_to = Vector2(0.5, 0.0)
-	# No light of your own unless you bought a headlamp at GUNS+
-	if GameState.has_item("headlamp"):
+	# No light of your own unless you bought a headlamp at GUNS+ (and
+	# left it switched on — the GEAR app has the toggle)
+	if GameState.headlamp_on():
 		_torch = _add_light(_pos, Color(1.0, 0.85, 0.6), 4.0, 1.6)
 	else:
 		# eyes adjusting to the dark — barely anything
@@ -1068,7 +1069,7 @@ func _tick_blackout_warning() -> void:
 	for bo in _blackouts:
 		if not bo.warned and (bo.cells as Rect2i).has_point(pc):
 			bo.warned = true
-			if not GameState.has_item("headlamp"):
+			if not GameState.headlamp_on():
 				DialogueOverlay.play_lines([
 					{ "speaker": "", "text": "it is pitch black in here.",
 					  "color": Color(0.7, 0.75, 0.85) },
@@ -1080,6 +1081,15 @@ func _tick_blackout_warning() -> void:
 func _tick_lights() -> void:
 	if _torch:
 		_torch.position = _pos
+		# Live headlamp switch — flipping it in the phone works mid-run
+		if GameState.headlamp_on():
+			_torch.color = Color(1.0, 0.85, 0.6)
+			_torch.texture_scale = 4.0
+			_torch.energy = 1.6
+		else:
+			_torch.color = Color(0.75, 0.8, 0.95)
+			_torch.texture_scale = 1.0
+			_torch.energy = 0.24
 	for g in _grates:
 		if not g.has("light"):
 			continue

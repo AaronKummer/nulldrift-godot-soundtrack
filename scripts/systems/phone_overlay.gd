@@ -1092,13 +1092,25 @@ func _gear_render(list: VBoxContainer, color: Color) -> void:
 			_gear_render(list, color))
 		row.add_child(eb)
 		list.add_child(row)
-	# Passive gear
+	# Headlamp — owned gear with a real switch, takes no equipment slot
 	if GameState.has_item("headlamp"):
+		var on: bool = GameState.headlamp_on()
+		var hrow := HBoxContainer.new()
+		hrow.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var hl := Label.new()
-		hl.text = "HEADLAMP · passive · lights the underground"
-		hl.add_theme_font_size_override("font_size", 14)
-		hl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.4))
-		list.add_child(hl)
+		hl.text = "HEADLAMP · %s" % ("lit" if on else "dark")
+		hl.clip_text = true
+		hl.add_theme_font_size_override("font_size", 13)
+		hl.add_theme_color_override("font_color",
+			Color(1.0, 0.85, 0.4) if on else Color(0.55, 0.55, 0.62))
+		hl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		hrow.add_child(hl)
+		var tb := _mini_btn("TURN OFF" if on else "TURN ON", Color(1.0, 0.85, 0.4))
+		tb.pressed.connect(func():
+			GameState.set_flag("headlampOff", on)
+			_gear_render(list, color))
+		hrow.add_child(tb)
+		list.add_child(hrow)
 
 # ─────────────────────────────────────────────────────────────────────
 # Settings — graphics options (dynamic-light quality for weak machines)
