@@ -32,6 +32,8 @@ func _ready() -> void:
 				GameState.toggle_gear(args[i + 1])
 		elif args[i] == "dungeon":
 			GameState.pending_dungeon = args[i + 1]
+		elif args[i] == "phonelight":
+			GameState.phone_light = args[i + 1] == "on"
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:

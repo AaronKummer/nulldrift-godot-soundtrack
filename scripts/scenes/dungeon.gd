@@ -59,6 +59,7 @@ var _blackouts: Array = []
 var _torch: PointLight2D
 var _relay_light: PointLight2D
 var _light_tex: GradientTexture2D
+var _cone_tex: ImageTexture              # phone-flashlight beam (directional)
 var _flickers: Array = []
 var _low_lights := false
 const TEX_FLOOR := preload("res://assets/world/textures/concrete/albedo.png")
@@ -1008,10 +1009,15 @@ func _build_lights() -> void:
 	_light_tex.fill = GradientTexture2D.FILL_RADIAL
 	_light_tex.fill_from = Vector2(0.5, 0.5)
 	_light_tex.fill_to = Vector2(0.5, 0.0)
-	# Three light tiers: headlamp (bright) > phone flashlight (weak) > none
+	_cone_tex = _make_cone_tex()
+	# Three light tiers: headlamp (bright radial) > phone flashlight
+	# (directional cone from the player) > none (eyes adjust)
 	match GameState.light_level():
 		2: _torch = _add_light(_pos, Color(1.0, 0.85, 0.6), 4.0, 1.6)
-		1: _torch = _add_light(_pos, Color(0.75, 0.85, 1.0), 2.6, 0.9)
+		1:
+			_torch = _add_light(_pos, Color(0.85, 0.9, 1.0), 4.5, 1.15)
+			_torch.texture = _cone_tex
+			_torch.rotation = _facing.angle()
 		_: _torch = _add_light(_pos, Color(0.75, 0.8, 0.95), 1.0, 0.24)
 	# Sconces + moss glow (same deterministic spots the draw pass dresses)
 	var tiles: Array = _gen.tiles
@@ -1052,6 +1058,31 @@ func _build_lights() -> void:
 			Vector2(r.position.x, r.end.y)])
 		occ.occluder = poly
 		add_child(occ)
+
+# A cone/beam light texture — apex at the center (the player), opening toward
+# +x, brightest near the apex and fading to nothing at the rim and outside
+# the cone half-angle. Rotate the light to _facing to aim it. Built once.
+func _make_cone_tex() -> ImageTexture:
+	var n := 192
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	var c := Vector2(n * 0.5, n * 0.5)
+	var half := deg_to_rad(33.0)
+	var maxd := n * 0.5
+	for y in n:
+		for x in n:
+			var d := Vector2(x, y) - c
+			var dist := d.length()
+			var a := 0.0
+			if dist <= maxd and dist > 0.5:
+				var ang: float = absf(d.angle())    # 0 = straight ahead (+x)
+				if ang <= half:
+					var dist_fall := 1.0 - dist / maxd      # fades with range
+					var edge_fall := 1.0 - ang / half        # softer at cone edge
+					a = clampf(dist_fall * dist_fall * (0.35 + 0.65 * edge_fall), 0.0, 1.0)
+			elif dist <= 0.5:
+				a = 1.0
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	return ImageTexture.create_from_image(img)
 
 func _add_light(pos: Vector2, color: Color, tex_scale: float,
 		energy: float) -> PointLight2D:
@@ -1095,14 +1126,21 @@ func _tick_lights() -> void:
 		# the phone, applies mid-run
 		match GameState.light_level():
 			2:
+				_torch.texture = _light_tex
+				_torch.rotation = 0.0
 				_torch.color = Color(1.0, 0.85, 0.6)
 				_torch.texture_scale = 4.0
 				_torch.energy = 1.6
 			1:
-				_torch.color = Color(0.75, 0.85, 1.0)
-				_torch.texture_scale = 2.6
-				_torch.energy = 0.9
+				# Cone beam that swings with the way you're facing
+				_torch.texture = _cone_tex
+				_torch.rotation = _facing.angle()
+				_torch.color = Color(0.85, 0.9, 1.0)
+				_torch.texture_scale = 4.5
+				_torch.energy = 1.15
 			_:
+				_torch.texture = _light_tex
+				_torch.rotation = 0.0
 				_torch.color = Color(0.75, 0.8, 0.95)
 				_torch.texture_scale = 1.0
 				_torch.energy = 0.24

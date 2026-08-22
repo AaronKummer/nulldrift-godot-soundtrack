@@ -920,25 +920,30 @@ func _app_gear(color: Color) -> Control:
 # ─────────────────────────────────────────────────────────────────────
 func _app_light(color: Color) -> Control:
 	var v := VBoxContainer.new()
-	v.add_theme_constant_override("separation", 16)
+	v.add_theme_constant_override("separation", 18)
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
 	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var on: bool = GameState.phone_light
-	var beam := Label.new()
-	beam.text = "🔦"
-	beam.add_theme_font_override("font", _emoji_font())
-	beam.add_theme_font_size_override("font_size", 72)
-	beam.modulate = Color(1, 1, 0.8) if on else Color(0.4, 0.42, 0.5)
-	beam.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(beam)
+	# Big pixel flashlight — lit yellow when on, dim grey when off (the app
+	# icon, blown up; no emoji, which doesn't render on this box)
+	var pic := TextureRect.new()
+	pic.texture = load("res://assets/icons/phone/light.png")
+	pic.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	pic.custom_minimum_size = Vector2(140, 140)
+	pic.modulate = Color(1, 1, 1) if on else Color(0.4, 0.42, 0.5)
+	v.add_child(pic)
 	var state := Label.new()
-	state.text = "FLASHLIGHT: ON" if on else "FLASHLIGHT: OFF"
-	state.add_theme_font_size_override("font_size", 18)
+	state.text = "ON" if on else "OFF"
+	state.add_theme_font_size_override("font_size", 40)
 	state.add_theme_color_override("font_color",
-		Color(1.0, 0.95, 0.6) if on else Color(0.55, 0.6, 0.7))
+		Color(1.0, 0.95, 0.5) if on else Color(0.5, 0.55, 0.65))
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(state)
-	var btn := _mini_btn("TURN OFF" if on else "TURN ON", Color(1.0, 0.95, 0.6))
+	# One big tappable button that performs the opposite of the current state
+	var btn := _mini_btn("  TURN OFF  " if on else "  TURN ON  ", Color(1.0, 0.95, 0.6))
+	btn.add_theme_font_size_override("font_size", 18)
 	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	btn.pressed.connect(func():
 		GameState.phone_light = not GameState.phone_light
@@ -951,13 +956,6 @@ func _app_light(color: Color) -> Control:
 		top["node"] = scr
 		_stack[-1] = top)
 	v.add_child(btn)
-	var note := Label.new()
-	note.text = "weak, but free. a headlamp lights more, hands-free."
-	note.add_theme_font_size_override("font_size", 11)
-	note.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
-	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.add_child(note)
 	return v
 
 # ─────────────────────────────────────────────────────────────────────
