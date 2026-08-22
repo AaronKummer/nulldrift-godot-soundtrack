@@ -47,6 +47,16 @@ var _boss_bar: Panel
 var _boss_fill: Panel
 var _boss = null                       # the laser_bot, when present
 
+# ── game feel ──────────────────────────────────────────────────────────────
+var _cam: Camera3D
+var _cam_base := Vector3.ZERO
+var _shake := 0.0
+var _hurt_flash: ColorRect
+var _muzzle_flash := 0.0
+var _muzzle_pos := Vector3.ZERO
+var _muzzle_light: OmniLight3D
+var _rng := RandomNumberGenerator.new()
+
 const MELEE_REACH := 2.6
 const RANGED_RANGE := 18.0
 const BULLET_SPD := 26.0
@@ -61,6 +71,16 @@ func configure(player: Node3D, posture_id: String, floor: int,
 	_floor = floor
 	_entrances = entrances
 	_exit_on_death = exit_on_death
+	_rng.randomize()
+	_cam = get_viewport().get_camera_3d()
+	if _cam:
+		_cam_base = _cam.position
+	# A muzzle-flash light that flicks on for a frame or two when you fire
+	_muzzle_light = OmniLight3D.new()
+	_muzzle_light.light_color = Color(1.0, 0.9, 0.6)
+	_muzzle_light.light_energy = 0.0
+	_muzzle_light.omni_range = 6.0
+	add_child(_muzzle_light)
 	# Build the backup ladder, dropping the cop rung if this place handles it
 	# in-house (banks) rather than calling the law.
 	_ladder = []
@@ -107,7 +127,30 @@ func _process(delta: float) -> void:
 		_tick_ladder(delta)
 		_tick_workers(delta)
 	_tick_bullets(delta)
+	_tick_feel(delta)
 	_refresh_hud()
+
+## Screen shake + muzzle flash decay. Shake offsets the (otherwise static) iso
+## camera around its base spot, so fights kick without the view drifting.
+func _tick_feel(delta: float) -> void:
+	if _cam:
+		if _shake > 0.01:
+			_cam.position = _cam_base + Vector3(
+				_rng.randf_range(-1.0, 1.0), _rng.randf_range(-1.0, 1.0),
+				_rng.randf_range(-1.0, 1.0)) * _shake
+			_shake = maxf(0.0, _shake - delta * 3.2)
+		else:
+			_cam.position = _cam_base
+	if _muzzle_light:
+		if _muzzle_flash > 0.0:
+			_muzzle_flash = maxf(0.0, _muzzle_flash - delta)
+			_muzzle_light.position = _muzzle_pos
+			_muzzle_light.light_energy = _muzzle_flash * 24.0
+		else:
+			_muzzle_light.light_energy = 0.0
+
+func _add_shake(amt: float) -> void:
+	_shake = minf(0.6, _shake + amt)
 
 func _nearest_hostile(max_d: float) -> Node3D:
 	var best: Node3D = null
@@ -140,6 +183,7 @@ func _auto_fire(delta: float) -> void:
 		pass
 	if melee:
 		# Arc: hit every hostile inside the swing
+		var landed := false
 		for g in _guards:
 			if not is_instance_valid(g):
 				continue
@@ -147,7 +191,11 @@ func _auto_fire(delta: float) -> void:
 			to.y = 0.0
 			if to.length() <= reach and to.normalized().dot(dir) > 0.35:
 				g.take_hit(dmg)
+				_damage_number(g.global_position, dmg)
+				landed = true
 		_slash_fx(dir, reach)
+		if landed:
+			_add_shake(0.14)
 		_fire_t = cd
 	else:
 		var wid: String = GameState.equipped_weapon
@@ -158,10 +206,14 @@ func _auto_fire(delta: float) -> void:
 				return
 			_fire_t = 1.2
 			return
-		_spawn_bullet(_player.global_position + Vector3(0, 1.0, 0) + dir * 0.6, dir, dmg)
+		var muzzle := _player.global_position + Vector3(0, 1.0, 0) + dir * 0.6
+		_spawn_bullet(muzzle, dir, dmg)
+		_muzzle_flash = 0.06
+		_muzzle_pos = muzzle
+		_add_shake(0.05)
+		_fire_t = cd
 		if GameState.has_method("set_ammo"):
 			GameState.set_ammo(wid, ammo - 1)
-		_fire_t = cd
 
 func _spawn_bullet(pos: Vector3, dir: Vector3, dmg: int) -> void:
 	var m := _tracer(Color(0.4, 1.0, 1.2))
@@ -193,6 +245,8 @@ func _tick_bullets(delta: float) -> void:
 			for g in _guards:
 				if is_instance_valid(g) and g.global_position.distance_to(b.pos) < 1.0:
 					g.take_hit(b.dmg)
+					_damage_number(g.global_position, b.dmg)
+					_add_shake(0.04)
 					gone = true
 					break
 		if gone:
@@ -219,8 +273,17 @@ func _damage_player(dmg: int) -> void:
 		GameState.take_damage(dmg)
 	else:
 		GameState.hp = maxi(0, GameState.hp - dmg)
+	_add_shake(0.28)
+	_flash_hurt()
 	if GameState.hp <= 0:
 		_down()
+
+func _flash_hurt() -> void:
+	if _hurt_flash == null:
+		return
+	_hurt_flash.color = Color(0.8, 0.05, 0.05, 0.42)
+	var tw := create_tween()
+	tw.tween_property(_hurt_flash, "color:a", 0.0, 0.35)
 
 func _down() -> void:
 	set_process(false)
@@ -290,11 +353,31 @@ func _live_count() -> int:
 func _on_guard_died(g) -> void:
 	_guards.erase(g)
 	var ud: Dictionary = SecurityDefsData.unit(g.unit_id)
+	_death_burst(g.global_position, ud.get("boss", false))
+	_add_shake(0.35 if ud.get("boss", false) else 0.16)
 	if ud.get("drops", false) and ud.get("credits", 0) > 0:
 		GameState.add_credits(ud.credits)
 	if g == _boss:
 		_boss = null
 	GameState.add_heat(6.0)   # bodies pile up, the law notices
+
+## A quick shower of glowing debris when something dies.
+func _death_burst(pos: Vector3, big: bool) -> void:
+	var col := Color(1.4, 0.4, 1.4) if big else Color(1.3, 0.5, 0.3)
+	var n := 10 if big else 6
+	for i in n:
+		var chunk := _tracer(col)
+		(chunk.mesh as BoxMesh).size = Vector3(0.18, 0.18, 0.18)
+		chunk.position = pos + Vector3(0, 1.0, 0)
+		add_child(chunk)
+		var vel := Vector3(_rng.randf_range(-1, 1), _rng.randf_range(0.5, 1.5),
+			_rng.randf_range(-1, 1)).normalized() * _rng.randf_range(2.0, 5.0)
+		var tw := create_tween()
+		tw.set_parallel(true)
+		tw.tween_property(chunk, "position", chunk.position + vel, 0.5)
+		tw.tween_property(chunk, "scale", Vector3.ZERO, 0.5)
+		tw.chain().tween_callback(func():
+			if is_instance_valid(chunk): chunk.queue_free())
 
 # ── workers flee ───────────────────────────────────────────────────────────
 func _tick_workers(delta: float) -> void:
@@ -364,6 +447,26 @@ func _tracer(col: Color) -> MeshInstance3D:
 	mi.material_override = mat
 	return mi
 
+## Floating damage number that pops up off the hit and fades.
+func _damage_number(pos: Vector3, amount: int) -> void:
+	var lbl := Label3D.new()
+	lbl.text = str(amount)
+	lbl.font_size = 64
+	lbl.pixel_size = 0.012
+	lbl.modulate = Color(1.0, 0.95, 0.5)
+	lbl.outline_size = 12
+	lbl.outline_modulate = Color(0, 0, 0)
+	lbl.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	lbl.no_depth_test = true
+	lbl.position = pos + Vector3(_rng.randf_range(-0.3, 0.3), 1.9, 0)
+	add_child(lbl)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y + 1.2, 0.6)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.6).set_delay(0.15)
+	tw.chain().tween_callback(func():
+		if is_instance_valid(lbl): lbl.queue_free())
+
 func _slash_fx(dir: Vector3, reach: float) -> void:
 	var mi := _tracer(Color(1.2, 1.2, 1.4))
 	(mi.mesh as BoxMesh).size = Vector3(reach, 0.1, reach)
@@ -377,6 +480,12 @@ func _build_hud() -> void:
 	_hud = CanvasLayer.new()
 	_hud.layer = 42
 	add_child(_hud)
+	# Full-screen red flash when you take a hit
+	_hurt_flash = ColorRect.new()
+	_hurt_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hurt_flash.color = Color(0.8, 0.05, 0.05, 0.0)
+	_hurt_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud.add_child(_hurt_flash)
 	_alert_label = Label.new()
 	_alert_label.add_theme_font_size_override("font_size", 22)
 	_alert_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))

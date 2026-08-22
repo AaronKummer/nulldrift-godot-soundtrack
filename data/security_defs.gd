@@ -38,8 +38,8 @@ const UNITS := {
 	},
 	"laser_bot": {
 		"label": "KATANA UNIT", "sheet": "", "kind": "elite",
-		"hp": 130, "speed": 3.4, "dmg": 22, "range": 2.4, "charge": 9.5,
-		"fire_cd": 1.2, "credits": 300, "drops": true, "boss": true,
+		"hp": 100, "speed": 3.6, "dmg": 18, "range": 2.6, "charge": 9.5,
+		"fire_cd": 1.1, "credits": 300, "drops": true, "boss": true,
 	},
 	"cop": {
 		"label": "NCPD", "sheet": "res://assets/sprites/npc-cop.png",

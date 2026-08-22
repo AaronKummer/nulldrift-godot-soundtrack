@@ -200,6 +200,10 @@ func take_hit(dmg: int) -> void:
 		return
 	hp -= dmg
 	_hit_flash = 0.12
+	# Squash-punch for impact (works for the sprite and the box-built bot)
+	scale = Vector3(1.22, 0.84, 1.22)
+	var tw := create_tween()
+	tw.tween_property(self, "scale", Vector3.ONE, 0.13).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	if not hostile:
 		go_hostile()
 	if hp <= 0:
@@ -329,13 +333,11 @@ func _combat_step(delta: float) -> void:
 				if _fire_t <= 0.0:
 					_siege.hit_player(_udef.get("dmg", 12))
 					_fire_t = _udef.get("fire_cd", 1.0)
-		_:  # ranged — orbit at hold distance and fire
+		_:  # ranged — move up to firing distance, then hold and shoot. Does NOT
+			# infinitely backpedal (that let it kite a melee player through walls)
 			var hold: float = _udef.get("hold", 7.0)
 			if dist > hold + 1.5:
 				global_position += dir * spd * delta
-				_anim.set_moving(true)
-			elif dist < hold - 1.5:
-				global_position -= dir * spd * delta
 				_anim.set_moving(true)
 			else:
 				_anim.set_moving(false)
