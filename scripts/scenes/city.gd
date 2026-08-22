@@ -664,6 +664,8 @@ const SHOP_ITEMS := [
 	{ "id": "combat_armor", "gear": true },
 	{ "id": "heavy_plate", "gear": true },
 	{ "id": "berserker_stim", "gear": true },
+	{ "id": "ammo_ballistic", "label": "9MM ROUNDS x30", "price": 60, "ammo": "ballistic", "amount": 30 },
+	{ "id": "ammo_energy", "label": "ENERGY CELLS x20", "price": 120, "ammo": "energy", "amount": 20 },
 ]
 
 func _open_shop() -> void:
@@ -701,7 +703,14 @@ func _shop_entries() -> Array:
 func _shop_buy(idx: int) -> void:
 	var item: Dictionary = SHOP_ITEMS[idx]
 	var msg := ""
-	if item.get("gear", false):
+	if item.has("ammo"):
+		if GameState.credits < item.price:
+			_shop_menu.set_footer("shopkeep: 'no credits, no rounds.'")
+			return
+		GameState.add_credits(-item.price)
+		GameState.add_ammo(item.ammo, item.amount)
+		msg = "%s loaded into reserve." % item.label.to_lower()
+	elif item.get("gear", false):
 		var def: Dictionary = GameState.Equip.WEAPONS.get(item.id,
 			GameState.Equip.GEAR.get(item.id, {}))
 		if GameState.has_item(item.id):

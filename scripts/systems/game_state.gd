@@ -145,6 +145,7 @@ const Equip := preload("res://data/equipment.gd")
 var equipped_weapon := "katana"
 var equipment: Array = []            # gear ids, max 2 slots (canon)
 var weapon_ammo: Dictionary = {}     # weapon id -> rounds left in the mag
+var ammo_reserve: Dictionary = { "ballistic": 0, "energy": 0 }  # spare rounds by type; reload draws from here
 var shield_hp := 0.0                 # transient; generators recharge it
 var exposure := 0.0                  # deep-hack heat carried between net runs; feeds the sea hag
 
@@ -216,6 +217,28 @@ func ammo_left(id: String) -> int:
 func set_ammo(id: String, n: int) -> void:
 	weapon_ammo[id] = n
 
+## Spare-ammo reserve, by type ("ballistic"/"energy") — reload draws here
+func reserve_of(atype: String) -> int:
+	return int(ammo_reserve.get(atype, 0))
+
+func add_ammo(atype: String, n: int) -> void:
+	if atype == "":
+		return
+	ammo_reserve[atype] = maxi(0, reserve_of(atype) + n)
+
+## Try to reload a weapon's mag from its type reserve. Returns rounds loaded
+## (0 = reserve dry; caller keeps the weapon empty and prompts a swap).
+func reload_from_reserve(id: String) -> int:
+	var atype: String = Equip.ammo_type(id)
+	var reserve: int = reserve_of(atype)
+	if reserve <= 0:
+		return 0
+	var mag: int = int(Equip.weapon(id).get("max_ammo", 1))
+	var load_n: int = mini(mag, reserve)
+	add_ammo(atype, -load_n)
+	set_ammo(id, load_n)
+	return load_n
+
 ## Everyone owns their starter blade — grant + equip if missing (new games
 ## and legacy saves from the katana_level era alike)
 func _ensure_weapon() -> void:
@@ -258,6 +281,7 @@ func to_dict() -> Dictionary:
 		"equipment": equipment.duplicate(),
 		"weapon_ammo": weapon_ammo.duplicate(true),
 		"exposure": exposure,
+		"ammo_reserve": ammo_reserve.duplicate(),
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -278,6 +302,7 @@ func from_dict(d: Dictionary) -> void:
 	equipment = d.get("equipment", []).duplicate()
 	weapon_ammo = d.get("weapon_ammo", {}).duplicate(true)
 	exposure = d.get("exposure", 0.0)
+	ammo_reserve = d.get("ammo_reserve", { "ballistic": 0, "energy": 0 }).duplicate()
 	shield_hp = max_shield()
 	_apply_dev_bankroll()
 	_ensure_weapon()

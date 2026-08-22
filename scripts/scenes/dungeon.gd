@@ -431,8 +431,13 @@ func _tick_katana(delta: float) -> void:
 		var wid: String = GameState.equipped_weapon
 		var ammo: int = GameState.ammo_left(wid)
 		if ammo <= 0:
+			# Reload pulls from the type reserve; dry = swap or go melee
+			var loaded: int = GameState.reload_from_reserve(wid)
+			if loaded <= 0:
+				_set_status("out of %s ammo — swap weapon (1-6) or go melee"
+					% GameState.Equip.ammo_type(wid))
+				return
 			_reload_t = RELOAD_TIME
-			GameState.set_ammo(wid, int(w.get("max_ammo", 1)))
 			_set_status("reloading...")
 			return
 		var dir: Vector2 = (target.pos - _pos).normalized()
@@ -749,6 +754,13 @@ func _damage_enemy(e: Dictionary, dmg: int) -> void:
 				_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "grenade" })
 			elif roll < 0.13:
 				_pickups.append({ "pos": e.pos + Vector2(14, 8), "kind": "stim" })
+			# Ammo drop — humans/machines are carrying rounds. Straight to
+			# reserve so it's never a fumbled pickup mid-fight.
+			if randf() < 0.22:
+				var atype := "energy" if randf() < 0.25 else "ballistic"
+				var amt := 8 + randi() % 10
+				GameState.add_ammo(atype, amt)
+				_set_status("+%d %s rounds" % [amt, atype])
 
 func _spawn_enemy(at: Vector2, pool: Array) -> void:
 	if _enemies.size() >= 28:
@@ -1415,11 +1427,14 @@ func _refresh_hud() -> void:
 	_hud.nova.text = "NOVA ✓" if _nova_cd <= 0.0 else "NOVA %.1f" % _nova_cd
 	var w: Dictionary = GameState.weapon_def()
 	if w.get("type", "melee") == "ranged":
+		var atype: String = GameState.Equip.ammo_type(GameState.equipped_weapon)
+		var reserve: int = GameState.reserve_of(atype)
 		if _reload_t > 0.0:
-			_hud.wpn.text = "%s · RELOADING" % w.get("name", "?")
+			_hud.wpn.text = "%s · RELOADING (%d)" % [w.get("name", "?"), reserve]
 		else:
-			_hud.wpn.text = "%s · %d/%d" % [w.get("name", "?"),
-				GameState.ammo_left(GameState.equipped_weapon), w.get("max_ammo", 0)]
+			_hud.wpn.text = "%s · %d/%d · %d" % [w.get("name", "?"),
+				GameState.ammo_left(GameState.equipped_weapon),
+				w.get("max_ammo", 0), reserve]
 	else:
 		_hud.wpn.text = str(w.get("name", "?"))
 	var ms: float = GameState.max_shield()

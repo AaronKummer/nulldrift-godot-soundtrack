@@ -55,6 +55,17 @@ const GEAR := {
 	"berserker_stim": { "name": "BERSERKER STIM", "damage_bonus": 0.5, "hp_regen": 0.5, "speed_bonus": 0.15, "price": 8000 },
 }
 
+# Energy weapons draw from the "energy" reserve (cells); everything else
+# ballistic (rounds). Melee returns "" — no ammo, always usable.
+const ENERGY_WEAPONS := ["taser", "plasma_pistol", "fusion_carbine", "tesla_rifle",
+	"plasma_cannon", "singularity_cannon", "nyxs_gift", "gods_hand"]
+
+static func ammo_type(id: String) -> String:
+	var w: Dictionary = WEAPONS.get(id, {})
+	if w.get("type", "") != "ranged":
+		return ""
+	return "energy" if ENERGY_WEAPONS.has(id) else "ballistic"
+
 static func weapon(id: String) -> Dictionary:
 	return WEAPONS.get(id, WEAPONS["knife"])
 

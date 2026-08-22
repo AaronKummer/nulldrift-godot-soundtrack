@@ -43,6 +43,8 @@ var _camera: Camera3D
 var _player: CharacterBody3D
 var _player_anim: Node3D
 var _cat_anim: Node3D
+var _nightstand_zone: Area3D
+var _on_nightstand := false
 var _cat_pivot: Node3D
 var _cat_t := 0.0
 var _cat_idle_dwell := 3.0
@@ -547,9 +549,30 @@ func _build_cozy_corner() -> void:
 	_add_box(Vector3(bx + 1.4, 1.08, bz + 1.8), Vector3(0.8, 0.05, 1.6),
 		Color(0.04, 0.14, 0.18), 0.0, 0.85)
 
-	# Nightstand
+	# Nightstand — holds your starter stash: a 9mm, a couple mags, and $100.
+	# Grabbed once (nightstandLooted), then it's just furniture.
 	_add_box(Vector3(bx + 3.1, 0.7, bz - 2.4), Vector3(1.4, 1.4, 1.4),
 		Color(0.12, 0.09, 0.08), 0.0, 0.75)
+	if not GameState.has_flag("nightstandLooted"):
+		# a faint glint in the half-open drawer so you notice it
+		_add_box(Vector3(bx + 3.1, 0.75, bz - 1.75), Vector3(0.9, 0.12, 0.2),
+			Color(0.2, 0.25, 0.3), 0.4, 0.3, true, Color(0.4, 0.7, 0.9), 0.7, false)
+		_nightstand_zone = Area3D.new()
+		_nightstand_zone.position = Vector3(bx + 3.1, 1.0, bz - 1.4)
+		var nc := CollisionShape3D.new()
+		var ns := BoxShape3D.new()
+		ns.size = Vector3(2.0, 2.0, 1.8)
+		nc.shape = ns
+		_nightstand_zone.add_child(nc)
+		_nightstand_zone.body_entered.connect(func(b):
+			if b == _player:
+				_on_nightstand = true
+				_set_status("[E] the nightstand drawer"))
+		_nightstand_zone.body_exited.connect(func(b):
+			if b == _player:
+				_on_nightstand = false
+				_set_status(""))
+		add_child(_nightstand_zone)
 	# Bedside lamp — warm
 	_track_shade(_add_box(Vector3(bx + 3.1, 1.6, bz - 2.4), Vector3(0.45, 0.45, 0.45),
 		Color(0.95, 0.85, 0.6), 0.0, 0.3,
@@ -1418,8 +1441,26 @@ func _input(event: InputEvent) -> void:
 		_interact_bookshelf()
 	elif event.is_action_pressed("interact") and _on_light_switch:
 		_toggle_room_lights()
+	elif event.is_action_pressed("interact") and _on_nightstand:
+		_loot_nightstand()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
+
+func _loot_nightstand() -> void:
+	if GameState.has_flag("nightstandLooted"):
+		return
+	GameState.set_flag("nightstandLooted")
+	GameState.add_item("pistol")
+	GameState.add_ammo("ballistic", 34)   # two spare mags for the 9mm
+	GameState.add_credits(100)
+	_on_nightstand = false
+	if _nightstand_zone:
+		_nightstand_zone.queue_free()
+		_nightstand_zone = null
+	DialogueOverlay.play_lines([
+		{ "speaker": "", "text": "the drawer: a 9mm pistol, two spare mags, and a hundred credits in a rubber band.", "color": Color(0.8, 0.85, 0.95) },
+		{ "speaker": "", "text": "past-you left a note. 'for when the pizza job stops being enough.'", "color": Color(0.6, 0.62, 0.72) },
+	], "nightstand")
 
 
 func _exit_to_title() -> void:
