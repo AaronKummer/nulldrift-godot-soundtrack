@@ -36,6 +36,8 @@ func _ready() -> void:
 			GameState.dungeon_floor = int(args[i + 1])
 		elif args[i] == "phonelight":
 			GameState.phone_light = args[i + 1] == "on"
+		elif args[i] == "skill":
+			GameState.hack_skill = int(args[i + 1])
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:
@@ -69,6 +71,28 @@ func _ready() -> void:
 		if hk:
 			hk.open(int(args[hk_i + 1]) if hk_i + 1 < args.size() else 1, true)
 			for j in range(6):
+				await RenderingServer.frame_post_draw
+	var net_i := args.find("net")
+	if net_i >= 2:
+		var no := get_node_or_null("/root/NetOverlay")
+		if no:
+			no.open(args[net_i + 1] if net_i + 1 < args.size() else "atm_branch")
+			# Optional "crack N" — auto-crack N reachable nodes to show a
+			# populated, pivoted graph instead of just the entry node.
+			var cr_i := args.find("crack")
+			if cr_i >= 2 and cr_i + 1 < args.size():
+				var steps := int(args[cr_i + 1])
+				for s in range(steps):
+					await RenderingServer.frame_post_draw
+					var target := -1
+					for n in no._net.revealed_nodes():
+						if no._net.can_attempt(n.uid):
+							target = n.uid
+							break
+					if target < 0:
+						break
+					no._on_node_pressed(target)
+			for j in range(8):
 				await RenderingServer.frame_post_draw
 	var wp_i := args.find("with_phone")
 	if wp_i >= 2:

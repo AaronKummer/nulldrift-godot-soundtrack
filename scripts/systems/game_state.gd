@@ -151,6 +151,12 @@ var ammo_reserve: Dictionary = { "ballistic": 0, "energy": 0 }  # spare rounds b
 var shield_hp := 0.0                 # transient; generators recharge it
 var exposure := 0.0                  # deep-hack heat carried between net runs; feeds the sea hag
 var phone_light := false             # phone flashlight toggle — a weak light anywhere, free
+var hack_skill := 1                  # deep-hack proficiency; gates ICE risk, climbs as you clear nets
+
+## Bump the deck rating (harder sites become survivable). Called when the
+## player cracks a site's prize for the first time.
+func raise_hack_skill(to_at_least: int) -> void:
+	hack_skill = maxi(hack_skill, to_at_least)
 
 ## Best light the player currently has underground: 2 headlamp (bright,
 ## hands-free) > 1 phone flashlight (weak, free) > 0 nothing (eyes adjust).

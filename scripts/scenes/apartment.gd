@@ -53,6 +53,12 @@ var _door_zone: Area3D
 var _door_glow: DoorGlowScript
 var _on_door := false
 var _exiting := false
+var _deck_zone: Area3D
+var _on_deck := false
+var _deck_menu: Node = null
+var _deck_sites: Array = []      # site ids parallel to the current menu rows
+
+const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 
 var _hotbar_slots: Array = []
 var _hotbar_active := 1
@@ -453,6 +459,32 @@ func _build_working_corner() -> void:
 	nk.omni_attenuation = 1.5
 	nk.position = Vector3(dx, 0.2, dz)
 	add_child(nk)
+
+	# The cyberdeck itself — a slim console on the desk with a jack cable,
+	# violet glow. This is where you go remote: crack the whole city from
+	# your chair without ever hitting the street.
+	_add_box(Vector3(dx + 0.2, 1.02, dz + 0.15), Vector3(0.9, 0.12, 0.5),
+		Color(0.06, 0.05, 0.09), 0.4, 0.4, true, Color(0.55, 0.2, 1.0), 1.6)
+	_add_box(Vector3(dx + 0.2, 1.10, dz + 0.15), Vector3(0.5, 0.02, 0.28),
+		Color(0.1, 0.02, 0.16), 0.0, 0.3, true, Color(0.8, 0.3, 1.4), 2.4)
+
+	# Jack-in trigger — stand at the chair and press E to go remote.
+	_deck_zone = Area3D.new()
+	_deck_zone.position = Vector3(dx, 1.1, dz + 1.4)
+	var dcol := CollisionShape3D.new()
+	var dsh := BoxShape3D.new()
+	dsh.size = Vector3(3.0, 2.4, 2.2)
+	dcol.shape = dsh
+	_deck_zone.add_child(dcol)
+	_deck_zone.body_entered.connect(func(b):
+		if b == _player:
+			_on_deck = true
+			_set_status("[E] jack into the net"))
+	_deck_zone.body_exited.connect(func(b):
+		if b == _player:
+			_on_deck = false
+			_set_status(""))
+	add_child(_deck_zone)
 
 	# Compute initial CRT lines
 	_render_crt()
@@ -1443,6 +1475,8 @@ func _input(event: InputEvent) -> void:
 		_toggle_room_lights()
 	elif event.is_action_pressed("interact") and _on_nightstand:
 		_loot_nightstand()
+	elif event.is_action_pressed("interact") and _on_deck:
+		_open_deck()
 	elif event.is_action_pressed("ui_cancel"):
 		_exit_to_title()
 
@@ -1462,6 +1496,48 @@ func _loot_nightstand() -> void:
 		{ "speaker": "", "text": "past-you left a note. 'for when the pizza job stops being enough.'", "color": Color(0.6, 0.62, 0.72) },
 	], "nightstand")
 
+
+## Jack into the net from the deck. Builds the list of reachable sites for
+## the player's current deck rating and story progress, then hands off to
+## NetOverlay. This is the front door of the remote path — the plan being
+## that the whole game is beatable from this chair.
+func _open_deck() -> void:
+	if _deck_menu != null or NetOverlay.is_active():
+		return
+	var skill: int = GameState.hack_skill
+	_deck_sites = []
+	var rows: Array = []
+	# Your own building — the sandbox, always there.
+	_deck_sites.append("home_block")
+	rows.append({ "label": "your building · resident LAN   (practice)" })
+	# The ATM branch — small money, teaches the pivot.
+	_deck_sites.append("atm_branch")
+	rows.append({ "label": "CORTEX ATM · branch net   (sec 3-5)" })
+	# ArkLight corp — the real chain, needs a warmed-up deck.
+	_deck_sites.append("corp_office")
+	rows.append({ "label": "ArkLight office · corp net   (sec 3-5, ICE)" })
+	# VOHL's research net — the remote road to the same ending as the
+	# basement dungeon. Only once you have the lead and haven't ended it.
+	if GameState.has_flag("vohlClueFound") and not GameState.has_flag("vohlDefeated"):
+		_deck_sites.append("vohl_net")
+		rows.append({ "label": "VOHL PHARMA · research net   (sec 4-6, HEAVY ICE)" })
+	_deck_menu = ListMenuScript.new()
+	add_child(_deck_menu)
+	_deck_menu.picked.connect(_on_deck_site_picked)
+	_deck_menu.closed.connect(func(): _deck_menu = null)
+	var foot := "deck rating %d · exposure %d%%" % [skill, int(GameState.exposure)]
+	if GameState.exposure >= 60.0:
+		foot += "  ·  the sea hag is already circling — lie low"
+	_deck_menu.open("JACK IN · pick a net", rows, Color(0.6, 0.3, 1.1), foot)
+
+func _on_deck_site_picked(idx: int) -> void:
+	if idx < 0 or idx >= _deck_sites.size():
+		return
+	var site: String = _deck_sites[idx]
+	if _deck_menu:
+		_deck_menu.close_menu()
+		_deck_menu = null
+	NetOverlay.open(site)
 
 func _exit_to_title() -> void:
 	_exiting = true

@@ -118,18 +118,18 @@ func crack(uid: int) -> Dictionary:
 		"wifi", "cred", "master":
 			var scope := "%s:%d" % [n.yield, n.uid]
 			creds.append(scope)
-			_log("  ⚿ credential lifted (%s)." % n.yield)
+			_log("  [+] credential lifted (%s)." % n.yield)
 			res["cred"] = scope
 		"dirt":
 			creds.append("dirt:%d" % n.uid)
-			_log("  ✎ kompromat on their phone — leverage for the social path.")
+			_log("  [+] kompromat on their phone — leverage for the social path.")
 		"control":
-			_log("  > real-world control seized.")
+			_log("  [>] real-world control seized.")
 		"intel":
-			_log("  ℹ intel gathered — the map got clearer.")
+			_log("  [i] intel gathered — the map got clearer.")
 		"power":
 			done = true
-			_log("  ⚡ GRID SEIZED. the city's lights are yours.")
+			_log("  [!] GRID SEIZED. the city's lights are yours.")
 			res["win"] = true
 	if _prize_cracked():
 		_log("prize secured. jack out (that trace won't stop climbing).")

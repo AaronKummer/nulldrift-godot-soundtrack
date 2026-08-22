@@ -65,6 +65,12 @@ const CATALOG := {
 	# ── story nodes (Cortex relay net etc. — wired as the plot needs) ─────
 	"relay_node":    { "cat": "server", "sec": 5, "yield": "intel", "ice": true, "label": "Cortex relay node",
 		"story": true },
+	"bio_scada":     { "cat": "scada", "sec": 5, "yield": "control", "gateway": true, "ice": true,
+		"label": "containment SCADA", "story": true,
+		"lesson": "the sublevel airlocks and vats run on the same industrial bus as a factory floor. it was never meant to face the net." },
+	"research_core": { "cat": "server", "sec": 6, "yield": "control", "ice": true,
+		"label": "VOHL research core", "story": true,
+		"lesson": "the thing he was growing is wired to this console. seize it and you can vent the whole wing from your bedroom." },
 }
 
 static func node(id: String) -> Dictionary:
@@ -107,6 +113,22 @@ const SITES := {
 			{ "gateway": "corp_firewall", "children": ["ad_server", "db_server", "payment_server"] },
 		],
 		"prize": "ad_server",
+	},
+	# VOHL PHARMA's net — the remote road to the same ending as the basement
+	# dungeon. Deep, ICE-heavy: you need a leveled deck (crack the smaller
+	# nets first) to reach the research core without getting your rig fried.
+	# Cracking the core vents the sublevels — vohlDefeated, from your bedroom.
+	"vohl_net": {
+		"name": "VOHL PHARMA · research net",
+		"heat": 1.4,
+		"entry": "security_cam",
+		"layers": [
+			{ "gateway": "home_router", "children": ["badge_reader", "phone", "laptop"] },
+			{ "gateway": "vpn_gateway", "children": ["workstation", "mail_server", "file_server", "printer"] },
+			{ "gateway": "corp_firewall", "children": ["ad_server", "db_server"] },
+			{ "gateway": "bio_scada", "children": ["research_core"] },
+		],
+		"prize": "research_core",
 	},
 }
 
