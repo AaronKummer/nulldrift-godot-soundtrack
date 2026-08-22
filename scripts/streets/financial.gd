@@ -68,7 +68,7 @@ func _build_street() -> void:
 	_build_crowd()
 	build_ridenet_terminal(Vector3(-2.0, 0, -3.0))
 	for mk in [["from_ridenet", 2.0], ["from_platinum", -15.0], ["from_nexus", 44.0],
-			["from_vohl", 15.0]]:
+			["from_vohl", 15.0], ["from_bank", -44.0]]:
 		var m := Node3D.new()
 		m.name = mk[0]
 		m.position = Vector3(mk[1], 0.0, -2.2)
@@ -99,9 +99,11 @@ func _on_storefront_interact(def: Dictionary) -> void:
 					{ "speaker": "", "text": "something is very wrong in there. you'll be back — when you have a reason, and a way in.", "color": Color(0.53, 0.53, 0.53) },
 				], "vohl_sealed")
 		"nexusbank":
-			DialogueOverlay.play_lines([
-				{ "speaker": "SECURITY", "text": "'the vault isn't for walk-ins. or for you specifically.'", "color": Color(1.0, 0.8, 0.4) },
-			], "bank_locked")
+			# The bank is a heist waiting to happen: walk in, case it, and sneak
+			# / hack / shoot your way to the floor-3 vault. In-house security,
+			# no cops (posture "nexusbank").
+			GameState.bank_floor = 1
+			SceneTransition.go("nexus_bank", "from_street")
 		_:
 			super._on_storefront_interact(def)
 

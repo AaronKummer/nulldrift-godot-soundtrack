@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift77nexb"]
+
+[ext_resource type="Script" path="res://scripts/interiors/nexus_bank.gd" id="1_nexb"]
+
+[node name="NexusBank" type="Node3D"]
+script = ExtResource("1_nexb")

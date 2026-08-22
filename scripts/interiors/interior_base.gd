@@ -31,9 +31,12 @@ func _ready() -> void:
 	_setup_camera()
 	_setup_environment()
 	_build_room_shell()
+	# Player is built BEFORE _build_interior so scenes that spawn guards / a
+	# Siege director in _build_interior get a valid _player to track (a null
+	# ref there silently disables all enemy AI).
+	_build_player()
 	_build_interior()
 	_build_exit()
-	_build_player()
 	_build_hud()
 	SceneTransition.consume_spawn()
 

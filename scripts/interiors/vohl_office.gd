@@ -13,19 +13,12 @@
 ##
 ## The whole thing is also doable remotely from the apartment via the deep-
 ## hacking net (that path lands in the same basement sim).
-extends "res://scripts/interiors/interior_base.gd"
+extends "res://scripts/interiors/secure_interior.gd"
 
 const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
-const StealthGuardScript := preload("res://scripts/systems/stealth_guard.gd")
-const SiegeScript := preload("res://scripts/systems/siege.gd")
 
 var _floor := 1
 var _menu
-var _guards: Array = []
-var _caught := false
-var _alarm_label: Label
-var _siege = null
-var _office_workers: Array = []
 
 func _ready() -> void:
 	_floor = clampi(GameState.vohl_floor, 1, 6)
@@ -34,8 +27,30 @@ func _ready() -> void:
 	interior_name = "VOHL PHARMA · FL %d" % _floor
 	exit_scene = "street_financial"
 	exit_spawn = "from_vohl"
+	_posture_id = "vohl"
 	super._ready()
 	Music.play_category("shops")
+
+# ── secure-interior hooks ──────────────────────────────────────────────────
+func _sec_floor() -> int:
+	return _floor
+
+func _sec_exit() -> Array:
+	return ["street_financial", "from_vohl"]
+
+func _reset_floor() -> void:
+	GameState.vohl_floor = 1
+
+func _entrances() -> Array:
+	var ex := room_w / 2.0 - 3.0
+	return [Vector3(ex, 0.9, -room_d / 2.0 + 1.2),
+		Vector3(room_w / 2.0 - 1.2, 0.9, room_d * 0.2)]
+
+func _caught_lines() -> Array:
+	return [
+		{ "speaker": "SECURITY", "text": "Hold it right there. Hands where I can see them.", "color": Color(1.0, 0.4, 0.35) },
+		{ "speaker": "", "text": "Two guards have you by the arms before you clear the aisle. You're walked out the front doors and told not to come back.", "color": Color(0.6, 0.6, 0.66) },
+	]
 
 # Bright office lighting — this reads as lit, NOT the dark dungeon
 func _ambient() -> Color:
@@ -58,25 +73,7 @@ func _build_interior() -> void:
 	# freely, but linger in a cone (or run/kill) and the alarm trips.
 	if _floor >= 2 and _floor <= 5:
 		_build_guards()
-	_build_alarm_hud()
-	_build_siege()
-
-## The "going loud" director. Draw a weapon (F) and Vohl's private security
-## fights back and radios the backup ladder (SECURITY → ELITE katana unit →
-## NCPD). Guards double as the stealth threat until you draw.
-func _build_siege() -> void:
-	_siege = SiegeScript.new()
-	add_child(_siege)
-	# Backup + fleeing workers pour through the elevator + the exit door.
-	var ex := room_w / 2.0 - 3.0
-	var entrances := [Vector3(ex, 0.9, -room_d / 2.0 + 1.2),
-		Vector3(room_w / 2.0 - 1.2, 0.9, room_d * 0.2)]
-	_siege.configure(_player, "vohl", _floor, entrances, _eject_to_street)
-	for g in _guards:
-		g.make_combatant("guard", _siege)
-		_siege.register_guard(g)
-	for w in _office_workers:
-		_siege.register_worker(w)
+	_init_security()
 
 func _build_ceiling_lights() -> void:
 	for spot in [Vector3(-8, 4.2, -2), Vector3(0, 4.2, 2), Vector3(8, 4.2, -1)]:
@@ -155,7 +152,7 @@ func _build_reception() -> void:
 	logo.modulate = Color(0.6, 1.3, 0.7)
 	logo.position = Vector3(-2.0, 2.7, cz - 0.78)
 	add_child(logo)
-	_office_workers.append(add_npc("res://assets/sprites/cyberGirl.png", Vector3(-2.0, 0.9, cz - 1.3), 0))
+	register_worker(add_npc("res://assets/sprites/cyberGirl.png", Vector3(-2.0, 0.9, cz - 1.3), 0))
 	add_interact(Vector3(-2.0, 1.2, cz + 1.6), Vector3(6.0, 2.4, 2.4),
 		"talk to the receptionist", func():
 			DialogueOverlay.play_lines([
@@ -164,8 +161,8 @@ func _build_reception() -> void:
 				{ "speaker": "", "text": "She goes back to her screen. There's a maintenance terminal on floor two nobody's watching.", "color": Color(0.53, 0.53, 0.53) },
 			], "vohl_reception"))
 	# Waiting-area staff + a plant
-	_office_workers.append(add_npc("res://assets/sprites/civ/civ-a08.png", Vector3(6.0, 0.9, 3.0), 3))
-	_office_workers.append(add_npc("res://assets/sprites/lady.png", Vector3(-8.0, 0.9, 3.5), 2))
+	register_worker(add_npc("res://assets/sprites/civ/civ-a08.png", Vector3(6.0, 0.9, 3.0), 3))
+	register_worker(add_npc("res://assets/sprites/lady.png", Vector3(-8.0, 0.9, 3.5), 2))
 
 # ── floors 2-5: cubicles + staff; floor 2 has the hackable terminal ──────
 func _build_cubicles() -> void:
@@ -186,7 +183,7 @@ func _build_cubicles() -> void:
 					"res://assets/sprites/civ/civ-a01.png",
 					"res://assets/sprites/civ/civ-a08.png",
 					"res://assets/sprites/civ/civ-b05.png"]
-				_office_workers.append(add_npc(sheets[rng.randi() % sheets.size()], p + Vector3(0, 0.9, 0.2), 0))
+				register_worker(add_npc(sheets[rng.randi() % sheets.size()], p + Vector3(0, 0.9, 0.2), 0))
 	if _floor == 3:
 		# STEALTH route to clearance: a supervisor left a keycard on the desk
 		# by the security nook. No hacking — just get to it unseen and pocket
@@ -243,97 +240,12 @@ func _on_keycard_hacked(success: bool) -> void:
 ## Two guards per floor, patrolling lanes that sweep the sensitive corners
 ## (the maint terminal on 2, the keycard desk on 3). Hold SHIFT to sneak so
 ## their cones fill slowly. Get spotted (or run past them) and it's over.
+## Two guards per floor, patrolling lanes that sweep the sensitive corners
+## (the maint terminal on 2, the keycard desk on 3). Hold SHIFT to sneak so
+## their cones fill slowly. Get spotted (or run past them) and it's over.
 func _build_guards() -> void:
-	var routes := [
-		[Vector3(-10, 0, 4.5), Vector3(10, 0, 4.5)],       # sweeps the front lane (desk/terminal side)
-		[Vector3(8, 0, -4.5), Vector3(-8, 0, -4.5)],       # back lane
-	]
-	var starts := [Vector3(-10, 0, 4.5), Vector3(8, 0, -4.5)]
-	var facings := [90.0, 270.0]
-	# A wanted player walks into a floor already on edge — hotter cones.
-	var alert_boost: float = 0.25 * float(GameState.wanted_level())
-	for i in routes.size():
-		var g = StealthGuardScript.new()
-		g.position = starts[i]
-		g.configure(_player, facings[i], {
-			"sheet": "res://assets/sprites/npc-cop2.png",
-			"tint": Color(0.8, 0.85, 1.0),
-			"range": 7.5,
-			"patrol": routes[i],
-			"patrol_speed": 1.8,
-		})
-		g.fill_rate += alert_boost
-		g.spotted.connect(_on_spotted)
-		add_child(g)
-		_guards.append(g)
-
-func _build_alarm_hud() -> void:
-	var cl := CanvasLayer.new()
-	cl.layer = 40
-	add_child(cl)
-	_alarm_label = Label.new()
-	_alarm_label.add_theme_font_size_override("font_size", 22)
-	_alarm_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
-	_alarm_label.anchor_left = 0.5
-	_alarm_label.anchor_right = 0.5
-	_alarm_label.anchor_top = 0.14
-	_alarm_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	_alarm_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cl.add_child(_alarm_label)
-
-func _process(_dt: float) -> void:
-	# Surface the tensest guard's suspicion as a warning line. Once you've gone
-	# loud the Siege HUD takes over, so stay quiet.
-	if _caught or _alarm_label == null or _guards.is_empty():
-		return
-	if _siege != null and _siege.armed:
-		_alarm_label.text = ""
-		return
-	var worst := 0.0
-	for g in _guards:
-		worst = maxf(worst, g.detection())
-	if worst >= 0.85:
-		_alarm_label.text = "! SPOTTED !"
-	elif worst >= 0.25:
-		_alarm_label.text = "· noticed · SHIFT to sneak ·"
-	else:
-		_alarm_label.text = ""
-
-## Full detection on any floor → SECURITY. You're grabbed, marked, and thrown
-## back to the street; you keep any clearance already earned but lose your
-## position in the building and take a heat hit. Try again, quieter.
-func _on_spotted() -> void:
-	if _caught:
-		return
-	_caught = true
-	_menu_open = true                       # freeze the player
-	for g in _guards:
-		g.active = false
-	GameState.add_heat(30.0)
-	if _alarm_label:
-		_alarm_label.text = "!! SECURITY !!"
-	DialogueOverlay.play_lines([
-		{ "speaker": "SECURITY", "text": "Hold it right there. Hands where I can see them.", "color": Color(1.0, 0.4, 0.35) },
-		{ "speaker": "", "text": "Two guards have you by the arms before you clear the aisle. You're walked out the front doors and told not to come back.", "color": Color(0.6, 0.6, 0.66) },
-	], "vohl_caught")
-	if not DialogueOverlay.finished.is_connected(_after_caught):
-		DialogueOverlay.finished.connect(_after_caught, CONNECT_ONE_SHOT)
-
-func _after_caught(_tree := "") -> void:
-	_eject_to_street()
-
-func _eject_to_street() -> void:
-	GameState.vohl_floor = 1
-	SceneTransition.go("street_financial", "from_vohl")
-
-## Draw / holster the weapon. Drawing in front of Vohl's people is going loud:
-## security turns hostile and the backup ladder starts climbing.
-func _input(event: InputEvent) -> void:
-	if _caught or _menu_open or DialogueOverlay.is_active():
-		return
-	if event.is_action_pressed("draw_weapon") and _siege != null and _siege.holstered():
-		_siege.go_loud()
-		_set_status("WEAPON DRAWN — you're going loud. F to survive, not to reconsider.")
+	add_guard(Vector3(-10, 0, 4.5), 90.0, [Vector3(-10, 0, 4.5), Vector3(10, 0, 4.5)])
+	add_guard(Vector3(8, 0, -4.5), 270.0, [Vector3(8, 0, -4.5), Vector3(-8, 0, -4.5)])
 
 # ── floor 6: Vohl's lab office + the secret door down to the basement ────
 func _build_vohl_floor() -> void:

@@ -40,6 +40,8 @@ func _ready() -> void:
 			GameState.hack_skill = int(args[i + 1])
 		elif args[i] == "vohlfloor":
 			GameState.vohl_floor = int(args[i + 1])
+		elif args[i] == "bankfloor":
+			GameState.bank_floor = int(args[i + 1])
 		elif args[i] == "heat":
 			GameState.heat = float(args[i + 1])
 
