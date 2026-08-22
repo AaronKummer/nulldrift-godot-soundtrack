@@ -351,6 +351,69 @@ const DEFS := {
 			"bark_intro": "COMPLIANCE OFFICER: 'unauthorized presence detected. initiating termination review.'",
 		},
 	},
+
+	# ── VOHL PHARMACEUTICALS — the Act 2 climax. Six floors deep, sickly
+	# green plague-lab; orderlies, security, failed experiments, and DR.
+	# VOHL himself at the bottom (necromancer, plague architect). ─────────
+	"vohl": {
+		"name": "VOHL PHARMACEUTICALS",
+		"exit_label": "back up to the lobby",
+		"exit_scene": "street_financial",
+		"exit_spawn": "from_vohl",
+		"floors": 6,
+		"grid_w": 25, "grid_h": 21,
+		"rooms": 9, "room_min": 4, "room_max": 7,
+		"water_room_chance": 0.15,
+		"flavor_chance": 0.4,               # containment labs, green glow
+		"pal": {
+			"floor": Color(0.100, 0.120, 0.100),
+			"floor_flavor": Color(0.080, 0.140, 0.080),
+			"wall": Color(0.150, 0.170, 0.150),
+			"wall_rim": Color(0.24, 0.32, 0.24),
+			"water": Color(0.04, 0.10, 0.06),
+			"water_shine": Color(0.2, 0.5, 0.25),
+			"bridge": Color(0.18, 0.22, 0.18),
+			"sconce": Color(0.5, 1.4, 0.6),
+			"flavor_light": Color(0.4, 1.5, 0.5),
+			"accent": Color(0.4, 1.4, 0.5),
+			"conduit": Color(0.4, 1.4, 0.6),
+		},
+		"enemies": {
+			"orderly": { "sheet": "thug", "hp": 5, "speed": 60.0, "size": 17.0,
+				"dmg": 9, "credits": 10, "tint": Color(0.7, 1.1, 0.7), "scale": 1.0 },
+			"security": { "sheet": "cop", "hp": 8, "speed": 62.0, "size": 18.0,
+				"dmg": 12, "credits": 16, "tint": Color(0.8, 1.0, 0.85), "scale": 1.0,
+				"shoot": { "range": 340.0, "cd": 1.9, "dmg": 8, "keep": 220.0 } },
+			"experiment": { "sheet": "mutant", "hp": 12, "speed": 58.0, "size": 20.0,
+				"dmg": 16, "credits": 22, "tint": Color(0.6, 1.2, 0.6), "scale": 1.2,
+				"lunge": true },
+			"plague_hound": { "sheet": "cat", "hp": 4, "speed": 135.0, "size": 12.0,
+				"dmg": 8, "credits": 8, "tint": Color(0.7, 1.1, 0.6), "scale": 0.9,
+				"drops": false },
+		},
+		"grate_pool": ["orderly", "orderly", "security", "experiment", "plague_hound"],
+		"hole_pool": ["plague_hound", "orderly"],
+		"grates": 5, "rat_holes": 3, "chests": 3,
+		"medkits_min": 3, "medkits_max": 5,
+		"stash_credits": 600,
+		"objective_prop": "relay",
+		"objective_flag": "vohlLabDestroyed",   # smash the lab core before Vohl (canon: prevents the plague going citywide)
+		"objective_credits": 500,
+		"seal_reward": 30, "seal_all_reward": 400,
+		# DR. ERASMUS VOHL — necromancer, plague architect. Raises the dead
+		# and sprays toxin. The Act 2 boss (top floor only).
+		"boss": {
+			"name": "DR. VOHL", "sheet": "ninja", "hp": 130, "speed": 60.0,
+			"size": 22.0, "dmg": 16, "scale": 1.6,
+			"tint": Color(0.5, 1.3, 0.5),
+			"spray": { "count": 7, "dmg": 9, "cd": 3.8 },
+			"summon": { "pool": ["orderly", "experiment"], "count": 3, "cd": 8.0, "max": 7 },
+			"credits": 1000,
+			"flag": "vohlDefeated",
+			"drops": ["nanoweave"],
+			"bark_intro": "DR. VOHL: 'you're too late. the cultures are already... expressive. stay. observe your species end.'",
+		},
+	},
 }
 
 static func get_def(id: String) -> Dictionary:

@@ -67,7 +67,8 @@ func _build_street() -> void:
 	_build_fillers()
 	_build_crowd()
 	build_ridenet_terminal(Vector3(-2.0, 0, -3.0))
-	for mk in [["from_ridenet", 2.0], ["from_platinum", -15.0], ["from_nexus", 44.0]]:
+	for mk in [["from_ridenet", 2.0], ["from_platinum", -15.0], ["from_nexus", 44.0],
+			["from_vohl", 15.0]]:
 		var m := Node3D.new()
 		m.name = mk[0]
 		m.position = Vector3(mk[1], 0.0, -2.2)
@@ -83,10 +84,20 @@ func _on_storefront_interact(def: Dictionary) -> void:
 			GameState.pending_dungeon = "office"
 			SceneTransition.go("dungeon", "from_city")
 		"vohl":
-			DialogueOverlay.play_lines([
-				{ "speaker": "", "text": "VOHL PHARMACEUTICALS. the lobby doors are sealed with a biohazard seal that wasn't there last week.", "color": Color(0.5, 0.9, 0.5) },
-				{ "speaker": "", "text": "something is very wrong in there. you'll be back — when you have a reason, and a way in.", "color": Color(0.53, 0.53, 0.53) },
-			], "vohl_sealed")
+			# Sealed until you've got the lead (Nyx's Vohl tip once Kerry's sick)
+			if GameState.has_flag("vohlClueFound") and not GameState.has_flag("vohlDefeated"):
+				GameState.pending_dungeon = "vohl"
+				GameState.dungeon_floor = 0
+				SceneTransition.go("dungeon", "from_city")
+			elif GameState.has_flag("vohlDefeated"):
+				DialogueOverlay.play_lines([
+					{ "speaker": "", "text": "the lobby's crawling with hazmat crews now. whatever Vohl was growing, it dies with him.", "color": Color(0.53, 0.53, 0.53) },
+				], "vohl_cleared")
+			else:
+				DialogueOverlay.play_lines([
+					{ "speaker": "", "text": "VOHL PHARMACEUTICALS. the lobby doors are sealed with a biohazard seal that wasn't there last week.", "color": Color(0.5, 0.9, 0.5) },
+					{ "speaker": "", "text": "something is very wrong in there. you'll be back — when you have a reason, and a way in.", "color": Color(0.53, 0.53, 0.53) },
+				], "vohl_sealed")
 		"nexusbank":
 			DialogueOverlay.play_lines([
 				{ "speaker": "SECURITY", "text": "'the vault isn't for walk-ins. or for you specifically.'", "color": Color(1.0, 0.8, 0.4) },

@@ -137,10 +137,15 @@ func _ready() -> void:
 	var did: String = GameState.pending_dungeon
 	if not GameState.dungeon_seeds.has(did):
 		GameState.dungeon_seeds[did] = randi()
+	# Multi-floor: each floor is its own layout (seed offset by floor); the
+	# boss + main objective live on the top floor, a stairwell descends the rest.
+	_floors = int(_def.get("floors", 1))
+	_floor = clampi(GameState.dungeon_floor, 0, _floors - 1)
+	_is_top = _floor >= _floors - 1
 	if _def.has("layout"):
 		_gen = DungeonGenSys.from_layout(_def)   # authored — never random
 	else:
-		_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did])
+		_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did] + _floor * 1013)
 	_bake_geometry()
 	_pos = _cell_center(_gen.entrance)
 	_spawn_point = _pos
@@ -235,7 +240,10 @@ func _bake_geometry() -> void:
 	_relay_pos = _cell_center(_gen.objective)
 	# Boss arena in the farthest room — skipped once its flag is earned
 	# (Rezz fled; the rematch is its own encounter later)
-	if _def.has("boss") and not GameState.has_flag(str(_def.boss.get("flag", ""))):
+	# Non-top floors: the far room holds the STAIRS DOWN instead of the boss
+	if not _is_top:
+		_stairs_pos = _cell_center(_gen.boss_pos)
+	if _is_top and _def.has("boss") and not GameState.has_flag(str(_def.boss.get("flag", ""))):
 		var br: Rect2i = _gen.boss_room
 		_boss = {
 			"pos": _cell_center(_gen.boss_pos),
@@ -333,9 +341,15 @@ func _tick_player(delta: float) -> void:
 	_pos = _collide(_pos + vel * delta, 14.0)
 	_invuln = maxf(0.0, _invuln - delta)
 	# Context prompts
-	if _pos.distance_to(_spawn_point) < 60.0:
-		_set_status("[E] " + _def.exit_label)
-	elif _pos.distance_to(_relay_pos) < 70.0:
+	_near_stairs = not _is_top and _pos.distance_to(_stairs_pos) < 70.0
+	if _near_stairs:
+		_set_status("[E] descend to floor %d" % (_floor + 2))
+	elif _pos.distance_to(_spawn_point) < 60.0:
+		if _floor > 0:
+			_set_status("[E] climb back up (leave the dungeon)")
+		else:
+			_set_status("[E] " + _def.exit_label)
+	elif _is_top and _pos.distance_to(_relay_pos) < 70.0:
 		if _def.get("objective_kind", "relay") == "rescue":
 			if GameState.has_flag(_def.objective_flag):
 				_set_status("the cage hangs open. she's long gone. good.")
@@ -376,6 +390,11 @@ var _bullets: Array = []
 var _reload_t := 0.0
 var _regen_acc := 0.0
 var _boss: Dictionary = {}     # boss encounter state (empty = no boss here)
+var _floors := 1               # total floors in this dungeon
+var _floor := 0                # current floor (0-based)
+var _is_top := true            # top floor = boss + main objective
+var _stairs_pos := Vector2.ZERO
+var _near_stairs := false
 var _ebullets: Array = []      # enemy + boss projectiles
 
 func _tick_katana(delta: float) -> void:
@@ -768,8 +787,11 @@ func _spawn_enemy(at: Vector2, pool: Array) -> void:
 		return
 	var kind: String = pool[randi() % pool.size()]
 	var elite: bool = randf() < ELITE_CHANCE
+	# Deeper floors = tougher enemies (+35% hp per floor down)
+	var floor_mult: float = 1.0 + _floor * 0.35
+	var hp: int = int(round(_def.enemies[kind].hp * (2 if elite else 1) * floor_mult))
 	_enemies.append({ "pos": at + Vector2(randf_range(-30, 30), randf_range(-30, 30)),
-		"hp": _def.enemies[kind].hp * (2 if elite else 1), "type": kind,
+		"hp": hp, "type": kind,
 		"elite": elite, "contact_t": 0.0, "flash": 0.0 })
 
 func _tick_spawners(delta: float) -> void:
@@ -899,6 +921,7 @@ func _die() -> void:
 	l.position = Vector2(640 - 320, 340)
 	cl.add_child(l)
 	await get_tree().create_timer(1.8).timeout
+	GameState.dungeon_floor = 0   # death ends the run at floor 1 next time
 	SceneTransition.go(_def.get("exit_scene", "city"), _def.exit_spawn)
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -910,9 +933,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("interact"):
 		var g = _nearby_grate()
 		var ch = _nearby_chest()
-		if _pos.distance_to(_spawn_point) < 60.0:
+		if _near_stairs:
+			GameState.dungeon_floor = _floor + 1
+			SceneTransition.go("dungeon", "from_city")
+		elif _pos.distance_to(_spawn_point) < 60.0:
+			GameState.dungeon_floor = 0   # climbing out ends the run
 			SceneTransition.go(_def.get("exit_scene", "city"), _def.exit_spawn)
-		elif _pos.distance_to(_relay_pos) < 70.0 \
+		elif _is_top and _pos.distance_to(_relay_pos) < 70.0 \
 				and not GameState.has_flag(_def.objective_flag):
 			if _def.get("objective_kind", "relay") == "rescue":
 				_do_rescue()
@@ -1046,7 +1073,11 @@ func _build_lights() -> void:
 	# Grates pulse red until sealed
 	for g in _grates:
 		g["light"] = _add_light(g.pos, Color(1.0, 0.25, 0.2), 1.2, 0.7)
-	_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 2.2, 1.3)
+	if _is_top:
+		_relay_light = _add_light(_relay_pos, Color(1.0, 0.2, 0.85), 2.2, 1.3)
+	else:
+		# Stairwell down glows green in the far room
+		_add_light(_stairs_pos, Color(0.3, 1.1, 0.5), 2.4, 1.4)
 	# Street light spilling down the entrance shaft
 	_add_light(_spawn_point, Color(0.7, 0.8, 1.0), 2.0, 1.2)
 	# Walls block light — real shadows, real dark corners
@@ -1195,6 +1226,13 @@ func _draw_water(b: Node2D) -> void:
 
 func _draw_world(b: Node2D) -> void:
 	var tiles: Array = _gen.tiles
+	# Stairwell down (non-top floors) — descending green treads + a pit
+	if not _is_top:
+		b.draw_rect(Rect2(_stairs_pos - Vector2(34, 30), Vector2(68, 60)),
+			Color(0.02, 0.05, 0.03), true)
+		for i in 5:
+			b.draw_rect(Rect2(_stairs_pos + Vector2(-28 + i * 6, -22 + i * 11),
+				Vector2(56 - i * 12, 6)), Color(0.3, 1.0, 0.5) * (1.0 - i * 0.12), true)
 	# Bridge planks (the water shader runs underneath)
 	for y in _gen.h:
 		for x in _gen.w:
@@ -1423,12 +1461,16 @@ func _build_hud() -> void:
 	title.add_theme_color_override("font_color", Color(0.4, 1.0, 0.6))
 	title.position = Vector2(30, 8)
 	cl.add_child(title)
-	for key in ["dash", "nova", "grates", "wpn", "shield", "boss"]:
+	for key in ["dash", "nova", "grates", "wpn", "shield", "boss", "floor"]:
 		var l := Label.new()
 		l.add_theme_font_size_override("font_size", 18)
 		l.add_theme_color_override("font_color", Color(0.9, 1.0, 1.0))
 		cl.add_child(l)
 		_hud[key] = l
+	# Floor indicator (multi-floor dungeons only)
+	_hud.floor.position = Vector2(30, 68)
+	_hud.floor.add_theme_color_override("font_color", Color(0.5, 1.0, 0.7))
+	_hud.floor.text = ("FLOOR %d / %d" % [_floor + 1, _floors]) if _floors > 1 else ""
 	_hud.dash.position = Vector2(480, 10)
 	_hud.nova.position = Vector2(600, 10)
 	_hud.grates.position = Vector2(1085, 10)
