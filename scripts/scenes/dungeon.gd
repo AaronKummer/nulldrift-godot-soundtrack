@@ -317,7 +317,8 @@ func _process(delta: float) -> void:
 	_tick_loot(delta)
 	_tick_lights()
 	_tick_blackout_warning()
-	_cam.position = _pos
+	_tick_feel(delta)
+	_cam.position = _pos + Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) * _shake * 7.0
 	_refresh_hud()
 
 func _tick_player(delta: float) -> void:
@@ -483,6 +484,8 @@ func _tick_katana(delta: float) -> void:
 				"hit": [],
 			})
 		GameState.set_ammo(wid, ammo - 1)
+		_muzzle = 1.0
+		_add_shake(0.05)
 		_katana_t = cd
 
 func _tick_bullets(delta: float) -> void:
@@ -592,15 +595,18 @@ func _tick_boss(delta: float) -> void:
 	if _boss.contact_t <= 0.0 and _invuln <= 0.0 and _dash_t <= 0.0 			and _boss.pos.distance_to(_pos) < bdef.size + 16.0:
 		_boss.contact_t = CONTACT_CD
 		_invuln = INVULN
-		GameState.take_damage(bdef.dmg + (6 if _boss.state == "charge" else 0))
+		_hurt_player(bdef.dmg + (6 if _boss.state == "charge" else 0))
 		if GameState.hp <= 0:
 			_die()
 
 func _hit_boss(dmg: int, w: Dictionary) -> void:
 	if _boss.is_empty() or not _boss.active or _boss.done or _boss.state == "flee":
 		return
-	_boss.hp -= dmg * int(w.get("boss_multiplier", 1))
+	var bdmg: int = dmg * int(w.get("boss_multiplier", 1))
+	_boss.hp -= bdmg
 	_boss.flash = 0.12
+	_floater(_boss.pos, str(bdmg), Color(1.0, 0.6, 1.1))
+	_add_shake(0.12)
 	var ls: float = w.get("life_steal", 0.0)
 	if ls > 0.0:
 		GameState.hp = mini(GameState.hp_max, GameState.hp + maxi(1, roundi(dmg * ls)))
@@ -645,7 +651,7 @@ func _tick_ebullets(delta: float) -> void:
 			dead.append(eb)
 			continue
 		if _invuln <= 0.0 and _dash_t <= 0.0 and eb.pos.distance_to(_pos) < 16.0:
-			GameState.take_damage(int(eb.dmg))
+			_hurt_player(int(eb.dmg))
 			_invuln = INVULN * 0.6
 			dead.append(eb)
 			if GameState.hp <= 0:
@@ -754,7 +760,7 @@ func _tick_enemies(delta: float) -> void:
 				and e.pos.distance_to(_pos) < def.size + 14.0:
 			e.contact_t = CONTACT_CD
 			_invuln = INVULN
-			GameState.take_damage(def.dmg)
+			_hurt_player(def.dmg)
 			e.pos = _collide(e.pos + (e.pos - _pos).normalized() * 50.0, def.size * 0.7)
 			if not _puzzle.is_empty():
 				_cancel_puzzle("seal interrupted — they got to you!")
@@ -767,8 +773,12 @@ func _tick_enemies(delta: float) -> void:
 func _damage_enemy(e: Dictionary, dmg: int) -> void:
 	e.hp -= dmg
 	e.flash = 0.12
+	_floater(e.pos, str(dmg), Color(1.0, 0.95, 0.5))
+	_add_shake(0.06)
 	if e.hp <= 0 and not e.get("scored", false):
 		e.scored = true
+		_burst2d(e.pos, e.get("elite", false))
+		_add_shake(0.18 if e.get("elite", false) else 0.1)
 		var def: Dictionary = _def.enemies[e.type]
 		# Animals carry nothing; humans and machines drop credits + gear
 		if def.get("drops", true):
@@ -1007,6 +1017,52 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 
 var _boom_flash := 0.0
+
+# ── game feel ──────────────────────────────────────────────────────────────
+var _shake := 0.0
+var _muzzle := 0.0
+var _floaters: Array = []       # { pos, text, life, col }
+var _debris: Array = []         # { pos, vel, life, col }
+var _hurt_flash: ColorRect
+
+func _add_shake(amt: float) -> void:
+	_shake = minf(1.0, _shake + amt)
+
+## Floating combat text (damage numbers, "+rounds", etc).
+func _floater(pos: Vector2, text: String, col: Color) -> void:
+	_floaters.append({ "pos": pos + Vector2(randf_range(-8, 8), -18),
+		"text": text, "life": 0.7, "col": col })
+
+## A quick shower of glowing debris when something dies.
+func _burst2d(pos: Vector2, big: bool) -> void:
+	var col := Color(1.5, 0.5, 0.3) if not big else Color(1.6, 0.4, 1.4)
+	for i in (10 if big else 6):
+		var a := randf() * TAU
+		_debris.append({ "pos": pos, "life": 0.45,
+			"vel": Vector2.from_angle(a) * randf_range(60.0, 180.0), "col": col })
+
+## Damage the player WITH feedback (shake + red vignette). Callers keep their
+## own hp<=0 death check after.
+func _hurt_player(dmg: int) -> void:
+	GameState.take_damage(dmg)
+	_add_shake(0.5)
+	if _hurt_flash:
+		_hurt_flash.color = Color(0.8, 0.05, 0.05, 0.4)
+		var tw := create_tween()
+		tw.tween_property(_hurt_flash, "color:a", 0.0, 0.35)
+
+func _tick_feel(delta: float) -> void:
+	_shake = maxf(0.0, _shake - delta * 3.0)
+	_muzzle = maxf(0.0, _muzzle - delta * 12.0)
+	for f in _floaters:
+		f.life -= delta
+		f.pos.y -= 44.0 * delta
+	_floaters = _floaters.filter(func(f): return f.life > 0.0)
+	for d in _debris:
+		d.life -= delta
+		d.pos += d.vel * delta
+		d.vel *= 0.90
+	_debris = _debris.filter(func(d): return d.life > 0.0)
 
 func _do_rescue() -> void:
 	GameState.set_flag(_def.objective_flag)
@@ -1493,6 +1549,24 @@ func _draw_world(b: Node2D) -> void:
 		Rect2(_pos - Vector2(FRAME_W * 0.5, FRAME_H - 12.0), Vector2(FRAME_W, FRAME_H)),
 		Rect2((int(_anim_t * 8.0) % 3 if _moving else 0) * FRAME_W,
 			_face_row * FRAME_H, FRAME_W, FRAME_H), tint)
+	# Muzzle flash — a bright pop just ahead of the player when firing
+	if _muzzle > 0.0:
+		var mdir: Vector2 = Vector2.from_angle(_slash.angle) if not _slash.is_empty() else _facing
+		var mp := _pos + mdir * 20.0 - Vector2(0, 8.0)
+		b.draw_circle(mp, 9.0 * _muzzle, Color(1.6, 1.4, 0.7, _muzzle))
+		b.draw_circle(mp, 4.0 * _muzzle, Color(1.8, 1.8, 1.2, _muzzle))
+	# Death debris
+	for d in _debris:
+		var a: float = clampf(d.life / 0.45, 0.0, 1.0)
+		b.draw_circle(d.pos, 3.5 * a, Color(d.col.r, d.col.g, d.col.b, a))
+	# Floating combat text (damage numbers)
+	var font := ThemeDB.fallback_font
+	for f in _floaters:
+		var a: float = clampf(f.life / 0.7, 0.0, 1.0)
+		b.draw_string(font, f.pos + Vector2(1, 1), f.text,
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 20, Color(0, 0, 0, a))
+		b.draw_string(font, f.pos, f.text,
+			HORIZONTAL_ALIGNMENT_CENTER, -1, 20, Color(f.col.r, f.col.g, f.col.b, a))
 
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -1502,6 +1576,12 @@ func _draw_world(b: Node2D) -> void:
 func _build_hud() -> void:
 	var cl := CanvasLayer.new()
 	add_child(cl)
+	# Red damage vignette (flashes when you take a hit)
+	_hurt_flash = ColorRect.new()
+	_hurt_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_hurt_flash.color = Color(0.8, 0.05, 0.05, 0.0)
+	_hurt_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cl.add_child(_hurt_flash)
 	var title := Label.new()
 	title.text = _def.name
 	title.add_theme_font_size_override("font_size", 22)
