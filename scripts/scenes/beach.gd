@@ -31,12 +31,14 @@ var _ocean_shimmer: Array = []
 var _t := 0.0
 var _exit_arrow: Polygon2D
 var _near_exit := false
+var _near_id := ""
 var _status: Label
 
 func _ready() -> void:
 	_build_camera_and_sky()
 	_build_ocean()
 	_build_sand_and_houses()
+	_build_named_buildings()
 	_build_exit()
 	_build_player()
 	_build_hud()
@@ -165,6 +167,59 @@ func _build_sand_and_houses() -> void:
 		gl.texture_scale = 1.6
 		add_child(gl)
 
+# Stephen's house + Growlers — enterable, with a lit door, a sign, and a
+# bobbing arrow that flares on approach.
+const STEPHENS_X := -520.0
+const GROWLERS_X := 220.0
+var _steph_arrow: Polygon2D
+var _grow_arrow: Polygon2D
+func _build_named_buildings() -> void:
+	# STEPHEN'S — a big lit party house
+	_named_building(STEPHENS_X, Color(0.55, 0.3, 0.5), "STEPHEN'S", Color(1.0, 0.5, 0.9))
+	_steph_arrow = _named_arrow(STEPHENS_X)
+	# GROWLERS — beach bar
+	_named_building(GROWLERS_X, Color(0.5, 0.4, 0.25), "GROWLERS", Color(1.0, 0.7, 0.35))
+	_grow_arrow = _named_arrow(GROWLERS_X)
+
+func _named_building(hx: float, body: Color, name_txt: String, neon: Color) -> void:
+	for sx in [hx - 70, hx + 70]:
+		_rect(Vector2(sx, SAND_TOP_Y - 60), Vector2(10, 66), Color(0.1, 0.08, 0.07), -19)
+	_rect(Vector2(hx - 95, SAND_TOP_Y - 165), Vector2(190, 105), body * 0.6, -18)
+	_rect(Vector2(hx - 108, SAND_TOP_Y - 178), Vector2(216, 16), body, -18)   # roof
+	# lit windows
+	for wx in [hx - 60, hx + 20]:
+		_rect(Vector2(wx, SAND_TOP_Y - 140), Vector2(38, 34), Color(1.0, 0.82, 0.45, 0.9), -17)
+	# door + warm spill
+	_rect(Vector2(hx - 18, SAND_TOP_Y - 74), Vector2(36, 74), Color(0.05, 0.04, 0.06), -17)
+	_rect(Vector2(hx - 12, SAND_TOP_Y - 66), Vector2(24, 66), Color(1.0, 0.75, 0.4, 0.85), -16)
+	# neon sign
+	var lbl := Label.new()
+	lbl.text = name_txt
+	lbl.add_theme_font_size_override("font_size", 20)
+	lbl.add_theme_color_override("font_color", neon)
+	lbl.position = Vector2(hx - 70, SAND_TOP_Y - 210)
+	add_child(lbl)
+	var gl := PointLight2D.new()
+	gl.position = Vector2(hx, SAND_TOP_Y - 40)
+	gl.color = neon
+	gl.energy = 0.6
+	gl.texture = _soft_light_tex()
+	gl.texture_scale = 2.2
+	add_child(gl)
+
+func _named_arrow(hx: float) -> Polygon2D:
+	var a := Polygon2D.new()
+	a.polygon = PackedVector2Array([Vector2(-16, -14), Vector2(16, -14), Vector2(0, 8)])
+	a.color = Color(1.0, 0.9, 0.5)
+	a.position = Vector2(hx, SAND_TOP_Y - 84)
+	a.modulate.a = 0.45
+	a.z_index = 8
+	add_child(a)
+	var tw := create_tween().set_loops()
+	tw.tween_property(a, "position:y", SAND_TOP_Y - 96, 0.9).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(a, "position:y", SAND_TOP_Y - 84, 0.9).set_trans(Tween.TRANS_SINE)
+	return a
+
 func _rect(pos: Vector2, size: Vector2, col: Color, z: int) -> void:
 	var r := ColorRect.new()
 	r.color = col
@@ -240,8 +295,14 @@ func _build_hud() -> void:
 
 func _apply_spawn() -> void:
 	var spawn := SceneTransition.consume_spawn()
-	# Arrive near the boardwalk (uber drop) by default
-	_player.position.x = EXIT_X - 200 if spawn == "from_uber" or spawn == "" else 0.0
+	# Land at the door you came out of, or by the boardwalk on arrival
+	match spawn:
+		"from_stephens":
+			_player.position.x = STEPHENS_X
+		"from_growlers":
+			_player.position.x = GROWLERS_X
+		_:
+			_player.position.x = EXIT_X - 200.0
 
 func _process(delta: float) -> void:
 	_t += delta
@@ -254,11 +315,27 @@ func _process(delta: float) -> void:
 	for s in _ocean_shimmer:
 		var nx: float = s.base + fmod(_t * s.spd, 320.0)
 		s.node.position.x = nx
-	# Exit proximity → flare arrow (no HUD prompt)
-	_near_exit = absf(_player.position.x - EXIT_X) <= 110.0
-	if _exit_arrow:
-		_exit_arrow.modulate.a = 1.0 if _near_exit else 0.5
-		_exit_arrow.scale = Vector2(1.25, 1.25) if _near_exit else Vector2.ONE
+	# Proximity → flare the nearest arrow, set _near_id (no HUD prompt)
+	var px := _player.position.x
+	_near_exit = absf(px - EXIT_X) <= 110.0
+	_beach_flare(_exit_arrow, _near_exit)
+	var near_steph := absf(px - STEPHENS_X) <= 90.0
+	var near_grow := absf(px - GROWLERS_X) <= 90.0
+	_beach_flare(_steph_arrow, near_steph)
+	_beach_flare(_grow_arrow, near_grow)
+	if near_steph:
+		_near_id = "stephens"
+	elif near_grow:
+		_near_id = "growlers"
+	elif _near_exit:
+		_near_id = "exit"
+	else:
+		_near_id = ""
+
+func _beach_flare(a: Polygon2D, near: bool) -> void:
+	if a:
+		a.modulate.a = 1.0 if near else 0.45
+		a.scale = Vector2(1.25, 1.25) if near else Vector2.ONE
 
 func _tick_player(delta: float) -> void:
 	var ix := Input.get_axis("move_left", "move_right")
@@ -284,5 +361,11 @@ func _tick_player(delta: float) -> void:
 	_atlas.region = Rect2(_frame * FRAME_W, _facing * FRAME_H, FRAME_W, FRAME_H)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("interact") and _near_exit:
-		SceneTransition.go("city", "from_ridenet")
+	if event.is_action_pressed("interact"):
+		match _near_id:
+			"stephens":
+				SceneTransition.go("stephens_house", "from_beach")
+			"growlers":
+				SceneTransition.go("growlers", "from_beach")
+			"exit":
+				SceneTransition.go("city", "from_ridenet")

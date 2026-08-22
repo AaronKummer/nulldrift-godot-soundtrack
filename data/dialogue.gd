@@ -370,6 +370,44 @@ const TREES := {
 		},
 	],
 
+	# ── STEPHEN — beach-house party host, crew (your canon lines) ────────
+	"stephen": [
+		{
+			"condition": { "flag": "kerryKidnapped" },
+			"lines": [
+				{ "speaker": "STEPHEN", "text": "dude. your window's on the NEWS. i already texted the crew.", "color": Color(1.0, 0.8, 0.3) },
+				{ "speaker": "STEPHEN", "text": "van's gassed. beach bonfire after we get her back. all of us.", "color": Color(1.0, 0.8, 0.3) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "STEPHEN", "text": "DUDE! you made it! welcome to my crib!", "color": Color(1.0, 0.8, 0.3) },
+				{ "speaker": "STEPHEN", "text": "mi casa es su casa. grab a drink. built this place myself. well... mostly.", "color": Color(1.0, 0.8, 0.3) },
+				{ "speaker": "STEPHEN", "text": "you code, right? i tried coding once. made a website that just played bass.", "color": Color(1.0, 0.8, 0.3) },
+			],
+		},
+	],
+
+	# ── ANDY — Growlers barman, crew ─────────────────────────────────────
+	"andy": [
+		{
+			"condition": { "flag": "kerryKidnapped" },
+			"lines": [
+				{ "speaker": "ANDY", "text": "i saw something FLY toward the financial district. that was your problem, wasn't it.", "color": Color(1.0, 0.7, 0.4) },
+				{ "speaker": "ANDY", "text": "nobody lets you go alone. i'm closing the bar. meet at the tower.", "color": Color(1.0, 0.7, 0.4) },
+			],
+		},
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "ANDY", "text": "growlers. only bar on the sand where the beer's cold and nobody checks IDs.", "color": Color(1.0, 0.7, 0.4) },
+				{ "speaker": "ANDY", "text": "that stool's mine. everything else, help yourself.", "color": Color(1.0, 0.7, 0.4) },
+				{ "speaker": "ANDY", "text": "stephen's place is right up the beach if you want the loud version of this.", "color": Color(1.0, 0.7, 0.4) },
+			],
+		},
+	],
+
 	# ── GUS — pet store keeper, home street ──────────────────────────────
 	"gus": [
 		{
