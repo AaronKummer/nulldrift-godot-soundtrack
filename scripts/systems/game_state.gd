@@ -136,6 +136,7 @@ func count_item(item_id: String) -> int:
 var arcade_scores: Dictionary = {}   # game id -> best score
 var pending_dungeon: String = "sewer"   # which dungeon the next dungeon.tscn load builds
 var dungeon_floor: int = 0              # current floor of a multi-floor dungeon (0-based; reset on street entry)
+var vohl_floor: int = 1                 # current floor of the Vohl office tower (1-6; elevator reloads the scene)
 var dungeon_seeds: Dictionary = {}      # dungeon id -> layout seed (per save)
 var katana_level: int = 1               # legacy MK ladder (superseded by equipment)
 var settings: Dictionary = { "lights": "full" }   # "full" | "low" (weak GPUs)

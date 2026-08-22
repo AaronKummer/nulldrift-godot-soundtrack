@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift76voho"]
+
+[ext_resource type="Script" path="res://scripts/interiors/vohl_office.gd" id="1_voho"]
+
+[node name="VohlOffice" type="Node3D"]
+script = ExtResource("1_voho")

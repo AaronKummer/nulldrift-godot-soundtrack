@@ -84,11 +84,11 @@ func _on_storefront_interact(def: Dictionary) -> void:
 			GameState.pending_dungeon = "office"
 			SceneTransition.go("dungeon", "from_city")
 		"vohl":
-			# Sealed until you've got the lead (Nyx's Vohl tip once Kerry's sick)
+			# Sealed until you've got the lead (Nyx's Vohl tip once Kerry's sick).
+			# Enter the lit office tower — the lab is in the basement below it.
 			if GameState.has_flag("vohlClueFound") and not GameState.has_flag("vohlDefeated"):
-				GameState.pending_dungeon = "vohl"
-				GameState.dungeon_floor = 0
-				SceneTransition.go("dungeon", "from_city")
+				GameState.vohl_floor = 1
+				SceneTransition.go("vohl_office", "from_street")
 			elif GameState.has_flag("vohlDefeated"):
 				DialogueOverlay.play_lines([
 					{ "speaker": "", "text": "the lobby's crawling with hazmat crews now. whatever Vohl was growing, it dies with him.", "color": Color(0.53, 0.53, 0.53) },
