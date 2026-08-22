@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://b0nullrift64guns"]
+
+[ext_resource type="Script" path="res://scripts/interiors/guns.gd" id="1_guns"]
+
+[node name="GunStore" type="Node3D"]
+script = ExtResource("1_guns")

@@ -1180,7 +1180,8 @@ func _build_arcade_entrance() -> void:
 	mb.position = Vector3(22.0, 0.0, -2.0)
 	add_child(mb)
 	# Return markers from the home-street interiors
-	for mk in [["from_diner", -50.0], ["from_pet", -28.0], ["from_comics", -4.0]]:
+	for mk in [["from_diner", -50.0], ["from_pet", -28.0], ["from_comics", -4.0],
+			["from_guns", 44.0]]:
 		var mi := Node3D.new()
 		mi.name = mk[0]
 		mi.position = Vector3(mk[1], 0.0, -2.0)
@@ -2473,7 +2474,7 @@ func _unhandled_input(event: InputEvent) -> void:
 func _on_storefront_interact(def: Dictionary) -> void:
 	var id: String = def.get("id", "")
 	if id == "guns":
-		_open_shop()
+		SceneTransition.go("guns", "from_street")
 		return
 	if id == "bar":
 		SceneTransition.go("bar", "from_street")
