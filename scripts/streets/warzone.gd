@@ -38,7 +38,7 @@ func _build_street() -> void:
 		Color(0.4, 0.35, 0.28)], ["sedan", "pickup"])
 	_build_ruins()
 	_build_chop_shop()
-	_build_dump_entrance()
+	# (THE DUMP / Nexus Tower moved to the Financial District)
 	_build_garage_entrance()
 	_build_scrapyard_entrance()
 	_build_jackals()

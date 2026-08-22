@@ -28,7 +28,7 @@ const STREETS := {
 		"stops": ["omnicorp", "nexus tower", "cortex hq"],
 	},
 	"financial": {
-		"name": "FINANCIAL DISTRICT", "cost": 35, "scene": "",
+		"name": "FINANCIAL DISTRICT", "cost": 35, "scene": "street_financial",
 		"stops": ["nexus bank", "vvs hq", "platinum arms"],
 	},
 }

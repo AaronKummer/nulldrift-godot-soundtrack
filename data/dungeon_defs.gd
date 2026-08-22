@@ -247,8 +247,8 @@ const DEFS := {
 	"office": {
 		"name": "NEXUS TOWER (ABANDONED)",
 		"exit_label": "take the elevator down",
-		"exit_scene": "street_warzone",
-		"exit_spawn": "from_dump",
+		"exit_scene": "street_financial",
+		"exit_spawn": "from_nexus",
 		"grid_w": 23, "grid_h": 19,
 		"rooms": 8, "room_min": 3, "room_max": 7,
 		"water_room_chance": 0.0,

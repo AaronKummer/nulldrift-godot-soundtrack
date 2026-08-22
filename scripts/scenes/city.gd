@@ -752,6 +752,7 @@ const RIDENET_STOPS := [
 	{ "name": "PACKARD ROWS", "scene": "street_warzone", "price": 30 },
 	{ "name": "DOWNTOWN", "scene": "street_downtown", "price": 15 },
 	{ "name": "THE STACK", "scene": "street_stack", "price": 25 },
+	{ "name": "FINANCIAL DISTRICT", "scene": "street_financial", "price": 35 },
 ]
 
 func _build_ridenet() -> void:

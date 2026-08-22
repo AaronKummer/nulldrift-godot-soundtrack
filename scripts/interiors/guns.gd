@@ -8,7 +8,13 @@ extends "res://scripts/interiors/interior_base.gd"
 const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 const Equip := preload("res://data/equipment.gd")
 
-const PRICE_CAP := 60000   # anything dearer is Platinum Arms' business
+# Overridable shop config — PLATINUM ARMS subclasses this to sell the
+# exotic tier with a different sign/dealer/exit.
+func _price_cap() -> int: return 60000            # dearer = Platinum Arms' business
+func _shop_title() -> String: return "GUNS+"
+func _dealer_sheet() -> String: return "res://assets/sprites/npc-thug.png"
+func _exit_scene_id() -> String: return "city"
+func _exit_marker() -> String: return "from_guns"
 
 const CONSUMABLES := {
 	"medkit":   { "name": "MEDKIT",   "price": 40 },
@@ -27,9 +33,9 @@ var _rows: Array = []   # parallel to menu entries: action dicts
 func _ready() -> void:
 	room_w = 28.0
 	room_d = 18.0
-	interior_name = "GUNS+"
-	exit_scene = "city"
-	exit_spawn = "from_guns"
+	interior_name = _shop_title()
+	exit_scene = _exit_scene_id()
+	exit_spawn = _exit_marker()
 	super._ready()
 	Music.play_category("shops")
 
@@ -60,7 +66,7 @@ func _build_weapon_wall() -> void:
 				Vector3(2.2, 0.16, 0.06),
 				col * Color(0.4, 0.4, 0.4, 1.0), 0.6, 0.3, true, col, 0.8)
 	var sign := Label3D.new()
-	sign.text = "GUNS+"
+	sign.text = _shop_title()
 	sign.font_size = 120
 	sign.pixel_size = 0.012
 	sign.modulate = Color(1.4, 0.35, 0.3)
@@ -79,7 +85,7 @@ func _build_counter_and_dealer() -> void:
 	_add_box(Vector3(0, 0.75, cz + 0.2), Vector3(8.4, 0.5, 0.05),
 		Color(0.2, 0.5, 0.7) * 0.3, 0.0, 0.2, true, Color(0.3, 0.7, 1.0), 0.7)
 	# The dealer (a tough thug sheet), behind the counter
-	add_npc("res://assets/sprites/npc-thug.png", Vector3(0, 0.9, cz - 1.3), 0)
+	add_npc(_dealer_sheet(), Vector3(0, 0.9, cz - 1.3), 0)
 	add_interact(Vector3(0, 1.2, cz + 1.6), Vector3(8.0, 2.4, 2.6),
 		"browse the arsenal", _open_categories)
 
@@ -115,7 +121,7 @@ func _open_categories() -> void:
 	var entries := [{ "label": "talk to the dealer" }]
 	for c in ["MELEE", "BALLISTIC", "ENERGY", "MISC", "AMMO"]:
 		entries.append({ "label": c + "  ▸" })
-	_menu.open("GUNS+ · street hardware", entries, Color(1.0, 0.4, 0.35),
+	_menu.open("%s · hardware" % _shop_title(), entries, Color(1.0, 0.4, 0.35),
 		"credits: $%d" % GameState.credits)
 
 func _open_category(cat: String) -> void:
@@ -153,7 +159,7 @@ func _category_items(cat: String) -> Array:
 	# Weapon categories
 	for wid in Equip.WEAPONS:
 		var w: Dictionary = Equip.WEAPONS[wid]
-		if not w.has("price") or int(w.price) > PRICE_CAP:
+		if not w.has("price") or int(w.price) > _price_cap():
 			continue
 		var slot: String = ""
 		if w.type == "melee":
