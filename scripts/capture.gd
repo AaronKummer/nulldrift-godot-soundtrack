@@ -40,6 +40,8 @@ func _ready() -> void:
 			GameState.hack_skill = int(args[i + 1])
 		elif args[i] == "vohlfloor":
 			GameState.vohl_floor = int(args[i + 1])
+		elif args[i] == "heat":
+			GameState.heat = float(args[i + 1])
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:
@@ -59,6 +61,15 @@ func _ready() -> void:
 			if player:
 				player.global_position = Vector3(parts[0].to_float(), 0.9,
 					parts[1].to_float())
+
+	# Optional "copshot": force a pursuing cop into frame near the player so a
+	# static render shows the police chase (they otherwise spawn on a timer).
+	if args.has("copshot") and inst.has_method("_spawn_cop"):
+		await RenderingServer.frame_post_draw
+		inst._spawn_cop()
+		var pl := _find_player(inst)
+		if pl and not inst._cops.is_empty():
+			inst._cops[0].node.position = pl.global_position + Vector3(7.0, 0, 3.0)
 
 	# Let the renderer settle (bloom + emissive prepass)
 	for i in range(WAIT_FRAMES):

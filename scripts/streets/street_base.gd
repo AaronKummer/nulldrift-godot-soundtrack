@@ -31,6 +31,7 @@ var _player: CharacterBody3D
 var _player_anim
 var _status_label: Label
 var _title_label: Label
+var _pursuit_label: Label
 var _near_terminal := false
 var _ride_menu
 var _ride_open := false
@@ -289,6 +290,7 @@ func _process(delta: float) -> void:
 	_tick_camera(delta)
 	_tick_traffic(delta)
 	_tick_walkers(delta)
+	_tick_police(delta)
 	_street_process(delta)
 
 ## Subclass per-frame hook
@@ -587,8 +589,113 @@ func _tick_walkers(delta: float) -> void:
 			w.dir = 1
 			w.ab.facing = AnimatedBillboardScript.Facing.RIGHT
 
+# ═══════════════════════════════════════════════════════════════════════
+# POLICE PURSUIT — the physical-heat payoff. While you're WANTED, cops run
+# in from the ends of the street and chase. Outrun them (sprint, or duck
+# into a shop / RIDENET), or get caught and detained: a fine, and your heat
+# gets processed back down. One cop at NOTICED, up to three at MANHUNT.
+# ═══════════════════════════════════════════════════════════════════════
+
+var _cops: Array = []               # { node, ab, beacon }
+var _cop_spawn_t := 0.0
+var _busted := false
+
+func _tick_police(delta: float) -> void:
+	if _player == null or _busted:
+		return
+	var wl: int = GameState.wanted_level()
+	# No heat → cops lose interest and peel off.
+	if wl <= 0:
+		if not _cops.is_empty():
+			_despawn_cops()
+			_set_pursuit("")
+		return
+	# Escalate toward the wanted-level cap.
+	if _cops.size() < wl:
+		_cop_spawn_t += delta
+		if _cop_spawn_t >= 2.2:
+			_cop_spawn_t = 0.0
+			_spawn_cop()
+	_set_pursuit("◆ POLICE PURSUIT · sprint or lose them (a shop, RIDENET) ◆")
+	var pp := _player.global_position
+	var cop_speed := 7.2 + wl * 0.5      # faster the hotter you are; sprint (10.2) still beats it
+	for c in _cops:
+		var n: Node3D = c.node
+		var to_p := pp - n.position
+		to_p.y = 0.0
+		var d := to_p.length()
+		if d < 1.4:
+			_bust()
+			return
+		var step := to_p.normalized()
+		n.position += step * cop_speed * delta
+		var input := Vector2(step.x, step.z)
+		c.ab.update_facing_from_input(input)
+		c.ab.set_moving(true)
+		# flashing beacon
+		c.beacon.light_energy = 2.0 + 1.5 * sin(Time.get_ticks_msec() * 0.012 + c.phase)
+
+func _spawn_cop() -> void:
+	var from_x: float = block_half_w + 8.0
+	if _player.position.x > 0.0:
+		from_x = -block_half_w - 8.0    # come from behind, the far end
+	var pivot := Node3D.new()
+	pivot.position = Vector3(from_x, 0.9, 0.5)
+	add_child(pivot)
+	var ab = AnimatedBillboardScript.new()
+	ab.show_floor_shadow = true
+	ab.pixel_size = 0.04
+	pivot.add_child(ab)
+	ab.load_sheet("res://assets/sprites/npc-cop2.png")
+	ab.set_moving(true)
+	var beacon := OmniLight3D.new()
+	beacon.light_color = Color(0.4, 0.5, 1.4)
+	beacon.light_energy = 2.5
+	beacon.omni_range = 6.0
+	beacon.position = Vector3(0, 2.4, 0)
+	pivot.add_child(beacon)
+	_cops.append({ "node": pivot, "ab": ab, "beacon": beacon,
+		"phase": randf() * TAU })
+
+func _despawn_cops() -> void:
+	for c in _cops:
+		(c.node as Node3D).queue_free()
+	_cops.clear()
+
+func _bust() -> void:
+	if _busted:
+		return
+	_busted = true
+	var wl: int = GameState.wanted_level()
+	var fine: int = [0, 350, 900, 1800][clampi(wl, 0, 3)]
+	fine = mini(fine, GameState.credits)
+	var lines := [
+		{ "speaker": "PATROL", "text": "FREEZE. Down on the ground, hands behind your head.", "color": Color(0.6, 0.7, 1.4) },
+	]
+	if wl >= 3:
+		lines.append({ "speaker": "", "text": "They're not gentle about it. You come to in a holding cell hours later, lighter %d credits and aching." % fine, "color": Color(0.7, 0.7, 0.75) })
+	else:
+		lines.append({ "speaker": "", "text": "Booked, fined %d credits, and kicked loose by morning. The heat's off — for now." % fine, "color": Color(0.7, 0.7, 0.75) })
+	DialogueOverlay.play_lines(lines, "police_bust")
+	if not DialogueOverlay.finished.is_connected(_after_bust):
+		DialogueOverlay.finished.connect(_after_bust.bind(fine, wl), CONNECT_ONE_SHOT)
+
+func _after_bust(_tree: String, fine: int, wl: int) -> void:
+	GameState.add_credits(-fine)
+	if wl >= 3:
+		GameState.hp = maxi(10, GameState.hp - 20)
+	GameState.heat = 8.0                 # processed and released — wanted clears
+	GameState.heat_changed.emit(GameState.heat)
+	_despawn_cops()
+	_set_pursuit("")
+	_busted = false
+
+func _set_pursuit(t: String) -> void:
+	if _pursuit_label:
+		_pursuit_label.text = t
+
 func _tick_player(_delta: float) -> void:
-	if _player == null or _ride_open:
+	if _player == null or _ride_open or _busted:
 		return
 	var input := Vector2(
 		Input.get_axis("move_left", "move_right"),
@@ -628,6 +735,17 @@ func _build_hud() -> void:
 	_status_label.add_theme_constant_override("shadow_offset_y", 2)
 	_status_label.position = Vector2(20, 38)
 	cl.add_child(_status_label)
+	_pursuit_label = Label.new()
+	_pursuit_label.add_theme_font_size_override("font_size", 20)
+	_pursuit_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	_pursuit_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_pursuit_label.add_theme_constant_override("outline_size", 4)
+	_pursuit_label.anchor_left = 0.5
+	_pursuit_label.anchor_right = 0.5
+	_pursuit_label.anchor_top = 0.10
+	_pursuit_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_pursuit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cl.add_child(_pursuit_label)
 	var hint := Label.new()
 	hint.text = "WASD MOVE · R SPRINT · E INTERACT · I PHONE"
 	hint.add_theme_font_size_override("font_size", 11)
