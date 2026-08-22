@@ -146,6 +146,7 @@ var equipped_weapon := "katana"
 var equipment: Array = []            # gear ids, max 2 slots (canon)
 var weapon_ammo: Dictionary = {}     # weapon id -> rounds left in the mag
 var shield_hp := 0.0                 # transient; generators recharge it
+var exposure := 0.0                  # deep-hack heat carried between net runs; feeds the sea hag
 
 func weapon_def() -> Dictionary:
 	return Equip.weapon(equipped_weapon)
@@ -256,6 +257,7 @@ func to_dict() -> Dictionary:
 		"equipped_weapon": equipped_weapon,
 		"equipment": equipment.duplicate(),
 		"weapon_ammo": weapon_ammo.duplicate(true),
+		"exposure": exposure,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -275,6 +277,7 @@ func from_dict(d: Dictionary) -> void:
 	equipped_weapon = d.get("equipped_weapon", "katana")
 	equipment = d.get("equipment", []).duplicate()
 	weapon_ammo = d.get("weapon_ammo", {}).duplicate(true)
+	exposure = d.get("exposure", 0.0)
 	shield_hp = max_shield()
 	_apply_dev_bankroll()
 	_ensure_weapon()
