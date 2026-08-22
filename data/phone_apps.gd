@@ -30,6 +30,7 @@ const APPS := [
 	{ "id": "profile",  "label": "PROFILE",  "icon": "👤", "icon_path": "res://assets/icons/phone/profile.png",  "color": Color(0.0, 1.0, 1.0) },
 	{ "id": "catalog",  "label": "CATALOG",  "icon": "≡", "icon_path": "res://assets/icons/phone/catalog.png",  "color": Color(0.27, 0.87, 1.0) },
 	{ "id": "deck",     "label": "DECK",     "icon": "💻","icon_path": "res://assets/icons/phone/deck.png",     "color": Color(0.22, 1.0, 0.08), "gate": "deck" },
+	{ "id": "light",    "label": "LIGHT",    "icon": "🔦", "icon_path": "res://assets/icons/phone/light.png",    "color": Color(1.0, 0.95, 0.6) },
 	{ "id": "settings", "label": "SETTINGS", "icon": "⚙️", "icon_path": "res://assets/icons/phone/settings.png", "color": Color(0.67, 0.67, 0.8) },
 ]
 

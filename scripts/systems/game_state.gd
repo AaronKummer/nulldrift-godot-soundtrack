@@ -148,6 +148,16 @@ var weapon_ammo: Dictionary = {}     # weapon id -> rounds left in the mag
 var ammo_reserve: Dictionary = { "ballistic": 0, "energy": 0 }  # spare rounds by type; reload draws from here
 var shield_hp := 0.0                 # transient; generators recharge it
 var exposure := 0.0                  # deep-hack heat carried between net runs; feeds the sea hag
+var phone_light := false             # phone flashlight toggle — a weak light anywhere, free
+
+## Best light the player currently has underground: 2 headlamp (bright,
+## hands-free) > 1 phone flashlight (weak, free) > 0 nothing (eyes adjust).
+func light_level() -> int:
+	if headlamp_on():
+		return 2
+	if phone_light:
+		return 1
+	return 0
 
 func weapon_def() -> Dictionary:
 	return Equip.weapon(equipped_weapon)
@@ -282,6 +292,7 @@ func to_dict() -> Dictionary:
 		"weapon_ammo": weapon_ammo.duplicate(true),
 		"exposure": exposure,
 		"ammo_reserve": ammo_reserve.duplicate(),
+		"phone_light": phone_light,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -303,6 +314,7 @@ func from_dict(d: Dictionary) -> void:
 	weapon_ammo = d.get("weapon_ammo", {}).duplicate(true)
 	exposure = d.get("exposure", 0.0)
 	ammo_reserve = d.get("ammo_reserve", { "ballistic": 0, "energy": 0 }).duplicate()
+	phone_light = d.get("phone_light", false)
 	shield_hp = max_shield()
 	_apply_dev_bankroll()
 	_ensure_weapon()

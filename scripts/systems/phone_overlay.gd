@@ -462,6 +462,7 @@ func _build_app_default(app_id: String) -> Control:
 func _build_app_body(app_id: String, color: Color) -> Control:
 	# Apps with real data implementations; the rest fall through to a stub.
 	match app_id:
+		"light":    return _app_light(color)
 		"quests":   return _app_quests(color)
 		"messages": return _stub_messages(color)
 		"dating":   return _app_dating(color)
@@ -912,6 +913,52 @@ func _app_gear(color: Color) -> Control:
 	scroll.add_child(list)
 	_gear_render(list, color)
 	return scroll
+
+# ─────────────────────────────────────────────────────────────────────
+# Flashlight — a weak light anywhere (dungeons especially). Free; the
+# headlamp is the brighter hands-free upgrade. Toggles GameState.phone_light.
+# ─────────────────────────────────────────────────────────────────────
+func _app_light(color: Color) -> Control:
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 16)
+	v.alignment = BoxContainer.ALIGNMENT_CENTER
+	v.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var on: bool = GameState.phone_light
+	var beam := Label.new()
+	beam.text = "🔦"
+	beam.add_theme_font_override("font", _emoji_font())
+	beam.add_theme_font_size_override("font_size", 72)
+	beam.modulate = Color(1, 1, 0.8) if on else Color(0.4, 0.42, 0.5)
+	beam.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(beam)
+	var state := Label.new()
+	state.text = "FLASHLIGHT: ON" if on else "FLASHLIGHT: OFF"
+	state.add_theme_font_size_override("font_size", 18)
+	state.add_theme_color_override("font_color",
+		Color(1.0, 0.95, 0.6) if on else Color(0.55, 0.6, 0.7))
+	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(state)
+	var btn := _mini_btn("TURN OFF" if on else "TURN ON", Color(1.0, 0.95, 0.6))
+	btn.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	btn.pressed.connect(func():
+		GameState.phone_light = not GameState.phone_light
+		var top: Dictionary = _stack[-1]
+		(top["node"] as Node).queue_free()
+		var scr := _build_app("light")
+		scr.set_anchors_preset(Control.PRESET_FULL_RECT)
+		scr.mouse_filter = Control.MOUSE_FILTER_PASS
+		_app_container.add_child(scr)
+		top["node"] = scr
+		_stack[-1] = top)
+	v.add_child(btn)
+	var note := Label.new()
+	note.text = "weak, but free. a headlamp lights more, hands-free."
+	note.add_theme_font_size_override("font_size", 11)
+	note.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(note)
+	return v
 
 # ─────────────────────────────────────────────────────────────────────
 # Quests — the log. Active quests with live objective checkmarks, then
