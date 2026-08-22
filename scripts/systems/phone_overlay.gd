@@ -462,6 +462,7 @@ func _build_app_default(app_id: String) -> Control:
 func _build_app_body(app_id: String, color: Color) -> Control:
 	# Apps with real data implementations; the rest fall through to a stub.
 	match app_id:
+		"uber":     return _app_uber(color)
 		"light":    return _app_light(color)
 		"quests":   return _app_quests(color)
 		"messages": return _stub_messages(color)
@@ -913,6 +914,74 @@ func _app_gear(color: Color) -> Control:
 	scroll.add_child(list)
 	_gear_render(list, color)
 	return scroll
+
+# ─────────────────────────────────────────────────────────────────────
+# UBER — door-to-door fast travel, callable from anywhere (vs RIDENET's
+# fixed street terminals). Pricier than RIDENET for the convenience.
+# ─────────────────────────────────────────────────────────────────────
+const StreetDefsData2 := preload("res://data/street_defs.gd")
+func _app_uber(color: Color) -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var list := VBoxContainer.new()
+	list.add_theme_constant_override("separation", 8)
+	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(list)
+	var head := Label.new()
+	head.text = "UBER · door to door, %d%% over ridenet" % 50
+	head.add_theme_font_size_override("font_size", 12)
+	head.add_theme_color_override("font_color", Color(0.0, 0.85, 0.5))
+	list.add_child(head)
+	# Destinations: every built street + the beach. Uber surcharge = +50%.
+	var dests: Array = []
+	for st in StreetDefsData2.street_list():
+		if st.get("scene", "") == "":
+			continue
+		dests.append({ "scene": st.scene, "spawn": "from_ridenet",
+			"name": st.name, "price": int(ceil(st.cost * 1.5)) })
+	dests.append({ "scene": "beach", "spawn": "from_uber",
+		"name": "THE BEACH", "price": 45 })
+	for d in dests:
+		var row := Button.new()
+		row.text = "%s · %d cr" % [d.name, d.price]
+		row.add_theme_font_size_override("font_size", 15)
+		row.add_theme_color_override("font_color", Color(0.85, 1.0, 0.95))
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = Color(0.05, 0.12, 0.09)
+		sb.border_color = Color(0.0, 0.85, 0.5, 0.5)
+		sb.set_border_width_all(1)
+		sb.set_corner_radius_all(10)
+		sb.content_margin_left = 12
+		sb.content_margin_top = 10
+		sb.content_margin_bottom = 10
+		row.add_theme_stylebox_override("normal", sb)
+		var sbh := sb.duplicate() as StyleBoxFlat
+		sbh.bg_color = Color(0.08, 0.2, 0.14)
+		row.add_theme_stylebox_override("hover", sbh)
+		row.add_theme_stylebox_override("pressed", sbh)
+		var dd: Dictionary = d
+		row.pressed.connect(func(): _uber_to(dd))
+		list.add_child(row)
+	var foot := Label.new()
+	foot.text = "credits: $%d" % GameState.credits
+	foot.add_theme_font_size_override("font_size", 12)
+	foot.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
+	list.add_child(foot)
+	return scroll
+
+func _uber_to(d: Dictionary) -> void:
+	var here := get_tree().current_scene
+	var here_path: String = here.scene_file_path if here else ""
+	if here_path.ends_with(d.scene + ".tscn"):
+		return   # already there
+	if GameState.credits < int(d.price):
+		return
+	GameState.add_credits(-int(d.price))
+	close()
+	SceneTransition.ride_to(d.scene, d.spawn, d.name)
 
 # ─────────────────────────────────────────────────────────────────────
 # Flashlight — a weak light anywhere (dungeons especially). Free; the

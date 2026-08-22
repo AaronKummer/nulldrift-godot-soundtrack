@@ -23,6 +23,7 @@ const SCENES := {
 	"bar":       "res://scenes/interiors/bar.tscn",
 	"pets":      "res://scenes/interiors/pets.tscn",
 	"guns":      "res://scenes/interiors/guns.tscn",
+	"beach":     "res://scenes/beach.tscn",
 	"diner":     "res://scenes/interiors/diner.tscn",
 	"comics":    "res://scenes/interiors/comics.tscn",
 	"street_downtown": "res://scenes/streets/downtown.tscn",
