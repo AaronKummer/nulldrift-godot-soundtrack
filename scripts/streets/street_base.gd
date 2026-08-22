@@ -115,6 +115,16 @@ func _setup_environment() -> void:
 	_env.ssao_enabled = true
 	_env.ssao_radius = 1.4
 	_env.ssao_intensity = 1.6
+	# Screen-space reflections — wet asphalt mirrors the neon signs, lamps, and
+	# headlights. The signature rain-slick-street look, for free.
+	_env.ssr_enabled = true
+	_env.ssr_max_steps = 64
+	_env.ssr_fade_in = 0.15
+	_env.ssr_fade_out = 4.0
+	_env.ssr_depth_tolerance = 0.4
+	_env.adjustment_enabled = true
+	_env.adjustment_contrast = 1.08
+	_env.adjustment_saturation = 1.12
 	_env.fog_enabled = true
 	_env.fog_density = 0.003
 	_env.fog_light_color = _fog_color()
@@ -175,13 +185,13 @@ func _build_shell() -> void:
 	# Ground everywhere — never void
 	_add_box(Vector3(0, -0.06, 0), Vector3(900.0, 0.08, 700.0),
 		Color(0.045, 0.045, 0.06), 0.0, 0.9)
-	# Road + sidewalks
+	# Road + sidewalks — rain-slick: low roughness so SSR mirrors the neon
 	_add_box(Vector3(0, -0.02, ROAD_WIDTH * 0.5),
 		Vector3(block_half_w * 2.0 + 60.0, 0.1, ROAD_WIDTH),
-		Color(0.05, 0.05, 0.07), 0.0, 0.85)
+		Color(0.03, 0.03, 0.05), 0.1, 0.18)
 	_add_box(Vector3(0, -0.01, -SIDEWALK_W * 0.5),
 		Vector3(block_half_w * 2.0 + 60.0, 0.14, SIDEWALK_W),
-		Color(0.13, 0.13, 0.15), 0.0, 0.9)
+		Color(0.10, 0.10, 0.13), 0.05, 0.35)
 	# Center dashes
 	var dx := -block_half_w - 20.0
 	while dx < block_half_w + 20.0:
