@@ -69,7 +69,8 @@ func _ready() -> void:
 	_build_doors()
 	_build_endcaps()
 	_build_ceiling_lights()
-	_build_stray_cat()       # cat sits outside apartment 404, story hook
+	if not GameState.has_flag("catRescued"):
+		_build_stray_cat()   # stray outside 404 until you adopt her (she follows you home)
 	_build_player()
 	_build_hud()
 	_apply_pending_spawn()
@@ -408,10 +409,7 @@ func _build_stray_cat() -> void:
 func _on_cat_entered(body: Node3D) -> void:
 	if body is CharacterBody3D:
 		_on_cat = true
-		if GameState.has_flag("fish_fed"):
-			_set_status("[E] pet the cat — she follows you home")
-		else:
-			_set_status("[E] pet the cat (she won't follow yet)")
+		_set_status("[E] adopt the stray cat")
 
 func _on_cat_exited(body: Node3D) -> void:
 	if body is CharacterBody3D:
@@ -421,13 +419,17 @@ func _on_cat_exited(body: Node3D) -> void:
 func _interact_cat() -> void:
 	if not _on_cat:
 		return
-	if GameState.has_flag("fish_fed") and not GameState.has_flag("cat_adopted"):
-		GameState.set_flag("cat_adopted")
-		_set_status("the cat follows you. she's yours now.")
-	elif GameState.has_flag("cat_adopted"):
-		_set_status("the cat purrs.")
-	else:
-		_set_status("the cat sniffs you. she seems hungry.")
+	# Adopt her — completes the catRescue quest (+400 cr) and she's waiting
+	# at home from now on. Then she pads off down the hall to your door.
+	GameState.set_flag("catRescued")
+	_set_status("she headbutts your shin, decides you'll do, and follows you home.")
+	if _cat_sprite:
+		_cat_sprite.facing = AnimatedBillboardScript.Facing.LEFT
+		_cat_sprite.set_moving(true)
+	if _cat_zone:
+		_cat_zone.queue_free()
+		_cat_zone = null
+	_on_cat = false
 
 
 # ─────────────────────────────────────────────────────────────────────────

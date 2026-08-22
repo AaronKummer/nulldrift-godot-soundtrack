@@ -101,6 +101,9 @@ var _cars: Array = []          # driving cars [{node, speed}]
 # After pickup, the cop+hacker sprites despawn so the scene rests.
 var _atm_hacker_pivot: Node3D
 var _atm_cop_pivot: Node3D
+var _atm_hacker_ab
+var _atm_cop_ab
+var _atm_deck_pos: Vector3
 var _atm_siren: OmniLight3D
 var _atm_beam: SpotLight3D
 var _cyberdeck_pivot: Node3D
@@ -1371,9 +1374,10 @@ func _build_atm_scene() -> void:
 		hacker_ab.show_floor_shadow = false
 		hacker_ab.pixel_size = 0.04
 		_atm_hacker_pivot.add_child(hacker_ab)
-		hacker_ab.load_sheet("res://assets/sprites/npc-cyberpunk.png")
+		hacker_ab.load_sheet("res://assets/sprites/cyberGirl.png")
 		hacker_ab.facing = AnimatedBillboardScript.Facing.LEFT
 		hacker_ab.set_moving(false)
+		_atm_hacker_ab = hacker_ab
 
 		# COP NPC — approaching from the west, flashlight on the hacker
 		_atm_cop_pivot = Node3D.new()
@@ -1386,6 +1390,7 @@ func _build_atm_scene() -> void:
 		cop_ab.load_sheet("res://assets/sprites/npc-cop.png")
 		cop_ab.facing = AnimatedBillboardScript.Facing.RIGHT
 		cop_ab.set_moving(false)
+		_atm_cop_ab = cop_ab
 
 		# Cop's flashlight — cuts through fog toward the hacker
 		_atm_beam = SpotLight3D.new()
@@ -1468,23 +1473,45 @@ func _on_atm_event_trigger(body: Node, hacker_pos: Vector3) -> void:
 	if GameState.has_flag("atmEventDone"):
 		return
 	GameState.set_flag("atmEventDone")
-	# Despawn the tableau — they've fled. Keep the despawn punchy: free
-	# the pivots immediately rather than try a fade out (sprite billboards
-	# don't tween nicely with the current shader).
-	if _atm_hacker_pivot:
-		_atm_hacker_pivot.queue_free()
-		_atm_hacker_pivot = null
-	if _atm_cop_pivot:
-		_atm_cop_pivot.queue_free()
-		_atm_cop_pivot = null
-	if _atm_beam:
-		_atm_beam.queue_free()
-		_atm_beam = null
-	if _atm_siren:
-		_atm_siren.queue_free()
-		_atm_siren = null
+	# She bolts — the deck clatters to the pavement where she stood, then
+	# she sprints off with the cop a half-second behind. The dropped deck
+	# stays for the player to grab.
 	_spawn_cyberdeck_pickup(hacker_pos)
-	_set_status("the hacker bolted. she dropped something.")
+	_set_status("she spots you — bolts, drops something, the cop breaks after her!")
+	# The girl runs east
+	if _atm_hacker_pivot and _atm_hacker_ab:
+		_atm_hacker_ab.facing = AnimatedBillboardScript.Facing.RIGHT
+		_atm_hacker_ab.set_moving(true)
+		var tw := create_tween()
+		tw.tween_property(_atm_hacker_pivot, "position:x",
+			_atm_hacker_pivot.position.x + 34.0, 1.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		tw.finished.connect(func():
+			if _atm_hacker_pivot:
+				_atm_hacker_pivot.queue_free()
+				_atm_hacker_pivot = null)
+	# The cop gives chase a beat later, dragging the siren + flashlight along
+	if _atm_cop_pivot and _atm_cop_ab:
+		_atm_cop_ab.facing = AnimatedBillboardScript.Facing.RIGHT
+		var chase := create_tween()
+		chase.tween_interval(0.4)
+		chase.tween_callback(func(): if _atm_cop_ab: _atm_cop_ab.set_moving(true))
+		chase.tween_property(_atm_cop_pivot, "position:x",
+			_atm_cop_pivot.position.x + 40.0, 1.6).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+		if _atm_beam:
+			chase.parallel().tween_property(_atm_beam, "position:x",
+				_atm_beam.position.x + 40.0, 1.6)
+		if _atm_siren:
+			chase.parallel().tween_property(_atm_siren, "position:x",
+				_atm_siren.position.x + 40.0, 1.6)
+		chase.chain().tween_callback(_despawn_atm_chase)
+
+func _despawn_atm_chase() -> void:
+	for n in [_atm_cop_pivot, _atm_beam, _atm_siren]:
+		if n:
+			n.queue_free()
+	_atm_cop_pivot = null
+	_atm_beam = null
+	_atm_siren = null
 
 
 # CyberDeck pickup — a glowing magenta deck on the sidewalk, [E] to grab.

@@ -1173,8 +1173,10 @@ func _build_player() -> void:
 	_player.add_child(_player_anim)
 	_player_anim.load_sheet("res://assets/sprites/player-pizza.png")
 
-	# Cat — wanders the apartment
-	_build_cat()
+	# Cat — only here once you've adopted the stray from the hallway.
+	# (No free starter cat; she has to follow you home first.)
+	if GameState.has_flag("catRescued"):
+		_build_cat()
 
 func _build_cat() -> void:
 	_cat_pivot = Node3D.new()
