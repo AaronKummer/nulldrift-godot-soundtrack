@@ -44,8 +44,8 @@ const NPCS := [
 ]
 
 # Transitions: where each end of the deck takes you
-const TRANSITION_LEFT_TARGET  := { "scene": "hallway", "spawn": "from_balcony" }
-const TRANSITION_RIGHT_TARGET := { "scene": "city",    "spawn": "from_stairs" }
+# Exits are proximity interacts now: the south-facing door → hallway, and the
+# far-left neon STAIRS → the city street (see _check_interactables).
 
 var _camera: Camera2D
 var _backdrop_layers: Array = []   # [{node, scroll}] — manual parallax
@@ -60,8 +60,6 @@ var _npcs: Array = []
 var _status_label: Label
 var _left_zone: Area2D
 var _right_zone: Area2D
-var _at_left_edge: bool = false
-var _at_right_edge: bool = false
 var _at_railing: bool = false
 var _rail_line_idx: int = 0
 
@@ -82,11 +80,53 @@ func _ready() -> void:
 	_build_deck_visuals()
 	_build_npcs()
 	_build_player()
-	_build_edge_triggers()
+	_build_building_wall()
+	_build_stairs_exit()
+	_build_hallway_door()
 	_build_rail_marker()
 	_build_hud()
 	_apply_pending_spawn()
 	Music.play_category("balcony")
+
+# ── The apartment building this balcony hangs off — a tall face rising many
+# floors above the deck, lit windows, world-space so it scrolls with you. ──
+const DOOR_X := 240.0
+const STAIRS_X := -760.0
+func _build_building_wall() -> void:
+	var wall := ColorRect.new()
+	wall.color = Color(0.045, 0.045, 0.075)
+	wall.position = Vector2(-3000, -900)
+	wall.size = Vector2(6000, 900 + DECK_TOP_Y)   # from far above down to the deck
+	wall.z_index = -30
+	add_child(wall)
+	# A brighter pilaster band right behind the deck so the wall reads as near
+	var base := ColorRect.new()
+	base.color = Color(0.07, 0.07, 0.10)
+	base.position = Vector2(-3000, DECK_TOP_Y - 210)
+	base.size = Vector2(6000, 210)
+	base.z_index = -29
+	add_child(base)
+	# Rows of lit windows climbing the face — multiple levels
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xBA1C
+	for floor_i in range(0, 8):
+		var wy := DECK_TOP_Y - 250 - floor_i * 150
+		for wx in range(-2880, 3000, 150):
+			# skip windows directly over the door column
+			if absf(float(wx) - DOOR_X) < 90.0 and floor_i == 0:
+				continue
+			var lit := rng.randf() < 0.62
+			var win := ColorRect.new()
+			win.position = Vector2(wx, wy)
+			win.size = Vector2(64, 90)
+			if lit:
+				var warm := rng.randf() < 0.7
+				win.color = (Color(1.0, 0.82, 0.45) if warm else Color(0.4, 0.85, 1.1)) \
+					* rng.randf_range(0.5, 0.85)
+			else:
+				win.color = Color(0.09, 0.09, 0.13)
+			win.z_index = -28
+			add_child(win)
 
 # A soft glowing chevron over the lean spot — always faintly lit, flares up
 # when you're in range, so an interact point reads at a glance (same idea as
@@ -506,22 +546,79 @@ func _build_player() -> void:
 # When the player crosses either edge, transition to the connected scene.
 # ─────────────────────────────────────────────────────────────────────────
 
-func _build_edge_triggers() -> void:
-	# Visible hint marker on the left side: small arrow + label "← hallway"
-	var left_hint := Label.new()
-	left_hint.text = "← hallway"
-	left_hint.add_theme_font_size_override("font_size", 13)
-	left_hint.add_theme_color_override("font_color", Color(1.0, 0.7, 0.3))
-	left_hint.position = Vector2(-DECK_HALF_W + 40, 470)
-	add_child(left_hint)
+# A downward chevron that floats over an interact point — dim by default,
+# flares + bobs when you're near. This is the "arrow over the thing",
+# replacing the HUD [E] prompt.
+var _door_arrow: Polygon2D
+var _stairs_arrow: Polygon2D
+func _make_interact_arrow(x: float, y: float, col: Color) -> Polygon2D:
+	var a := Polygon2D.new()
+	a.polygon = PackedVector2Array([
+		Vector2(-16, -14), Vector2(16, -14), Vector2(0, 8)])
+	a.color = col
+	a.position = Vector2(x, y)
+	a.modulate.a = 0.45
+	a.z_index = 8
+	add_child(a)
+	var tw := create_tween().set_loops()
+	tw.tween_property(a, "position:y", y - 12, 0.9).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(a, "position:y", y, 0.9).set_trans(Tween.TRANS_SINE)
+	return a
 
-	# Visible hint marker on the right side: small arrow + label "stairs ↓"
-	var right_hint := Label.new()
-	right_hint.text = "stairs →"
-	right_hint.add_theme_font_size_override("font_size", 13)
-	right_hint.add_theme_color_override("font_color", Color(0.0, 1.0, 1.2))
-	right_hint.position = Vector2(DECK_HALF_W - 100, 470)
-	add_child(right_hint)
+# ── The stairs down to the street — neon STAIRS sign + arrow, far left ──
+func _build_stairs_exit() -> void:
+	var sign := Sprite2D.new()
+	sign.texture = load("res://assets/world/signs/stairs.png")
+	sign.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sign.position = Vector2(STAIRS_X, DECK_TOP_Y - 150)
+	sign.scale = Vector2(0.7, 0.7)
+	sign.z_index = 4
+	add_child(sign)
+	# A dark stairwell mouth cut into the deck
+	var mouth := ColorRect.new()
+	mouth.color = Color(0.01, 0.02, 0.03)
+	mouth.position = Vector2(STAIRS_X - 70, DECK_TOP_Y + 8)
+	mouth.size = Vector2(140, 150)
+	mouth.z_index = -4
+	add_child(mouth)
+	for i in 5:
+		var step := ColorRect.new()
+		step.color = Color(0.0, 0.5, 0.6) * (1.0 - i * 0.12)
+		step.position = Vector2(STAIRS_X - 60 + i * 12, DECK_TOP_Y + 20 + i * 24)
+		step.size = Vector2(120 - i * 24, 5)
+		step.z_index = -3
+		add_child(step)
+	_stairs_arrow = _make_interact_arrow(STAIRS_X, DECK_TOP_Y - 40, Color(0.2, 1.4, 1.5))
+
+# ── The door back into the hallway — south-facing, set in the wall ──
+func _build_hallway_door() -> void:
+	# Frame + lit interior slab (the door "faces" us, side-view)
+	var frame := ColorRect.new()
+	frame.color = Color(0.10, 0.09, 0.06)
+	frame.position = Vector2(DOOR_X - 42, DECK_TOP_Y - 168)
+	frame.size = Vector2(84, 168)
+	frame.z_index = -20
+	add_child(frame)
+	var pane := ColorRect.new()
+	pane.color = Color(1.0, 0.78, 0.42)   # warm light spilling from inside
+	pane.position = Vector2(DOOR_X - 32, DECK_TOP_Y - 156)
+	pane.size = Vector2(64, 150)
+	pane.z_index = -19
+	add_child(pane)
+	var doorslab := ColorRect.new()
+	doorslab.color = Color(0.05, 0.04, 0.06)
+	doorslab.position = Vector2(DOOR_X - 26, DECK_TOP_Y - 150)
+	doorslab.size = Vector2(40, 144)
+	doorslab.z_index = -18
+	add_child(doorslab)
+	# Warm spill pooling on the deck in front of the door
+	var spill := ColorRect.new()
+	spill.color = Color(1.0, 0.7, 0.35, 0.18)
+	spill.position = Vector2(DOOR_X - 70, DECK_TOP_Y)
+	spill.size = Vector2(140, 60)
+	spill.z_index = -3
+	add_child(spill)
+	_door_arrow = _make_interact_arrow(DOOR_X, DECK_TOP_Y - 190, Color(1.0, 0.75, 0.35))
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -572,11 +669,11 @@ func _apply_pending_spawn() -> void:
 	var spawn: String = SceneTransition.consume_spawn()
 	if spawn == "":
 		return
-	# Place player based on which edge they arrived from
+	# Arrive at the door (from the hallway) or by the stairs (from the street)
 	if spawn == "from_hall":
-		_player_sprite.position.x = -DECK_HALF_W + 200
+		_player_sprite.position.x = DOOR_X
 	elif spawn == "from_stairs":
-		_player_sprite.position.x = DECK_HALF_W - 200
+		_player_sprite.position.x = STAIRS_X + 130.0
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -589,8 +686,7 @@ func _process(delta: float) -> void:
 	_tick_parallax()
 	for npc in _npcs:
 		npc.tick(delta)
-	_check_edge_crossing()
-	_check_railing()
+	_check_interactables()
 
 func _tick_player(delta: float) -> void:
 	var input_x: float = Input.get_axis("move_left", "move_right")
@@ -631,46 +727,34 @@ func _tick_camera(_delta: float) -> void:
 	# Camera follows player on X, vertical stays locked
 	_camera.position.x = _player_sprite.position.x
 
-func _check_edge_crossing() -> void:
-	# Near-edge detection — sets _at_left_edge/_at_right_edge so the [E]
-	# prompt shows in the HUD. Actual transition happens on E press.
+# Proximity → flare the nearest interact arrow. No HUD prompt text: the
+# neon signs and the bobbing arrows say what's there.
+var _near_id := ""
+func _check_interactables() -> void:
 	var x := _player_sprite.position.x
-	var threshold := 120.0
-	if x <= -DECK_HALF_W + threshold:
-		if not _at_left_edge:
-			_at_left_edge = true
-			_set_status("[E] ← hallway")
+	var door_near := absf(x - DOOR_X) <= 90.0
+	var stairs_near := absf(x - STAIRS_X) <= 100.0
+	var rail_near := absf(x - RAIL_SPOT_X) <= RAIL_SPOT_HALF_W
+	_flare(_door_arrow, door_near)
+	_flare(_stairs_arrow, stairs_near)
+	if _rail_glow:
+		_rail_glow.modulate.a = 1.0 if rail_near else 0.5
+		_rail_glow.scale = Vector2(1.3, 1.3) if rail_near else Vector2.ONE
+	_at_railing = rail_near
+	# Nearest wins if overlapping
+	if door_near:
+		_near_id = "door"
+	elif stairs_near:
+		_near_id = "stairs"
+	elif rail_near:
+		_near_id = "rail"
 	else:
-		if _at_left_edge:
-			_at_left_edge = false
-			if not _at_right_edge:
-				_set_status("")
-	if x >= DECK_HALF_W - threshold:
-		if not _at_right_edge:
-			_at_right_edge = true
-			_set_status("[E] stairs → street")
-	else:
-		if _at_right_edge:
-			_at_right_edge = false
-			if not _at_left_edge:
-				_set_status("")
+		_near_id = ""
 
-func _check_railing() -> void:
-	var near := absf(_player_sprite.position.x - RAIL_SPOT_X) <= RAIL_SPOT_HALF_W
-	if near and not _at_railing:
-		_at_railing = true
-		if _rail_glow:
-			_rail_glow.modulate.a = 1.0
-			_rail_glow.scale = Vector2(1.3, 1.3)
-		if not _at_left_edge and not _at_right_edge:
-			_set_status("[E] lean on the railing")
-	elif not near and _at_railing:
-		_at_railing = false
-		if _rail_glow:
-			_rail_glow.modulate.a = 0.5
-			_rail_glow.scale = Vector2.ONE
-		if not _at_left_edge and not _at_right_edge:
-			_set_status("")
+func _flare(arrow: Polygon2D, near: bool) -> void:
+	if arrow:
+		arrow.modulate.a = 1.0 if near else 0.45
+		arrow.scale = Vector2(1.25, 1.25) if near else Vector2.ONE
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -681,12 +765,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	# phone_toggle is handled by the Phone autoload — toggling here too made
 	# one keypress open+close the phone in the same frame.
 	if event.is_action_pressed("interact"):
-		if _at_left_edge:
-			SceneTransition.go(TRANSITION_LEFT_TARGET.scene, TRANSITION_LEFT_TARGET.spawn)
-		elif _at_right_edge:
-			SceneTransition.go(TRANSITION_RIGHT_TARGET.scene, TRANSITION_RIGHT_TARGET.spawn)
-		elif _at_railing:
-			_lean_on_railing()
+		match _near_id:
+			"door":
+				SceneTransition.go("hallway", "from_balcony")
+			"stairs":
+				SceneTransition.go("city", "from_stairs")
+			"rail":
+				_lean_on_railing()
 
 func _lean_on_railing() -> void:
 	# Face the city (back to camera) and cycle a flavor line
