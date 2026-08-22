@@ -115,13 +115,11 @@ func _setup_environment() -> void:
 	_env.ssao_enabled = true
 	_env.ssao_radius = 1.4
 	_env.ssao_intensity = 1.6
-	# Screen-space reflections — wet asphalt mirrors the neon signs, lamps, and
-	# headlights. The signature rain-slick-street look, for free.
-	_env.ssr_enabled = true
-	_env.ssr_max_steps = 64
-	_env.ssr_fade_in = 0.15
-	_env.ssr_fade_out = 4.0
-	_env.ssr_depth_tolerance = 0.4
+	# NOTE: no SSR on streets. The camera follows the player, and screen-space
+	# reflections bend the lamp highlights toward the camera as it moves (the
+	# lesson already learned in city.gd). The wet look comes from low-roughness
+	# specular on the asphalt instead — camera-independent, no sliding.
+	_env.ssr_enabled = false
 	_env.adjustment_enabled = true
 	_env.adjustment_contrast = 1.08
 	_env.adjustment_saturation = 1.12
