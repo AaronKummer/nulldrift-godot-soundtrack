@@ -142,11 +142,17 @@ func _ready() -> void:
 	_floors = int(_def.get("floors", 1))
 	_floor = clampi(GameState.dungeon_floor, 0, _floors - 1)
 	_is_top = _floor >= _floors - 1
+	# Per-floor palette (a building changes as you go down: offices → labs →
+	# containment → the boss floor). Falls back to the def's single palette.
+	var fpals: Array = _def.get("floor_pals", [])
+	if _floor < fpals.size():
+		_pal = fpals[_floor]
 	if _def.has("layout"):
 		_gen = DungeonGenSys.from_layout(_def)   # authored — never random
 	else:
 		_gen = DungeonGenSys.generate(_def, GameState.dungeon_seeds[did] + _floor * 1013)
 	_bake_geometry()
+	_build_ambient_workers()
 	_pos = _cell_center(_gen.entrance)
 	_spawn_point = _pos
 	_cam = Camera2D.new()
@@ -395,6 +401,7 @@ var _floor := 0                # current floor (0-based)
 var _is_top := true            # top floor = boss + main objective
 var _stairs_pos := Vector2.ZERO
 var _near_stairs := false
+var _workers: Array = []       # ambient office staff (non-hostile decor): {pos, tex, row}
 var _ebullets: Array = []      # enemy + boss projectiles
 
 func _tick_katana(delta: float) -> void:
@@ -801,7 +808,7 @@ func _tick_spawners(delta: float) -> void:
 		g.t -= delta
 		if g.t <= 0.0:
 			g.t = randf_range(1.8, 3.2)
-			_spawn_enemy(g.pos, _def.grate_pool)
+			_spawn_enemy(g.pos, _floor_pool())
 	for hole in _holes:
 		if hole.pos.distance_to(_pos) > 430.0:
 			continue
@@ -809,6 +816,36 @@ func _tick_spawners(delta: float) -> void:
 		if hole.t <= 0.0:
 			hole.t = randf_range(3.0, 5.5)
 			_spawn_enemy(hole.pos, _def.hole_pool)
+
+## The enemy pool for the current floor (offices spawn guards, labs spawn
+## experiments). Falls back to the def's single grate_pool.
+func _floor_pool() -> Array:
+	var fpools: Array = _def.get("floor_pools", [])
+	if _floor < fpools.size():
+		return fpools[_floor]
+	return _def.grate_pool
+
+## Ambient office staff on non-lab floors — non-hostile decor at desks so the
+## building reads as a working office, not a uniform lab. def "ambient_floors".
+func _build_ambient_workers() -> void:
+	if not (_def.get("ambient_floors", []) as Array).has(_floor):
+		return
+	var sheets := ["res://assets/sprites/npc-corpo.png", "res://assets/sprites/civ/civ-a01.png",
+		"res://assets/sprites/civ/civ-a08.png", "res://assets/sprites/lady.png",
+		"res://assets/sprites/civ/civ-b05.png"]
+	var rng := RandomNumberGenerator.new()
+	rng.seed = int(GameState.dungeon_seeds.get(GameState.pending_dungeon, 0)) + _floor * 71 + 313
+	# Floor cells with a wall to the north = a desk against the wall
+	var cells: Array = []
+	for y in range(1, _gen.h - 1):
+		for x in range(1, _gen.w):
+			if _gen.tiles[y][x] == DungeonGenSys.T_FLOOR \
+					and _gen.tiles[y - 1][x] == DungeonGenSys.T_WALL:
+				cells.append(Vector2i(x, y))
+	var want: int = mini(12, cells.size())
+	for i in want:
+		var c: Vector2i = cells[rng.randi() % cells.size()]
+		_workers.append({ "pos": _cell_center(c), "tex": load(sheets[rng.randi() % sheets.size()]) })
 
 func _tick_loot(delta: float) -> void:
 	var got: Array = []
@@ -1361,6 +1398,16 @@ func _draw_world(b: Node2D) -> void:
 	for i in 4:
 		b.draw_rect(Rect2(_spawn_point + Vector2(-14, -20 + i * 13), Vector2(28, 4)),
 			Color(0.35, 0.40, 0.45), true)
+	# Ambient office staff — a desk + a seated worker (non-hostile decor)
+	for w in _workers:
+		var wp: Vector2 = w.pos
+		b.draw_rect(Rect2(wp + Vector2(-22, -6), Vector2(44, 16)),
+			Color(0.22, 0.20, 0.24), true)   # desk
+		b.draw_rect(Rect2(wp + Vector2(6, -12), Vector2(12, 9)),
+			Color(0.3, 0.6, 0.8), true)      # monitor glow
+		b.draw_texture_rect_region(w.tex,
+			Rect2(wp - Vector2(FRAME_W * 0.5, FRAME_H - 12.0), Vector2(FRAME_W, FRAME_H)),
+			Rect2(0, 0, FRAME_W, FRAME_H), Color(0.85, 0.85, 0.9))
 	# Enemies
 	for e in _enemies:
 		var def: Dictionary = _def.enemies[e.type]
@@ -1470,7 +1517,12 @@ func _build_hud() -> void:
 	# Floor indicator (multi-floor dungeons only)
 	_hud.floor.position = Vector2(30, 68)
 	_hud.floor.add_theme_color_override("font_color", Color(0.5, 1.0, 0.7))
-	_hud.floor.text = ("FLOOR %d / %d" % [_floor + 1, _floors]) if _floors > 1 else ""
+	if _floors > 1:
+		var fnames: Array = _def.get("floor_names", [])
+		var fname: String = (" · " + str(fnames[_floor])) if _floor < fnames.size() else ""
+		_hud.floor.text = "FLOOR %d / %d%s" % [_floor + 1, _floors, fname]
+	else:
+		_hud.floor.text = ""
 	_hud.dash.position = Vector2(480, 10)
 	_hud.nova.position = Vector2(600, 10)
 	_hud.grates.position = Vector2(1085, 10)

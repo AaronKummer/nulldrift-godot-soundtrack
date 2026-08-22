@@ -365,6 +365,61 @@ const DEFS := {
 		"rooms": 9, "room_min": 4, "room_max": 7,
 		"water_room_chance": 0.15,
 		"flavor_chance": 0.4,               # containment labs, green glow
+		# Most of the building is a working corporate science office; only the
+		# deep floors are the plague lab, and the sublevel is Vohl's horror.
+		"floor_names": ["RECEPTION", "OFFICES", "R&D", "CONTAINMENT",
+			"CONTAINMENT", "SUBLEVEL — VOHL"],
+		"ambient_floors": [0, 1],           # office staff working, oblivious
+		"floor_pools": [
+			["security"],
+			["security", "security", "orderly"],
+			["orderly", "security", "experiment"],
+			["experiment", "experiment", "plague_hound", "orderly"],
+			["experiment", "plague_hound", "security", "experiment"],
+			["experiment", "plague_hound"],
+		],
+		"floor_pals": [
+			# 0-1 OFFICE: clean corporate blue-grey
+			{ "floor": Color(0.120, 0.130, 0.150), "floor_flavor": Color(0.130, 0.150, 0.195),
+			  "wall": Color(0.180, 0.190, 0.220), "wall_rim": Color(0.30, 0.34, 0.42),
+			  "water": Color(0.05, 0.07, 0.10), "water_shine": Color(0.2, 0.35, 0.5),
+			  "bridge": Color(0.2, 0.21, 0.24), "sconce": Color(0.9, 1.05, 1.35),
+			  "flavor_light": Color(0.4, 0.7, 1.2), "accent": Color(0.5, 0.75, 1.2),
+			  "conduit": Color(0.4, 0.7, 1.2) },
+			{ "floor": Color(0.120, 0.130, 0.150), "floor_flavor": Color(0.130, 0.150, 0.195),
+			  "wall": Color(0.180, 0.190, 0.220), "wall_rim": Color(0.30, 0.34, 0.42),
+			  "water": Color(0.05, 0.07, 0.10), "water_shine": Color(0.2, 0.35, 0.5),
+			  "bridge": Color(0.2, 0.21, 0.24), "sconce": Color(0.9, 1.05, 1.35),
+			  "flavor_light": Color(0.4, 0.7, 1.2), "accent": Color(0.5, 0.75, 1.2),
+			  "conduit": Color(0.4, 0.7, 1.2) },
+			# 2 R&D: office bleeding into lab — cool with a green tinge
+			{ "floor": Color(0.110, 0.135, 0.120), "floor_flavor": Color(0.100, 0.150, 0.115),
+			  "wall": Color(0.160, 0.180, 0.165), "wall_rim": Color(0.28, 0.34, 0.30),
+			  "water": Color(0.05, 0.10, 0.07), "water_shine": Color(0.2, 0.45, 0.3),
+			  "bridge": Color(0.19, 0.21, 0.19), "sconce": Color(0.7, 1.2, 0.9),
+			  "flavor_light": Color(0.4, 1.2, 0.7), "accent": Color(0.5, 1.1, 0.8),
+			  "conduit": Color(0.5, 1.1, 0.8) },
+			# 3-4 CONTAINMENT: full sickly-green plague lab
+			{ "floor": Color(0.100, 0.120, 0.100), "floor_flavor": Color(0.080, 0.140, 0.080),
+			  "wall": Color(0.150, 0.170, 0.150), "wall_rim": Color(0.24, 0.32, 0.24),
+			  "water": Color(0.04, 0.10, 0.06), "water_shine": Color(0.2, 0.5, 0.25),
+			  "bridge": Color(0.18, 0.22, 0.18), "sconce": Color(0.5, 1.4, 0.6),
+			  "flavor_light": Color(0.4, 1.5, 0.5), "accent": Color(0.4, 1.4, 0.5),
+			  "conduit": Color(0.4, 1.4, 0.6) },
+			{ "floor": Color(0.100, 0.120, 0.100), "floor_flavor": Color(0.080, 0.140, 0.080),
+			  "wall": Color(0.150, 0.170, 0.150), "wall_rim": Color(0.24, 0.32, 0.24),
+			  "water": Color(0.04, 0.10, 0.06), "water_shine": Color(0.2, 0.5, 0.25),
+			  "bridge": Color(0.18, 0.22, 0.18), "sconce": Color(0.5, 1.4, 0.6),
+			  "flavor_light": Color(0.4, 1.5, 0.5), "accent": Color(0.4, 1.4, 0.5),
+			  "conduit": Color(0.4, 1.4, 0.6) },
+			# 5 SUBLEVEL: Vohl's horror — magenta wrongness + green rot
+			{ "floor": Color(0.100, 0.070, 0.120), "floor_flavor": Color(0.140, 0.080, 0.140),
+			  "wall": Color(0.150, 0.100, 0.165), "wall_rim": Color(0.32, 0.18, 0.36),
+			  "water": Color(0.06, 0.04, 0.10), "water_shine": Color(0.4, 0.2, 0.5),
+			  "bridge": Color(0.20, 0.14, 0.22), "sconce": Color(1.4, 0.3, 1.1),
+			  "flavor_light": Color(0.5, 1.4, 0.5), "accent": Color(1.2, 0.3, 1.0),
+			  "conduit": Color(1.0, 0.3, 0.9) },
+		],
 		"pal": {
 			"floor": Color(0.100, 0.120, 0.100),
 			"floor_flavor": Color(0.080, 0.140, 0.080),
