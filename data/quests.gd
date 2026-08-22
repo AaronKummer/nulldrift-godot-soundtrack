@@ -92,7 +92,7 @@ const ALL := {
 		"prerequisites": ["metCyberGirl"],
 		"objectives": [
 			{ "type": "flag", "flag": "garageCleared",
-			  "description": "Clear out the Chrome Jackals in the warzone garage" },
+			  "description": "Clear out the Chrome Jackals in Packard Rows garage" },
 		],
 		"on_complete": { "set_flags": ["rezzDefeated"] },
 	},

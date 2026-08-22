@@ -1,4 +1,4 @@
-## THE WARZONE — Signal Hollow's condemned district. Chrome Jackals turf.
+## PACKARD ROWS — a condemned district, Chrome Jackals turf. (Internal id stays "warzone".)
 ##
 ## Burnt-out lots, barrel fires, dead neon, wrecked cars. Stops from the
 ## Uber canon: THE DUMP (a dungeon), the CHOP SHOP (buy grenades/stims

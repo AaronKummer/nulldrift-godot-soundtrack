@@ -11,7 +11,7 @@ const STREETS := {
 		"stops": ["home", "arcade", "comics", "diner", "bar", "pets", "guns"],
 	},
 	"warzone": {
-		"name": "THE WARZONE", "cost": 30, "scene": "street_warzone",
+		"name": "PACKARD ROWS", "cost": 30, "scene": "street_warzone",
 		"stops": ["the dump", "chop shop", "jackals turf"],
 	},
 	"downtown": {

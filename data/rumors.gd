@@ -26,10 +26,10 @@ const POOL := [
 	{ "text": "guy two stools down swears the grates down there SPAWN things. said you can seal them if your hands are steady." },
 
 	# Warzone
-	{ "text": "ridenet runs to the warzone now. thirty credits to get shot at. people pay it." },
-	{ "text": "the dump out in the warzone pays real money if you make it back. that's a big if." },
-	{ "text": "chop shop in the warzone sells medkits cheaper than anywhere. there's a reason demand is high out there." },
-	{ "text": "the jackals took the whole east end of the warzone. cops just repainted the map instead of fighting them." },
+	{ "text": "ridenet runs to Packard Rows now. thirty credits to get shot at. people pay it." },
+	{ "text": "the dump out in Packard Rows pays real money if you make it back. that's a big if." },
+	{ "text": "chop shop in Packard Rows sells medkits cheaper than anywhere. there's a reason demand is high out there." },
+	{ "text": "the jackals took the whole east end of Packard Rows. cops just repainted the map instead of fighting them." },
 
 	# Gear
 	{ "text": "kid went into the sewer with no light last month. the rats sent his shoes back up. guns plus sells headlamps." },
@@ -40,7 +40,7 @@ const POOL := [
 	{ "text": "stims from the shop slow the whole world down. don't ask what they speed up." },
 
 	# Downtown + jackals
-	{ "text": "the jackals grabbed the chop shop kid, patch. they're holding her in their garage out east in the warzone.",
+	{ "text": "the jackals grabbed the chop shop kid, patch. they're holding her in their garage out east in Packard Rows.",
 	  "req": { "patchRescued": false } },
 	{ "text": "heard somebody walked into the jackals garage and walked back out. the kid didn't even say thanks. sounds like her.",
 	  "req": { "patchRescued": true } },

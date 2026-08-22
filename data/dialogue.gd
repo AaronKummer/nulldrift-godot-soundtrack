@@ -340,7 +340,7 @@ const TREES := {
 				{ "speaker": "NYX", "text": "I saw what you did with it. Not bad for a laid-off code monkey.", "color": Color(1.0, 0.53, 0.8) },
 				{ "speaker": "NYX", "text": "I read your file for five years. I WROTE half of it. You're wasted on unemployment.", "color": Color(1.0, 0.53, 0.8) },
 				{ "speaker": "NYX", "text": "There's a gang — the Chrome Jackals. They've been terrorizing this block.", "color": Color(1.0, 0.53, 0.8) },
-				{ "speaker": "NYX", "text": "Their boss, Rezz, holes up in the parking garage in the warzone.", "color": Color(1.0, 0.53, 0.8) },
+				{ "speaker": "NYX", "text": "Their boss, Rezz, holes up in the parking garage in Packard Rows.", "color": Color(1.0, 0.53, 0.8) },
 				{ "speaker": "NYX", "text": "Clear them out. I'll make it worth your while.", "color": Color(1.0, 0.53, 0.8) },
 				{ "speaker": "", "text": "Nyx slides 500 credits across the table.", "color": Color(0.27, 1.0, 0.53) },
 			],

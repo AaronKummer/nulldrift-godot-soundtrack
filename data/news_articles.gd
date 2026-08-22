@@ -82,7 +82,7 @@ const ARTICLES := [
 		"headline": "SCOOTER THEFT EPIDEMIC HITS ALL-TIME HIGH",
 		"source": "GameGrid Daily",
 		"time": "12:30 PM",
-		"body": "Scooter theft across all sectors has increased 400% this quarter. The NCPD has attributed the spike to \"one specific individual\" but declined to release a name or description. Rental companies are now requiring a DNA sample, retinal scan, and a signed promise not to drive into the warzone.",
+		"body": "Scooter theft across all sectors has increased 400% this quarter. The NCPD has attributed the spike to \"one specific individual\" but declined to release a name or description. Rental companies are now requiring a DNA sample, retinal scan, and a signed promise not to drive into Packard Rows.",
 	},
 	{
 		"id": "tusk_takeover",
