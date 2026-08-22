@@ -4,15 +4,25 @@
 ## by hacking a terminal (or, later, talking your way in). Floor 6 has the
 ## secret door down to the real lab — the basement dungeon ("vohl").
 ##
+## Floors 2-5 are patrolled by security with vision cones (StealthGuard):
+## walk freely, but linger in a cone, sprint past, or trip the alarm and you
+## get grabbed, thrown out to the street, and marked (heat). Clearance for
+## floor 6 comes three ways — hack the maint terminal (FL2), sneak the
+## supervisor's keycard (FL3), or (later) talk your way in. Hold SHIFT to
+## sneak so the cones fill slower.
+##
 ## The whole thing is also doable remotely from the apartment via the deep-
-## hacking net (that path lands in the same basement sim). Killing staff here
-## is possible but noisy — heat/police is a future layer.
+## hacking net (that path lands in the same basement sim).
 extends "res://scripts/interiors/interior_base.gd"
 
 const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
+const StealthGuardScript := preload("res://scripts/systems/stealth_guard.gd")
 
 var _floor := 1
 var _menu
+var _guards: Array = []
+var _caught := false
+var _alarm_label: Label
 
 func _ready() -> void:
 	_floor = clampi(GameState.vohl_floor, 1, 6)
@@ -41,6 +51,11 @@ func _build_interior() -> void:
 		1: _build_reception()
 		6: _build_vohl_floor()
 		_: _build_cubicles()
+	# Floors 2-5 are watched: security patrols the sensitive corners. Walk
+	# freely, but linger in a cone (or run/kill) and the alarm trips.
+	if _floor >= 2 and _floor <= 5:
+		_build_guards()
+	_build_alarm_hud()
 
 func _build_ceiling_lights() -> void:
 	for spot in [Vector3(-8, 4.2, -2), Vector3(0, 4.2, 2), Vector3(8, 4.2, -1)]:
@@ -151,6 +166,32 @@ func _build_cubicles() -> void:
 					"res://assets/sprites/civ/civ-a08.png",
 					"res://assets/sprites/civ/civ-b05.png"]
 				add_npc(sheets[rng.randi() % sheets.size()], p + Vector3(0, 0.9, 0.2), 0)
+	if _floor == 3:
+		# STEALTH route to clearance: a supervisor left a keycard on the desk
+		# by the security nook. No hacking — just get to it unseen and pocket
+		# it. A guard's patrol sweeps right past, so time it or crouch.
+		var kx := room_w / 2.0 - 3.0
+		var kz := 4.0
+		_add_box(Vector3(kx, 0.72, kz), Vector3(2.2, 0.1, 1.2),
+			Color(0.5, 0.5, 0.55), 0.3, 0.4)                    # supervisor desk
+		if not GameState.has_flag("vohlKeycard"):
+			var card := _add_box(Vector3(kx, 0.82, kz), Vector3(0.5, 0.04, 0.32),
+				Color(0.9, 0.85, 0.2), 0.2, 0.2, true, Color(1.2, 1.0, 0.3), 1.4)  # keycard
+			var kl := Label3D.new()
+			kl.text = "KEYCARD"
+			kl.font_size = 32
+			kl.pixel_size = 0.008
+			kl.modulate = Color(1.1, 1.0, 0.4)
+			kl.position = Vector3(kx, 1.3, kz)
+			add_child(kl)
+			add_interact(Vector3(kx, 1.0, kz + 1.2), Vector3(2.2, 2.0, 1.6),
+				"pocket the keycard", func():
+					if GameState.has_flag("vohlKeycard"):
+						return
+					GameState.set_flag("vohlKeycard")
+					card.queue_free()
+					kl.queue_free()
+					_set_status("supervisor's keycard pocketed. floor 6 clearance, no logs."))
 	if _floor == 2:
 		# The unwatched maintenance terminal — hack it for floor-6 clearance
 		var tx := -room_w / 2.0 + 2.5
@@ -176,6 +217,86 @@ func _on_keycard_hacked(success: bool) -> void:
 	if success:
 		GameState.set_flag("vohlKeycard")
 		_set_status("clearance spoofed. floor 6 will let you in now.")
+
+# ── security patrol / stealth ────────────────────────────────────────────
+## Two guards per floor, patrolling lanes that sweep the sensitive corners
+## (the maint terminal on 2, the keycard desk on 3). Hold SHIFT to sneak so
+## their cones fill slowly. Get spotted (or run past them) and it's over.
+func _build_guards() -> void:
+	var routes := [
+		[Vector3(-10, 0, 4.5), Vector3(10, 0, 4.5)],       # sweeps the front lane (desk/terminal side)
+		[Vector3(8, 0, -4.5), Vector3(-8, 0, -4.5)],       # back lane
+	]
+	var starts := [Vector3(-10, 0, 4.5), Vector3(8, 0, -4.5)]
+	var facings := [90.0, 270.0]
+	# A wanted player walks into a floor already on edge — hotter cones.
+	var alert_boost: float = 0.25 * float(GameState.wanted_level())
+	for i in routes.size():
+		var g = StealthGuardScript.new()
+		g.position = starts[i]
+		g.configure(_player, facings[i], {
+			"sheet": "res://assets/sprites/npc-cop2.png",
+			"tint": Color(0.8, 0.85, 1.0),
+			"range": 7.5,
+			"patrol": routes[i],
+			"patrol_speed": 1.8,
+		})
+		g.fill_rate += alert_boost
+		g.spotted.connect(_on_spotted)
+		add_child(g)
+		_guards.append(g)
+
+func _build_alarm_hud() -> void:
+	var cl := CanvasLayer.new()
+	cl.layer = 40
+	add_child(cl)
+	_alarm_label = Label.new()
+	_alarm_label.add_theme_font_size_override("font_size", 22)
+	_alarm_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.25))
+	_alarm_label.anchor_left = 0.5
+	_alarm_label.anchor_right = 0.5
+	_alarm_label.anchor_top = 0.14
+	_alarm_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_alarm_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	cl.add_child(_alarm_label)
+
+func _process(_dt: float) -> void:
+	# Surface the tensest guard's suspicion as a warning line.
+	if _caught or _alarm_label == null or _guards.is_empty():
+		return
+	var worst := 0.0
+	for g in _guards:
+		worst = maxf(worst, g.detection())
+	if worst >= 0.85:
+		_alarm_label.text = "! SPOTTED !"
+	elif worst >= 0.25:
+		_alarm_label.text = "· noticed · SHIFT to sneak ·"
+	else:
+		_alarm_label.text = ""
+
+## Full detection on any floor → SECURITY. You're grabbed, marked, and thrown
+## back to the street; you keep any clearance already earned but lose your
+## position in the building and take a heat hit. Try again, quieter.
+func _on_spotted() -> void:
+	if _caught:
+		return
+	_caught = true
+	_menu_open = true                       # freeze the player
+	for g in _guards:
+		g.active = false
+	GameState.add_heat(30.0)
+	if _alarm_label:
+		_alarm_label.text = "!! SECURITY !!"
+	DialogueOverlay.play_lines([
+		{ "speaker": "SECURITY", "text": "Hold it right there. Hands where I can see them.", "color": Color(1.0, 0.4, 0.35) },
+		{ "speaker": "", "text": "Two guards have you by the arms before you clear the aisle. You're walked out the front doors and told not to come back.", "color": Color(0.6, 0.6, 0.66) },
+	], "vohl_caught")
+	if not DialogueOverlay.finished.is_connected(_after_caught):
+		DialogueOverlay.finished.connect(_after_caught, CONNECT_ONE_SHOT)
+
+func _after_caught(_tree := "") -> void:
+	GameState.vohl_floor = 1
+	SceneTransition.go("street_financial", "from_vohl")
 
 # ── floor 6: Vohl's lab office + the secret door down to the basement ────
 func _build_vohl_floor() -> void:

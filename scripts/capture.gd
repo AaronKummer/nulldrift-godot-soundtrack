@@ -38,6 +38,8 @@ func _ready() -> void:
 			GameState.phone_light = args[i + 1] == "on"
 		elif args[i] == "skill":
 			GameState.hack_skill = int(args[i + 1])
+		elif args[i] == "vohlfloor":
+			GameState.vohl_floor = int(args[i + 1])
 
 	var packed := load(scene_path) as PackedScene
 	if packed == null:

@@ -154,7 +154,7 @@ func _build_hud() -> void:
 	_status_label.position = Vector2(24, 40)
 	cl.add_child(_status_label)
 	var hint := Label.new()
-	hint.text = "WASD MOVE · E INTERACT · I PHONE"
+	hint.text = "WASD MOVE · SHIFT SNEAK · E INTERACT · I PHONE"
 	hint.add_theme_font_size_override("font_size", 11)
 	hint.add_theme_color_override("font_color", Color(0.5, 0.55, 0.65))
 	hint.anchor_left = 0.0
@@ -214,7 +214,10 @@ func _physics_process(_delta: float) -> void:
 		input = input.normalized()
 	var world_dir := Vector3(input.x + input.y, 0, -input.x + input.y) * (1.0 / sqrt(2.0))
 	var speed := WALK_SPEED
-	if Input.is_action_pressed("sprint"):
+	GameState.sneaking = Input.is_action_pressed("sneak")
+	if GameState.sneaking:
+		speed *= 0.5              # slow and quiet — guards fill their meter slower
+	elif Input.is_action_pressed("sprint"):
 		speed *= SPRINT_MULT
 	_player.velocity = world_dir * speed
 	_player.move_and_slide()

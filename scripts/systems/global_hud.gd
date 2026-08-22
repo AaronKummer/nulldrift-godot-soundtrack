@@ -29,6 +29,7 @@ var _icon_cache: Dictionary = {}
 
 var _hearts: Array = []
 var _credits_label: Label
+var _wanted_label: Label
 var _slots: Array = []
 var _toast: Label
 var _toast_tw: Tween
@@ -120,6 +121,12 @@ func _ready() -> void:
 	_credits_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_credits_label.add_theme_constant_override("outline_size", 4)
 	stat.add_child(_credits_label)
+	# Wanted / heat — shows only when the law is paying attention.
+	_wanted_label = Label.new()
+	_wanted_label.add_theme_font_size_override("font_size", 18)
+	_wanted_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_wanted_label.add_theme_constant_override("outline_size", 4)
+	stat.add_child(_wanted_label)
 
 	# ── Toast — centered just above the hotbar ───────────────────────────
 	_toast = Label.new()
@@ -158,6 +165,20 @@ func _refresh() -> void:
 		_hearts[i].add_theme_color_override("font_color",
 			Color(1.0, 0.20, 0.45) if i < lit else Color(0.25, 0.12, 0.18))
 	_credits_label.text = "$%d" % GameState.credits
+	# Heat cools slowly while you lie low; the wanted stars reflect it.
+	GameState.cool_heat(0.15)
+	var wl: int = GameState.wanted_level()
+	if wl <= 0:
+		_wanted_label.text = ""
+	else:
+		var stars := ""
+		for s in wl:
+			stars += "★"
+		var tag: String = ["", "NOTICED", "WANTED", "MANHUNT"][wl]
+		_wanted_label.text = "%s %s" % [stars, tag]
+		_wanted_label.add_theme_color_override("font_color",
+			[Color.WHITE, Color(1.0, 0.85, 0.3), Color(1.0, 0.55, 0.25),
+				Color(1.0, 0.3, 0.25)][wl])
 	for i in 6:
 		var sd: Dictionary = _slots[i]
 		var id: String = GameState.hotbar.get(str(i + 1), "")

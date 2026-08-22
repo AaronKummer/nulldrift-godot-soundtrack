@@ -9,6 +9,7 @@ signal flag_set(name: String)
 signal flag_cleared(name: String)
 signal credits_changed(new_amount: int)
 signal quest_completed(id: String, title: String, credits: int)
+signal heat_changed(new_heat: float)
 
 var flags: Dictionary = {}
 var credits: int = 0
@@ -158,6 +159,36 @@ var hack_skill := 1                  # deep-hack proficiency; gates ICE risk, cl
 func raise_hack_skill(to_at_least: int) -> void:
 	hack_skill = maxi(hack_skill, to_at_least)
 
+# ── Heat / police attention ───────────────────────────────────────────
+# Physical-world notoriety, the counterpart to deep-hack `exposure`. Killing
+# in the open, tripping alarms, and getting spotted trespassing all raise it.
+# It decays slowly while you lie low. Wanted level (0-3) gates the police
+# response. Persists across scenes and saves — the city remembers.
+var heat := 0.0                      # 0..100
+var sneaking := false                # transient this-frame flag guards read
+
+## Raise heat by n (clamped). Killing a civilian/cop = big; a stray alarm =
+## medium; being briefly spotted = small.
+func add_heat(n: float) -> void:
+	heat = clampf(heat + n, 0.0, 100.0)
+	heat_changed.emit(heat)
+
+func cool_heat(n: float) -> void:
+	if heat <= 0.0:
+		return
+	heat = maxf(0.0, heat - n)
+	heat_changed.emit(heat)
+
+## 0 clear · 1 noticed · 2 wanted · 3 manhunt. Police response scales off this.
+func wanted_level() -> int:
+	if heat >= 80.0:
+		return 3
+	if heat >= 45.0:
+		return 2
+	if heat >= 18.0:
+		return 1
+	return 0
+
 ## Best light the player currently has underground: 2 headlamp (bright,
 ## hands-free) > 1 phone flashlight (weak, free) > 0 nothing (eyes adjust).
 func light_level() -> int:
@@ -301,6 +332,8 @@ func to_dict() -> Dictionary:
 		"exposure": exposure,
 		"ammo_reserve": ammo_reserve.duplicate(),
 		"phone_light": phone_light,
+		"hack_skill": hack_skill,
+		"heat": heat,
 	}
 
 func from_dict(d: Dictionary) -> void:
@@ -323,6 +356,8 @@ func from_dict(d: Dictionary) -> void:
 	exposure = d.get("exposure", 0.0)
 	ammo_reserve = d.get("ammo_reserve", { "ballistic": 0, "energy": 0 }).duplicate()
 	phone_light = d.get("phone_light", false)
+	hack_skill = d.get("hack_skill", 1)
+	heat = d.get("heat", 0.0)
 	shield_hp = max_shield()
 	_apply_dev_bankroll()
 	_ensure_weapon()
