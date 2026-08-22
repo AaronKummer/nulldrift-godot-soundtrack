@@ -632,8 +632,11 @@ func _tick_police(delta: float) -> void:
 		var input := Vector2(step.x, step.z)
 		c.ab.update_facing_from_input(input)
 		c.ab.set_moving(true)
-		# flashing beacon
-		c.beacon.light_energy = 2.0 + 1.5 * sin(Time.get_ticks_msec() * 0.012 + c.phase)
+		# Cherry-top: alternate red/blue, kept tight so it lights the cop, not
+		# the whole block.
+		var flash: float = sin(Time.get_ticks_msec() * 0.012 + c.phase)
+		c.beacon.light_color = Color(1.4, 0.2, 0.2) if flash >= 0.0 else Color(0.3, 0.4, 1.4)
+		c.beacon.light_energy = 1.4
 
 func _spawn_cop() -> void:
 	var from_x: float = block_half_w + 8.0
@@ -649,9 +652,10 @@ func _spawn_cop() -> void:
 	ab.load_sheet("res://assets/sprites/npc-cop2.png")
 	ab.set_moving(true)
 	var beacon := OmniLight3D.new()
-	beacon.light_color = Color(0.4, 0.5, 1.4)
-	beacon.light_energy = 2.5
-	beacon.omni_range = 6.0
+	beacon.light_color = Color(1.4, 0.2, 0.2)
+	beacon.light_energy = 1.4
+	beacon.omni_range = 3.2
+	beacon.omni_attenuation = 2.2
 	beacon.position = Vector3(0, 2.4, 0)
 	pivot.add_child(beacon)
 	_cops.append({ "node": pivot, "ab": ab, "beacon": beacon,
