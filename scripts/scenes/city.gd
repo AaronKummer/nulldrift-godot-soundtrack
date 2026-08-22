@@ -751,7 +751,7 @@ const RIDENET_STOPS := [
 	{ "name": "WEST END", "pos": Vector3(-52.0, 0.85, -2.0), "price": 5 },
 	{ "name": "THE WARZONE", "scene": "street_warzone", "price": 30 },
 	{ "name": "DOWNTOWN", "scene": "street_downtown", "price": 15 },
-	{ "name": "THE STACK — [SOON]", "price": -1 },
+	{ "name": "THE STACK", "scene": "street_stack", "price": 25 },
 ]
 
 func _build_ridenet() -> void:
