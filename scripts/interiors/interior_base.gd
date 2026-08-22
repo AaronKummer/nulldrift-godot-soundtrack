@@ -50,6 +50,11 @@ func _wall_color() -> Color:
 func _floor_color() -> Color:
 	return Color(0.15, 0.11, 0.10)
 
+## Accent color for baseboard trim + recessed ceiling strips — the little
+## neon lines that make a room read as "designed" instead of a grey box.
+func _accent_color() -> Color:
+	return Color(0.2, 0.9, 1.1)
+
 func _setup_camera() -> void:
 	_camera = Camera3D.new()
 	_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
@@ -76,7 +81,20 @@ func _setup_environment() -> void:
 	env.ambient_light_color = _ambient()
 	env.ambient_light_energy = 0.85
 	env.ssao_enabled = true
-	env.ssao_intensity = 1.1
+	env.ssao_radius = 0.6
+	env.ssao_intensity = 1.4
+	env.ssao_power = 2.0
+	# Screen-space reflections — the polished-floor look: neon signs, screens,
+	# and light strips mirror down onto the floor. The single biggest lift.
+	env.ssr_enabled = true
+	env.ssr_max_steps = 56
+	env.ssr_fade_in = 0.12
+	env.ssr_fade_out = 3.0
+	env.ssr_depth_tolerance = 0.3
+	# A touch of contrast + a soft vignette-ish falloff via adjustments
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.06
+	env.adjustment_saturation = 1.08
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -86,10 +104,17 @@ func _setup_environment() -> void:
 	key.light_energy = 0.5
 	key.rotation_degrees = Vector3(-60, -25, 0)
 	add_child(key)
+	# Cool rim from the opposite side — separates sprites/props from the walls
+	var rim := DirectionalLight3D.new()
+	rim.light_color = Color(0.55, 0.7, 1.0)
+	rim.light_energy = 0.28
+	rim.rotation_degrees = Vector3(-40, 150, 0)
+	add_child(rim)
 
 func _build_room_shell() -> void:
+	# Polished floor — low roughness so SSR mirrors the neon down onto it
 	_add_box(Vector3(0, -0.05, 0), Vector3(room_w, 0.1, room_d),
-		_floor_color(), 0.0, 0.8)
+		_floor_color(), 0.15, 0.28)
 	# Back (-z) and west (-x) walls visible; near walls collision-only
 	_add_box(Vector3(0, room_h / 2.0, -room_d / 2.0),
 		Vector3(room_w, room_h, WALL_T), _wall_color())
@@ -105,6 +130,27 @@ func _build_room_shell() -> void:
 		body.position = wall_def[0]
 		body.add_child(cs)
 		add_child(body)
+	_build_shell_dressing()
+
+## Baseboard neon + wall accent lines. Emissive-only (no ceiling — the iso
+## camera looks down INTO the room, so a ceiling would occlude everything;
+## no extra omnis either, so moody rooms stay moody). A thin glowing line at
+## the floor gives an instant "designed room" read and feeds the SSR floor
+## reflection; a second line higher up the wall adds depth.
+func _build_shell_dressing() -> void:
+	var accent := _accent_color()
+	var bz := -room_d / 2.0 + WALL_T * 0.5 + 0.06
+	var bx := -room_w / 2.0 + WALL_T * 0.5 + 0.06
+	# Floor-level baseboard neon along the two visible walls
+	_add_box(Vector3(0, 0.12, bz), Vector3(room_w - 0.4, 0.06, 0.05),
+		accent * 0.4, 0.0, 0.4, true, accent, 1.8)
+	_add_box(Vector3(bx, 0.12, 0), Vector3(0.05, 0.06, room_d - 0.4),
+		accent * 0.4, 0.0, 0.4, true, accent, 1.8)
+	# A dimmer accent line partway up the wall — reads as trim / signage rail
+	_add_box(Vector3(0, room_h * 0.62, bz), Vector3(room_w - 0.4, 0.04, 0.04),
+		accent * 0.3, 0.0, 0.4, true, accent, 0.9)
+	_add_box(Vector3(bx, room_h * 0.62, 0), Vector3(0.04, 0.04, room_d - 0.4),
+		accent * 0.3, 0.0, 0.4, true, accent, 0.9)
 
 func _build_exit() -> void:
 	# Door on the east wall, DoorGlow standard
