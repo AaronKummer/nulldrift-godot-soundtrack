@@ -40,6 +40,7 @@ func _build_street() -> void:
 	_build_chop_shop()
 	_build_dump_entrance()
 	_build_garage_entrance()
+	_build_scrapyard_entrance()
 	_build_jackals()
 	_build_barrel_fires()
 	_build_wrecks()
@@ -185,6 +186,42 @@ func _build_dump_entrance() -> void:
 		"squeeze through the fence — THE DUMP", func():
 			GameState.pending_dungeon = "office"
 			SceneTransition.go("dungeon", "from_city"))
+
+# A gap in the chain-link into THE SCRAPYARD (grind dungeon) — jackal
+# chop-shop overflow, dogs, a safe to crack.
+func _build_scrapyard_entrance() -> void:
+	var sx := 8.0
+	# Chain-link fence panels with a peeled-back gap
+	for fx in [sx - 3.0, sx + 3.0]:
+		_add_box(Vector3(fx, 2.0, -5.4), Vector3(2.2, 4.0, 0.12),
+			Color(0.18, 0.18, 0.20), 0.6, 0.5, true, Color(0.35, 0.35, 0.4), 0.15)
+	# Crushed-car stack behind the fence
+	for i in 3:
+		_add_box(Vector3(sx, 0.8 + i * 1.0, -7.5), Vector3(3.4, 0.9, 2.0),
+			Color(0.22, 0.16, 0.12) * (1.0 - i * 0.12), 0.5, 0.6)
+	var label := Label3D.new()
+	label.text = "SCRAPYARD"
+	label.font_size = 80
+	label.pixel_size = 0.011
+	label.modulate = Color(1.4, 0.7, 0.25)
+	label.outline_size = 14
+	label.outline_modulate = Color(0, 0, 0)
+	label.position = Vector3(sx, 5.0, -5.2)
+	add_child(label)
+	var gl := OmniLight3D.new()
+	gl.position = Vector3(sx, 1.6, -3.2)
+	gl.light_color = Color(1.3, 0.7, 0.3)
+	gl.light_energy = 1.3
+	gl.omni_range = 4.5
+	add_child(gl)
+	add_interact(Vector3(sx, 1.2, -3.6), Vector3(3.6, 2.4, 2.6),
+		"through the fence — THE SCRAPYARD", func():
+			GameState.pending_dungeon = "scrapyard"
+			SceneTransition.go("dungeon", "from_city"))
+	var mm := Node3D.new()
+	mm.name = "from_scrapyard"
+	mm.position = Vector3(sx, 0.0, -2.4)
+	add_child(mm)
 
 func _build_garage_entrance() -> void:
 	# THE GARAGE — Chrome Jackals' clubhouse. They took the chop shop

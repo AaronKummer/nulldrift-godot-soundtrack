@@ -54,6 +54,98 @@ const DEFS := {
 		"seal_reward": 25, "seal_all_reward": 200,
 	},
 
+	# ── THE UNDERLINE — flooded metro under downtown. Pure grind: squatter
+	# husks, track rats, a tunneler brute. No story, just loot + a lost-and-
+	# found stash. Entered from a downtown subway stair. ──────────────────
+	"subway": {
+		"name": "THE UNDERLINE",
+		"exit_label": "back up the subway stairs",
+		"exit_scene": "street_downtown",
+		"exit_spawn": "from_subway",
+		"grid_w": 27, "grid_h": 19,
+		"rooms": 9, "room_min": 3, "room_max": 7,
+		"water_room_chance": 0.5,
+		"flavor_chance": 0.3,
+		"pal": {
+			"floor": Color(0.090, 0.098, 0.115),
+			"floor_flavor": Color(0.070, 0.110, 0.130),
+			"wall": Color(0.135, 0.130, 0.120),          # tiled tunnel
+			"wall_rim": Color(0.24, 0.23, 0.20),
+			"water": Color(0.045, 0.090, 0.120),
+			"water_shine": Color(0.15, 0.35, 0.45),
+			"bridge": Color(0.20, 0.19, 0.18),
+			"sconce": Color(1.2, 1.0, 0.5),              # sodium platform lights
+			"flavor_light": Color(0.4, 0.9, 1.2),
+			"accent": Color(1.0, 0.8, 0.35),
+			"conduit": Color(1.1, 0.85, 0.3),
+		},
+		"enemies": {
+			"track_rat": { "sheet": "rat", "hp": 1, "speed": 120.0, "size": 12.0,
+				"dmg": 5, "credits": 3, "tint": Color(1.1, 1.05, 1.0), "scale": 1.2,
+				"drops": false },
+			"husk": { "sheet": "thug", "hp": 5, "speed": 48.0, "size": 17.0,
+				"dmg": 10, "credits": 11, "tint": Color(0.75, 0.9, 0.8), "scale": 1.0 },
+			"tunneler": { "sheet": "mutant", "hp": 8, "speed": 54.0, "size": 19.0,
+				"dmg": 14, "credits": 16, "tint": Color(0.95, 1.05, 1.0), "scale": 1.15 },
+			"brute": { "sheet": "troll", "hp": 22, "speed": 50.0, "size": 26.0,
+				"dmg": 24, "credits": 40, "tint": Color(1.0, 0.95, 0.95), "scale": 1.5,
+				"lunge": true, "drops": false },
+		},
+		"grate_pool": ["track_rat", "track_rat", "husk", "husk", "tunneler", "brute"],
+		"hole_pool": ["track_rat", "husk"],
+		"grates": 5, "rat_holes": 3, "chests": 3,
+		"medkits_min": 2, "medkits_max": 4,
+		"stash_credits": 400,
+		"objective_prop": "relay",
+		"objective_flag": "subwayStashFound",
+		"objective_credits": 250,
+		"seal_reward": 25, "seal_all_reward": 250,
+	},
+
+	# ── THE SCRAPYARD — Chrome Jackals' chop-shop overflow in the warzone.
+	# Leftover gangers + guard dogs, a safe to crack. Grind. ──────────────
+	"scrapyard": {
+		"name": "THE SCRAPYARD",
+		"exit_label": "squeeze back through the fence",
+		"exit_scene": "street_warzone",
+		"exit_spawn": "from_scrapyard",
+		"grid_w": 25, "grid_h": 21,
+		"rooms": 9, "room_min": 4, "room_max": 7,
+		"water_room_chance": 0.0,
+		"flavor_chance": 0.25,
+		"pal": {
+			"floor": Color(0.105, 0.098, 0.090),
+			"floor_flavor": Color(0.125, 0.100, 0.055),
+			"wall": Color(0.140, 0.128, 0.115),          # rust + corrugated steel
+			"wall_rim": Color(0.28, 0.22, 0.16),
+			"water": Color(0.05, 0.05, 0.04),
+			"water_shine": Color(0.12, 0.12, 0.10),
+			"bridge": Color(0.20, 0.18, 0.15),
+			"sconce": Color(1.5, 0.8, 0.3),              # work-light amber
+			"flavor_light": Color(1.4, 0.6, 0.2),
+			"accent": Color(1.4, 0.65, 0.25),
+			"conduit": Color(1.3, 0.7, 0.25),
+		},
+		"enemies": {
+			"scrapper": { "sheet": "yak1", "hp": 4, "speed": 110.0, "size": 15.0,
+				"dmg": 10, "credits": 12, "tint": Color(1.05, 1.0, 0.9), "scale": 1.0 },
+			"welder": { "sheet": "yak2", "hp": 9, "speed": 55.0, "size": 19.0,
+				"dmg": 15, "credits": 18, "tint": Color(1.1, 0.95, 0.8), "scale": 1.15 },
+			"junk_dog": { "sheet": "cat", "hp": 3, "speed": 130.0, "size": 12.0,
+				"dmg": 8, "credits": 8, "tint": Color(1.2, 0.9, 0.7), "scale": 0.9,
+				"drops": false },
+		},
+		"grate_pool": ["scrapper", "scrapper", "junk_dog", "welder", "junk_dog"],
+		"hole_pool": ["junk_dog"],
+		"grates": 5, "rat_holes": 2, "chests": 3,
+		"medkits_min": 2, "medkits_max": 3,
+		"stash_credits": 500,
+		"objective_prop": "relay",
+		"objective_flag": "scrapyardSafeCracked",
+		"objective_credits": 300,
+		"seal_reward": 30, "seal_all_reward": 250,
+	},
+
 	# ── Future dungeons — same engine, new data. Wire an entrance, done. ──
 	"garage": {
 		"name": "THE GARAGE — CHROME JACKALS",

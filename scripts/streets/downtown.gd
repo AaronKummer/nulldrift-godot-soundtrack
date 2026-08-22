@@ -82,6 +82,7 @@ func _build_street() -> void:
 	_build_dressing()
 	_build_crowd()
 	build_ridenet_terminal(Vector3(-2.0, 0, -3.0))
+	_build_subway_entrance()
 	var m := Node3D.new()
 	m.name = "from_ridenet"
 	m.position = Vector3(2.0, 0.0, -2.5)
@@ -93,6 +94,42 @@ func _build_street() -> void:
 		mm.name = mk[0]
 		mm.position = Vector3(mk[1] + 2.4, 0.0, -2.2)   # in front of each door
 		add_child(mm)
+
+# Subway stair down to THE UNDERLINE (grind dungeon) — a lit stairwell
+# mouth in the sidewalk gap between the cafe and the tech shop.
+func _build_subway_entrance() -> void:
+	var sx := 30.0
+	var mouth_z := -4.0
+	# Dark stairwell recess
+	_add_box(Vector3(sx, 0.4, mouth_z), Vector3(3.4, 0.8, 2.2),
+		Color(0.04, 0.05, 0.07), 0.2, 0.6)
+	for i in 4:
+		_add_box(Vector3(sx, 0.6 - i * 0.15, mouth_z - 0.2 - i * 0.35),
+			Vector3(3.0, 0.1, 0.35), Color(0.10, 0.10, 0.12) * (1.0 - i * 0.12), 0.3, 0.5)
+	# Green METRO sign + spill
+	var sign := Label3D.new()
+	sign.text = "METRO"
+	sign.font_size = 90
+	sign.pixel_size = 0.01
+	sign.modulate = Color(0.3, 1.3, 0.5)
+	sign.outline_size = 16
+	sign.outline_modulate = Color(0, 0, 0)
+	sign.position = Vector3(sx, 3.0, mouth_z - 0.2)
+	add_child(sign)
+	var gl := OmniLight3D.new()
+	gl.position = Vector3(sx, 1.4, mouth_z + 0.6)
+	gl.light_color = Color(0.3, 1.1, 0.5)
+	gl.light_energy = 1.3
+	gl.omni_range = 5.0
+	add_child(gl)
+	add_interact(Vector3(sx, 1.2, mouth_z + 1.2), Vector3(3.6, 2.4, 2.4),
+		"down into THE UNDERLINE", func():
+			GameState.pending_dungeon = "subway"
+			SceneTransition.go("dungeon", "from_city"))
+	var mm := Node3D.new()
+	mm.name = "from_subway"
+	mm.position = Vector3(sx, 0.0, -2.2)
+	add_child(mm)
 
 func _build_fillers() -> void:
 	var rng := RandomNumberGenerator.new()
