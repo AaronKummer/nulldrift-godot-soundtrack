@@ -67,8 +67,9 @@ func _build_street() -> void:
 	_build_fillers()
 	_build_crowd()
 	build_ridenet_terminal(Vector3(-2.0, 0, -3.0))
+	_build_vvs_entrance()
 	for mk in [["from_ridenet", 2.0], ["from_platinum", -15.0], ["from_nexus", 44.0],
-			["from_vohl", 15.0], ["from_bank", -44.0]]:
+			["from_vohl", 15.0], ["from_bank", -44.0], ["from_vvs", 6.0]]:
 		var m := Node3D.new()
 		m.name = mk[0]
 		m.position = Vector3(mk[1], 0.0, -2.2)
@@ -120,6 +121,37 @@ func _build_towers() -> void:
 				Vector3(0.5, anchor[1] - 4.0, 0.05),
 				(anchor[2] as Color) * Color(0.25, 0.25, 0.25, 1.0), 0.0, 0.4, true,
 				(anchor[2] as Color) * 0.8, 1.0)
+
+## The tower's ground entrance — the way into the finale gauntlet. Sealed
+## until you've dealt with Vohl (Act 2); after that, this is the endgame.
+func _build_vvs_entrance() -> void:
+	var ez := -SIDEWALK_W - 1.2
+	# A lit violet doorway at the base of the spire
+	_add_box(Vector3(6.0, 1.6, ez), Vector3(2.6, 3.2, 0.4),
+		Color(0.10, 0.05, 0.16), 0.5, 0.3, true, Color(0.9, 0.3, 1.4), 1.2)
+	var sign := Label3D.new()
+	sign.text = "VVS"
+	sign.font_size = 90
+	sign.pixel_size = 0.012
+	sign.modulate = Color(1.2, 0.5, 1.6)
+	sign.position = Vector3(6.0, 3.4, ez)
+	add_child(sign)
+	add_interact(Vector3(6.0, 1.2, ez + 1.6), Vector3(2.8, 2.4, 2.4),
+		"enter VVS TOWER", func():
+			if not GameState.has_flag("vohlDefeated"):
+				DialogueOverlay.play_lines([
+					{ "speaker": "LOBBY AI", "text": "VVS Tower access is by executive appointment only. You don't have one.", "color": Color(1.0, 0.5, 1.4) },
+					{ "speaker": "", "text": "The spire waits. When you've finished what Vohl started, come back — the top floor is where this ends.", "color": Color(0.55, 0.55, 0.62) },
+				], "vvs_sealed")
+				return
+			if GameState.has_flag("vvsTowerCleared"):
+				DialogueOverlay.play_lines([
+					{ "speaker": "", "text": "The tower is quiet now. Whatever you decided up there, it's done.", "color": Color(0.6, 0.6, 0.7) },
+				], "vvs_done")
+				return
+			GameState.pending_dungeon = "vvs"
+			GameState.dungeon_floor = 0
+			SceneTransition.go("dungeon", "from_city"))
 
 ## The VVS TOWER — the finale, a violet spire that dominates the skyline.
 func _build_vvs_tower() -> void:

@@ -83,6 +83,15 @@ func _ready() -> void:
 			inst._siege.debug_spawn("laser_bot", pl2.global_position + Vector3(5.0, 0, 2.0))
 			inst._siege.debug_spawn("ninja", pl2.global_position + Vector3(-4.0, 0, 3.0))
 
+	# Optional "phasetest": force the boss active and deal lethal damage to
+	# confirm a two-phase boss transforms instead of dying.
+	if args.has("phasetest") and "_boss" in inst and not inst._boss.is_empty():
+		await RenderingServer.frame_post_draw
+		inst._boss.active = true
+		print("PHASETEST before: phase=", inst._boss.phase, " name=", inst._boss.def.name, " hp=", inst._boss.hp)
+		inst._hit_boss(9999, {})
+		print("PHASETEST after:  phase=", inst._boss.phase, " name=", inst._boss.def.name, " hp=", inst._boss.hp, " done=", inst._boss.done)
+
 	# Let the renderer settle (bloom + emissive prepass)
 	for i in range(WAIT_FRAMES):
 		await RenderingServer.frame_post_draw

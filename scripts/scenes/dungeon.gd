@@ -260,6 +260,9 @@ func _bake_geometry() -> void:
 			"state": "chase", "state_t": 0.0, "charge_dir": Vector2.RIGHT,
 			"spray_cd": 3.0, "summon_cd": 4.0, "charge_cd": 5.5,
 			"contact_t": 0.0, "flash": 0.0, "flee_t": 0.0,
+			# `def` is the ACTIVE phase's stats (swapped on a two-phase boss);
+			# `phase` tracks which we're on. Single-phase bosses never change it.
+			"def": _def.boss, "phase": 1,
 		}
 	# Blackout rooms — no fixtures, near-zero visibility. Selection is
 	# seeded off the layout seed so the same rooms are dark every re-entry.
@@ -433,7 +436,7 @@ func _tick_katana(delta: float) -> void:
 					hit_any = true
 			if not _boss.is_empty() and _boss.active and not _boss.done:
 				var tob: Vector2 = _boss.pos - _pos
-				if tob.length() <= reach + _def.boss.size 						and absf(tob.angle_to(dir)) < deg_to_rad(60.0):
+				if tob.length() <= reach + _boss.def.size 						and absf(tob.angle_to(dir)) < deg_to_rad(60.0):
 					_hit_boss(dmg, w)
 					hit_any = true
 		# Chain (mjolnir): arcs to N extra enemies beyond the swing
@@ -497,7 +500,7 @@ func _tick_bullets(delta: float) -> void:
 		if b.left <= 0.0 or _collide(b.pos, 3.0) != b.pos:
 			dead.append(b)
 			continue
-		if not _boss.is_empty() and _boss.active and not _boss.done 				and not b.hit.has("boss") 				and b.pos.distance_to(_boss.pos) <= _def.boss.size + 8.0:
+		if not _boss.is_empty() and _boss.active and not _boss.done 				and not b.hit.has("boss") 				and b.pos.distance_to(_boss.pos) <= _boss.def.size + 8.0:
 			_hit_boss(b.dmg, b.w)
 			b.hit.append("boss")
 			if not b.pierce:
@@ -540,7 +543,7 @@ func _hit_enemy(e: Dictionary, dmg: int, w: Dictionary) -> void:
 func _tick_boss(delta: float) -> void:
 	if _boss.is_empty() or _boss.done:
 		return
-	var bdef: Dictionary = _def.boss
+	var bdef: Dictionary = _boss.def
 	if not _boss.active:
 		if _boss.room.has_point(_pos):
 			_boss.active = true
@@ -610,19 +613,49 @@ func _hit_boss(dmg: int, w: Dictionary) -> void:
 	var ls: float = w.get("life_steal", 0.0)
 	if ls > 0.0:
 		GameState.hp = mini(GameState.hp_max, GameState.hp + maxi(1, roundi(dmg * ls)))
-	var flee_at: float = _def.boss.get("flee_at", 0.0)
+	var flee_at: float = _boss.def.get("flee_at", 0.0)
 	if flee_at > 0.0 and _boss.hp <= _boss.hp_max * flee_at:
 		_boss.state = "flee"
 		_boss.flee_t = 1.2
 		_boss.charge_dir = (_boss.pos - _pos).normalized()
-		DialogueOverlay.play_lines([{ "speaker": "", 				"text": _def.boss.get("bark_flee", "..."),
+		DialogueOverlay.play_lines([{ "speaker": "", 				"text": _boss.def.get("bark_flee", "..."),
 				"color": Color(1.3, 0.5, 0.3) }], "boss_flee")
 	elif _boss.hp <= 0:
-		_boss_end(false)
+		# Two-phase bosses don't die on phase 1 — they transform.
+		if _boss.phase == 1 and _def.boss.has("phase2"):
+			_enter_phase2()
+		else:
+			_boss_end(false)
+
+## Transform a two-phase boss: swap in the phase-2 stats (name, sheet, attacks),
+## refill HP, brief mercy invuln + a bark. The Dragon becomes Tusk.
+func _enter_phase2() -> void:
+	_boss.phase = 2
+	var p2: Dictionary = _def.boss.duplicate(true)
+	for k in _def.boss.phase2:
+		p2[k] = _def.boss.phase2[k]
+	p2.erase("phase2")
+	# Drop inherited attacks phase 2 doesn't re-declare, so a duelist stays a
+	# duelist (Tusk doesn't keep the Dragon's summon).
+	if not _def.boss.phase2.has("summon"):
+		p2.erase("summon")
+	_boss.def = p2
+	_boss.hp = int(p2.hp)
+	_boss.hp_max = int(p2.hp)
+	_boss.state = "chase"
+	_boss.charge_cd = 3.0
+	_boss.spray_cd = 2.0
+	_boss.summon_cd = 3.0
+	_boss.flash = 0.4
+	_add_shake(0.6)
+	_burst2d(_boss.pos, true)
+	DialogueOverlay.play_lines([{ "speaker": "",
+			"text": p2.get("bark_intro", "..."),
+			"color": Color(1.4, 0.4, 1.3) }], "boss_phase2")
 
 func _boss_end(fled: bool) -> void:
 	_boss.done = true
-	var bdef: Dictionary = _def.boss
+	var bdef: Dictionary = _boss.def
 	GameState.add_credits(int(bdef.get("credits", 0)))
 	for d in bdef.get("drops", []):
 		if not GameState.has_item(d):
@@ -631,6 +664,41 @@ func _boss_end(fled: bool) -> void:
 	if str(bdef.get("flag", "")) != "":
 		GameState.set_flag(str(bdef.flag))
 	Music.play_category("dungeon")
+	# The finale: downing the final boss ends the game with a choice.
+	if _def.get("on_defeat", "") == "vvs_ending" and not fled:
+		_vvs_ending()
+
+## Game-ending choice after Leon Tusk falls: walk away, or merge with the
+## Cortex net. Sets the ending flag and rolls the closing beat → title.
+func _vvs_ending() -> void:
+	_dead = true                        # freeze the world; the fight's over
+	var menu = load("res://scripts/systems/list_menu.gd").new()
+	add_child(menu)
+	menu.picked.connect(func(idx: int):
+		menu.close_menu()
+		var walked := idx == 0
+		GameState.set_flag("vvsTowerCleared")
+		GameState.set_flag("endingWalkedAway" if walked else "endingMerged")
+		var lines: Array
+		if walked:
+			lines = [
+				{ "speaker": "", "text": "You leave the core untouched and take the long stairs down. The city stays exactly as broken as you found it. But you're still you, and you're walking out.", "color": Color(0.8, 0.85, 1.0) },
+				{ "speaker": "", "text": "Somewhere, a phone buzzes. You don't check it. Not tonight.", "color": Color(0.55, 0.55, 0.62) },
+			]
+		else:
+			lines = [
+				{ "speaker": "", "text": "You jack into the core and let it take you. The boundary between you and the net dissolves. You are everywhere now — every camera, every terminal, every ghost in the wire.", "color": Color(1.0, 0.6, 1.3) },
+				{ "speaker": "", "text": "The city hums. It's listening. It's yours. Whatever you were, that person doesn't leave the tower.", "color": Color(0.7, 0.5, 0.8) },
+			]
+		DialogueOverlay.play_lines(lines, "vvs_ending")
+		DialogueOverlay.finished.connect(func(_t):
+			GameState.set_flag("gameComplete")
+			get_tree().change_scene_to_file("res://scenes/title.tscn"),
+			CONNECT_ONE_SHOT))
+	menu.open("THE CORTEX CORE — what do you do?", [
+		{ "label": "WALK AWAY — leave it, stay yourself" },
+		{ "label": "MERGE — become the net" },
+	], Color(1.1, 0.4, 1.4), "there's no saving this choice. choose.")
 
 ## Weapon targeting that sees the boss as well as the mobs
 func _acquire_target(max_d: float) -> Dictionary:
@@ -1487,7 +1555,7 @@ func _draw_world(b: Node2D) -> void:
 			Rect2(frame * FRAME_W, row * FRAME_H, FRAME_W, FRAME_H), tint)
 	# Boss — bigger sprite, telegraph ring before the charge
 	if not _boss.is_empty() and _boss.active and not _boss.done:
-		var bdef: Dictionary = _def.boss
+		var bdef: Dictionary = _boss.def
 		if _boss.state == "telegraph":
 			b.draw_circle(_boss.pos, bdef.size + 20.0, Color(1.5, 0.25, 0.15, 0.30))
 			b.draw_arc(_boss.pos, bdef.size + 20.0, 0, TAU, 28, Color(1.7, 0.3, 0.2, 0.9), 3.5)
@@ -1658,7 +1726,7 @@ func _refresh_hud() -> void:
 	if not _boss.is_empty() and _boss.active and not _boss.done:
 		var frac: float = clampf(float(_boss.hp) / float(_boss.hp_max), 0.0, 1.0)
 		var cells: int = int(ceil(frac * 16.0))
-		_hud.boss.text = "%s  %s%s" % [_def.boss.name,
+		_hud.boss.text = "%s  %s%s" % [_boss.def.name,
 			"█".repeat(cells), "░".repeat(16 - cells)]
 	else:
 		_hud.boss.text = ""
