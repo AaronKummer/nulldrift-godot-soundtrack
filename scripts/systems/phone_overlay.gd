@@ -943,6 +943,8 @@ func _app_uber(color: Color) -> Control:
 			"name": st.name, "price": int(ceil(st.cost * 1.5)) })
 	dests.append({ "scene": "beach", "spawn": "from_uber",
 		"name": "THE BEACH", "price": 45 })
+	dests.append({ "scene": "park", "spawn": "from_uber",
+		"name": "CENTRAL PARK", "price": 20 })
 	for d in dests:
 		var row := Button.new()
 		row.text = "%s · %d cr" % [d.name, d.price]

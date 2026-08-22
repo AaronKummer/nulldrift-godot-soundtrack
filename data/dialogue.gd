@@ -355,6 +355,21 @@ const TREES := {
 		},
 	],
 
+	# ── RAZZIEL FEN — two-sword wanderer, met in the park after he saves a
+	# mugged couple. His panther Galaia is always at his side. (Your canon
+	# GameScene NPC, ported.) ─────────────────────────────────────────────
+	"razziel": [
+		{
+			"condition": null,
+			"lines": [
+				{ "speaker": "RAZZIEL FEN", "text": "The moonlight on the water reminds me of home. A place far from here.", "color": Color(0.7, 0.85, 1.0) },
+				{ "speaker": "RAZZIEL FEN", "text": "Galaia and I have wandered many cities. This one has a... unique darkness to it.", "color": Color(0.7, 0.85, 1.0) },
+				{ "speaker": "RAZZIEL FEN", "text": "People ask why I carry two swords. One is for killing. The other is also for killing. But with more style.", "color": Color(0.7, 0.85, 1.0) },
+				{ "speaker": "RAZZIEL FEN", "text": "If you ever need blades at your side, you know where to find us.", "color": Color(0.7, 0.85, 1.0) },
+			],
+		},
+	],
+
 	# ── GUS — pet store keeper, home street ──────────────────────────────
 	"gus": [
 		{
