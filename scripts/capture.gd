@@ -71,6 +71,16 @@ func _ready() -> void:
 		if pl and not inst._cops.is_empty():
 			inst._cops[0].node.position = pl.global_position + Vector3(7.0, 0, 3.0)
 
+	# Optional "siege": go loud + stage a firefight (guards hostile + the laser
+	# bot in frame) so a static render shows the combat.
+	if args.has("siege") and "_siege" in inst and inst._siege != null:
+		await RenderingServer.frame_post_draw
+		inst._siege.go_loud()
+		var pl2 := _find_player(inst)
+		if pl2:
+			inst._siege.debug_spawn("laser_bot", pl2.global_position + Vector3(5.0, 0, 2.0))
+			inst._siege.debug_spawn("ninja", pl2.global_position + Vector3(-4.0, 0, 3.0))
+
 	# Let the renderer settle (bloom + emissive prepass)
 	for i in range(WAIT_FRAMES):
 		await RenderingServer.frame_post_draw

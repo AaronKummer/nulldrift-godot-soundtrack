@@ -22,10 +22,24 @@ extends Node3D
 
 signal spotted                        # meter hit full — the alarm trips
 signal state_changed(state: int)
+signal died(guard)                    # hostile guard's HP hit 0
 
 const AnimatedBillboardScript := preload("res://scripts/systems/animated_billboard.gd")
+const SecurityDefsData := preload("res://data/security_defs.gd")
 
 enum { CALM, SUSPICIOUS, ALERT }
+
+# ── combat (the "going loud" path) ─────────────────────────────────────────
+var _siege = null                     # the Siege director; guards call it to fire / hit the player
+var unit_id := "guard"
+var _udef: Dictionary = {}
+var hp := 30
+var hp_max := 30
+var hostile := false
+var is_boss := false
+var _fire_t := 0.0
+var _hit_flash := 0.0
+var _charging := false
 
 var _player: Node3D
 var _sheet := "res://assets/sprites/npc-cop2.png"
@@ -149,8 +163,57 @@ func detection() -> float:
 func state() -> int:
 	return _state
 
+# ── combat wiring ──────────────────────────────────────────────────────────
+## Turn this guard into a fightable unit of the given roster type. Called by
+## the Siege director for garrison + backup spawns.
+func make_combatant(id: String, siege) -> void:
+	unit_id = id
+	_udef = SecurityDefsData.unit(id)
+	_siege = siege
+	hp = int(_udef.get("hp", 30))
+	hp_max = hp
+	is_boss = _udef.get("boss", false)
+	view_range = _udef.get("range", view_range)
+
+## Flip to hostile — drop the patrol, draw, and fight. Irreversible for the run.
+func go_hostile() -> void:
+	if hostile:
+		return
+	hostile = true
+	_meter = 1.0
+	_state = ALERT
+	if _cone:
+		_cone.visible = false          # detection cone is irrelevant once shooting
+	if _bang:
+		_bang.text = "!"
+		_bang.modulate = Color(1.0, 0.25, 0.2)
+
+## Hide the billboard sprite (for box-built units like the laser bot / turret).
+func hide_sprite() -> void:
+	if _anim:
+		_anim.visible = false
+	if _cone:
+		_cone.visible = false
+
+func take_hit(dmg: int) -> void:
+	if hp <= 0:
+		return
+	hp -= dmg
+	_hit_flash = 0.12
+	if not hostile:
+		go_hostile()
+	if hp <= 0:
+		died.emit(self)
+		queue_free()
+
 func _physics_process(delta: float) -> void:
 	if not active or _player == null:
+		return
+	if _hit_flash > 0.0:
+		_hit_flash -= delta
+		_anim.tint = Color(2.0, 0.6, 0.6) if _hit_flash > 0.0 else _tint
+	if hostile:
+		_combat_step(delta)
 		return
 	_patrol_step(delta)
 	var exposed := _player_exposure()
@@ -228,6 +291,57 @@ func _patrol_step(delta: float) -> void:
 		_orient_cone()
 		_face_sprite()
 	_anim.set_moving(true)
+
+## Hostile behavior: ranged units hold distance and shoot; melee/elite units
+## close and strike; turrets sit and burst. All fire/hits route through the
+## Siege director so it owns projectiles + player damage.
+func _combat_step(delta: float) -> void:
+	_fire_t = maxf(0.0, _fire_t - delta)
+	var to_p := _player.global_position - global_position
+	to_p.y = 0.0
+	var dist := to_p.length()
+	if dist < 0.01:
+		return
+	var dir := to_p / dist
+	_facing = dir
+	_orient_cone()
+	_face_sprite()
+	var kind: String = _udef.get("kind", "ranged")
+	var spd: float = _udef.get("speed", 2.4)
+	match kind:
+		"turret":
+			if _anim:
+				_anim.set_moving(false)
+			if dist <= _udef.get("range", 16.0) and _fire_t <= 0.0 and _has_line_of_sight():
+				_siege.enemy_fire(global_position, dir, _udef.get("dmg", 6), _udef.get("burst", 1))
+				_fire_t = _udef.get("fire_cd", 0.5)
+		"melee", "elite":
+			# Close the gap; elites break into a faster charge in the open.
+			_charging = kind == "elite" and dist > 3.0
+			var move_spd := spd * (2.0 if (kind == "elite" and _charging) else 1.0)
+			if kind == "melee" and dist < _udef.get("lunge", 8.0):
+				move_spd = spd * 1.6
+			if dist > _udef.get("range", 2.0):
+				global_position += dir * move_spd * delta
+				_anim.set_moving(true)
+			else:
+				_anim.set_moving(false)
+				if _fire_t <= 0.0:
+					_siege.hit_player(_udef.get("dmg", 12))
+					_fire_t = _udef.get("fire_cd", 1.0)
+		_:  # ranged — orbit at hold distance and fire
+			var hold: float = _udef.get("hold", 7.0)
+			if dist > hold + 1.5:
+				global_position += dir * spd * delta
+				_anim.set_moving(true)
+			elif dist < hold - 1.5:
+				global_position -= dir * spd * delta
+				_anim.set_moving(true)
+			else:
+				_anim.set_moving(false)
+			if dist <= _udef.get("range", 14.0) and _fire_t <= 0.0 and _has_line_of_sight():
+				_siege.enemy_fire(global_position + Vector3(0, 1.0, 0), dir, _udef.get("dmg", 7))
+				_fire_t = _udef.get("fire_cd", 1.15)
 
 func _update_state() -> void:
 	var ns := _state

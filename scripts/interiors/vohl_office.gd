@@ -17,12 +17,15 @@ extends "res://scripts/interiors/interior_base.gd"
 
 const ListMenuScript := preload("res://scripts/systems/list_menu.gd")
 const StealthGuardScript := preload("res://scripts/systems/stealth_guard.gd")
+const SiegeScript := preload("res://scripts/systems/siege.gd")
 
 var _floor := 1
 var _menu
 var _guards: Array = []
 var _caught := false
 var _alarm_label: Label
+var _siege = null
+var _office_workers: Array = []
 
 func _ready() -> void:
 	_floor = clampi(GameState.vohl_floor, 1, 6)
@@ -56,6 +59,24 @@ func _build_interior() -> void:
 	if _floor >= 2 and _floor <= 5:
 		_build_guards()
 	_build_alarm_hud()
+	_build_siege()
+
+## The "going loud" director. Draw a weapon (F) and Vohl's private security
+## fights back and radios the backup ladder (SECURITY → ELITE katana unit →
+## NCPD). Guards double as the stealth threat until you draw.
+func _build_siege() -> void:
+	_siege = SiegeScript.new()
+	add_child(_siege)
+	# Backup + fleeing workers pour through the elevator + the exit door.
+	var ex := room_w / 2.0 - 3.0
+	var entrances := [Vector3(ex, 0.9, -room_d / 2.0 + 1.2),
+		Vector3(room_w / 2.0 - 1.2, 0.9, room_d * 0.2)]
+	_siege.configure(_player, "vohl", _floor, entrances, _eject_to_street)
+	for g in _guards:
+		g.make_combatant("guard", _siege)
+		_siege.register_guard(g)
+	for w in _office_workers:
+		_siege.register_worker(w)
 
 func _build_ceiling_lights() -> void:
 	for spot in [Vector3(-8, 4.2, -2), Vector3(0, 4.2, 2), Vector3(8, 4.2, -1)]:
@@ -134,7 +155,7 @@ func _build_reception() -> void:
 	logo.modulate = Color(0.6, 1.3, 0.7)
 	logo.position = Vector3(-2.0, 2.7, cz - 0.78)
 	add_child(logo)
-	add_npc("res://assets/sprites/cyberGirl.png", Vector3(-2.0, 0.9, cz - 1.3), 0)
+	_office_workers.append(add_npc("res://assets/sprites/cyberGirl.png", Vector3(-2.0, 0.9, cz - 1.3), 0))
 	add_interact(Vector3(-2.0, 1.2, cz + 1.6), Vector3(6.0, 2.4, 2.4),
 		"talk to the receptionist", func():
 			DialogueOverlay.play_lines([
@@ -143,8 +164,8 @@ func _build_reception() -> void:
 				{ "speaker": "", "text": "She goes back to her screen. There's a maintenance terminal on floor two nobody's watching.", "color": Color(0.53, 0.53, 0.53) },
 			], "vohl_reception"))
 	# Waiting-area staff + a plant
-	add_npc("res://assets/sprites/civ/civ-a08.png", Vector3(6.0, 0.9, 3.0), 3)
-	add_npc("res://assets/sprites/lady.png", Vector3(-8.0, 0.9, 3.5), 2)
+	_office_workers.append(add_npc("res://assets/sprites/civ/civ-a08.png", Vector3(6.0, 0.9, 3.0), 3))
+	_office_workers.append(add_npc("res://assets/sprites/lady.png", Vector3(-8.0, 0.9, 3.5), 2))
 
 # ── floors 2-5: cubicles + staff; floor 2 has the hackable terminal ──────
 func _build_cubicles() -> void:
@@ -165,7 +186,7 @@ func _build_cubicles() -> void:
 					"res://assets/sprites/civ/civ-a01.png",
 					"res://assets/sprites/civ/civ-a08.png",
 					"res://assets/sprites/civ/civ-b05.png"]
-				add_npc(sheets[rng.randi() % sheets.size()], p + Vector3(0, 0.9, 0.2), 0)
+				_office_workers.append(add_npc(sheets[rng.randi() % sheets.size()], p + Vector3(0, 0.9, 0.2), 0))
 	if _floor == 3:
 		# STEALTH route to clearance: a supervisor left a keycard on the desk
 		# by the security nook. No hacking — just get to it unseen and pocket
@@ -261,8 +282,12 @@ func _build_alarm_hud() -> void:
 	cl.add_child(_alarm_label)
 
 func _process(_dt: float) -> void:
-	# Surface the tensest guard's suspicion as a warning line.
+	# Surface the tensest guard's suspicion as a warning line. Once you've gone
+	# loud the Siege HUD takes over, so stay quiet.
 	if _caught or _alarm_label == null or _guards.is_empty():
+		return
+	if _siege != null and _siege.armed:
+		_alarm_label.text = ""
 		return
 	var worst := 0.0
 	for g in _guards:
@@ -295,8 +320,20 @@ func _on_spotted() -> void:
 		DialogueOverlay.finished.connect(_after_caught, CONNECT_ONE_SHOT)
 
 func _after_caught(_tree := "") -> void:
+	_eject_to_street()
+
+func _eject_to_street() -> void:
 	GameState.vohl_floor = 1
 	SceneTransition.go("street_financial", "from_vohl")
+
+## Draw / holster the weapon. Drawing in front of Vohl's people is going loud:
+## security turns hostile and the backup ladder starts climbing.
+func _input(event: InputEvent) -> void:
+	if _caught or _menu_open or DialogueOverlay.is_active():
+		return
+	if event.is_action_pressed("draw_weapon") and _siege != null and _siege.holstered():
+		_siege.go_loud()
+		_set_status("WEAPON DRAWN — you're going loud. F to survive, not to reconsider.")
 
 # ── floor 6: Vohl's lab office + the secret door down to the basement ────
 func _build_vohl_floor() -> void:
