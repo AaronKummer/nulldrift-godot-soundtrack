@@ -37,8 +37,10 @@ const NPCS := [
 	  "x": -460.0, "facing": Facing.DOWN, "cycle": [0,1,2,1], "fps": 1.6 },
 	{ "sheet": "res://assets/sprites/smoking_scrapper.png",
 	  "x":  140.0, "facing": Facing.DOWN, "cycle": [0,1,2,1], "fps": 1.0 },
-	{ "sheet": "res://assets/sprites/smoking_drifter.png",
-	  "x":  520.0, "facing": Facing.DOWN, "cycle": [0,1,2,1], "fps": 0.8 },
+	# A third figure — a different resident leaning on the rail (was a
+	# duplicate of the drifter girl; two identical smokers looked wrong)
+	{ "sheet": "res://assets/sprites/civ/civ-b03.png",
+	  "x":  520.0, "facing": Facing.DOWN, "cycle": [0,0,0,0], "fps": 0.5 },
 ]
 
 # Transitions: where each end of the deck takes you
@@ -81,9 +83,28 @@ func _ready() -> void:
 	_build_npcs()
 	_build_player()
 	_build_edge_triggers()
+	_build_rail_marker()
 	_build_hud()
 	_apply_pending_spawn()
 	Music.play_category("balcony")
+
+# A soft glowing chevron over the lean spot — always faintly lit, flares up
+# when you're in range, so an interact point reads at a glance (same idea as
+# the doorway DoorGlow, balcony-flavored).
+var _rail_glow: Polygon2D
+func _build_rail_marker() -> void:
+	_rail_glow = Polygon2D.new()
+	_rail_glow.polygon = PackedVector2Array([
+		Vector2(-14, 0), Vector2(0, -16), Vector2(14, 0), Vector2(0, -6)])
+	_rail_glow.color = Color(0.4, 1.5, 1.7)   # hdr cyan — blooms
+	_rail_glow.position = Vector2(RAIL_SPOT_X, DECK_TOP_Y - 26)
+	_rail_glow.modulate.a = 0.5
+	add_child(_rail_glow)
+	var tw := create_tween().set_loops()
+	tw.tween_property(_rail_glow, "position:y", DECK_TOP_Y - 34, 1.1) \
+		.set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_rail_glow, "position:y", DECK_TOP_Y - 26, 1.1) \
+		.set_trans(Tween.TRANS_SINE)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -511,46 +532,19 @@ func _build_hud() -> void:
 	var cl := CanvasLayer.new()
 	add_child(cl)
 
-	var bounty := Label.new()
-	bounty.text = "BOUNTY"
-	bounty.add_theme_font_size_override("font_size", 11)
-	bounty.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	bounty.position = Vector2(20, 62)
-	cl.add_child(bounty)
-	var bounty_amt := Label.new()
-	bounty_amt.text = "★ 0"
-	bounty_amt.add_theme_font_size_override("font_size", 13)
-	bounty_amt.add_theme_color_override("font_color", Color(1.0, 0.85, 0.30))
-	bounty_amt.position = Vector2(82, 60)
-	cl.add_child(bounty_amt)
-
-	# Inventory row
-	for i in 6:
-		var slot := Panel.new()
-		slot.position = Vector2(200 + i * 36, 8)
-		slot.size = Vector2(28, 28)
-		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.05, 0.05, 0.08, 0.65)
-		sb.border_width_left = 1
-		sb.border_width_right = 1
-		sb.border_width_top = 1
-		sb.border_width_bottom = 1
-		sb.border_color = Color(0.4, 0.5, 0.65, 0.7)
-		slot.add_theme_stylebox_override("panel", sb)
-		cl.add_child(slot)
-
-	# Scene tag
+	# Hearts / credits / hotbar are the GlobalHUD's job now — the balcony
+	# only draws its own scene tag + interact prompt.
 	var title := Label.new()
 	title.text = "BALCONY · NIGHT"
-	title.add_theme_font_size_override("font_size", 13)
+	title.add_theme_font_size_override("font_size", 14)
 	title.add_theme_color_override("font_color", Color(1.0, 0.4, 0.85))
-	title.position = Vector2(20, 92)
+	title.position = Vector2(20, 18)
 	cl.add_child(title)
 
 	_status_label = Label.new()
 	_status_label.add_theme_font_size_override("font_size", 17)
 	_status_label.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
-	_status_label.position = Vector2(20, 112)
+	_status_label.position = Vector2(20, 40)
 	cl.add_child(_status_label)
 
 	var hint := Label.new()
@@ -665,10 +659,16 @@ func _check_railing() -> void:
 	var near := absf(_player_sprite.position.x - RAIL_SPOT_X) <= RAIL_SPOT_HALF_W
 	if near and not _at_railing:
 		_at_railing = true
+		if _rail_glow:
+			_rail_glow.modulate.a = 1.0
+			_rail_glow.scale = Vector2(1.3, 1.3)
 		if not _at_left_edge and not _at_right_edge:
 			_set_status("[E] lean on the railing")
 	elif not near and _at_railing:
 		_at_railing = false
+		if _rail_glow:
+			_rail_glow.modulate.a = 0.5
+			_rail_glow.scale = Vector2.ONE
 		if not _at_left_edge and not _at_right_edge:
 			_set_status("")
 

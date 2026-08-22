@@ -42,73 +42,100 @@ func _ready() -> void:
 		if credits > 0:
 			msg += " · +%d cr" % credits
 		_show_toast(msg))
-	# HEALTH + hearts (the home street's original look, now global)
-	var hp_l := Label.new()
-	hp_l.text = "HEALTH"
-	hp_l.add_theme_font_size_override("font_size", 11)
-	hp_l.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	hp_l.position = Vector2(20, 8)
-	add_child(hp_l)
-	for i in 5:
-		var heart := Label.new()
-		heart.text = "♥"
-		heart.add_theme_font_size_override("font_size", 18)
-		heart.position = Vector2(82 + i * 22, 6)
-		add_child(heart)
-		_hearts.append(heart)
-	var cr_l := Label.new()
-	cr_l.text = "CREDITS"
-	cr_l.add_theme_font_size_override("font_size", 11)
-	cr_l.add_theme_color_override("font_color", Color(0.55, 0.6, 0.75))
-	cr_l.position = Vector2(20, 42)
-	add_child(cr_l)
-	_credits_label = Label.new()
-	_credits_label.add_theme_font_size_override("font_size", 14)
-	_credits_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
-	_credits_label.position = Vector2(82, 39)
-	add_child(_credits_label)
-	# Hotbar — six slots, top-center, pixel item icons
+	# Everything lives in a full-rect Control so it anchors to the viewport
+	# and stays put at any resolution. The global HUD sits along the BOTTOM
+	# so it never collides with a scene's own top-left title + "[E]" prompt.
+	var root := Control.new()
+	root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(root)
+	const SLOT := 56
+	const GAP := 8
+
+	# ── Hotbar — six slots, bottom-center ────────────────────────────────
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", GAP)
+	bar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	bar.offset_left = -(SLOT * 6 + GAP * 5) / 2.0
+	bar.offset_right = (SLOT * 6 + GAP * 5) / 2.0
+	bar.offset_top = -(SLOT + 16)
+	bar.offset_bottom = -16
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(bar)
 	for i in 6:
 		var box := Panel.new()
-		box.position = Vector2(736 + i * 48, 4)
-		box.size = Vector2(44, 44)
+		box.custom_minimum_size = Vector2(SLOT, SLOT)
 		var sb := StyleBoxFlat.new()
-		sb.bg_color = Color(0.04, 0.05, 0.09, 0.88)
+		sb.bg_color = Color(0.04, 0.05, 0.09, 0.9)
 		sb.border_color = Color(0.22, 0.26, 0.36)
 		sb.set_border_width_all(2)
-		sb.set_corner_radius_all(6)
+		sb.set_corner_radius_all(7)
 		box.add_theme_stylebox_override("panel", sb)
-		add_child(box)
+		bar.add_child(box)
 		var icon := TextureRect.new()
-		icon.position = Vector2(6, 6)
-		icon.size = Vector2(32, 32)
+		icon.position = Vector2(8, 8)
+		icon.size = Vector2(SLOT - 16, SLOT - 16)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_SCALE
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		box.add_child(icon)
 		var num := Label.new()
 		num.text = str(i + 1)
-		num.add_theme_font_size_override("font_size", 9)
-		num.add_theme_color_override("font_color", Color(0.55, 0.65, 0.8))
+		num.add_theme_font_size_override("font_size", 12)
+		num.add_theme_color_override("font_color", Color(0.6, 0.7, 0.85))
 		num.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 		num.add_theme_constant_override("outline_size", 3)
-		num.position = Vector2(3, 0)
+		num.position = Vector2(5, 1)
 		box.add_child(num)
 		var cnt := Label.new()
-		cnt.add_theme_font_size_override("font_size", 11)
+		cnt.add_theme_font_size_override("font_size", 14)
 		cnt.add_theme_color_override("font_color", Color(1.0, 0.9, 0.5))
 		cnt.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 		cnt.add_theme_constant_override("outline_size", 3)
-		cnt.position = Vector2(27, 28)
+		cnt.position = Vector2(SLOT - 22, SLOT - 22)
 		box.add_child(cnt)
 		_slots.append({ "icon": icon, "cnt": cnt, "sb": sb })
-	# Toast line under the hotbar for item feedback
+
+	# ── Hearts + credits — bottom-left, above the controls hint ──────────
+	var stat := VBoxContainer.new()
+	stat.add_theme_constant_override("separation", 4)
+	stat.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	stat.offset_left = 20
+	stat.offset_top = -84
+	stat.offset_bottom = -28
+	stat.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(stat)
+	var hearts_row := HBoxContainer.new()
+	hearts_row.add_theme_constant_override("separation", 4)
+	stat.add_child(hearts_row)
+	for i in 5:
+		var heart := Label.new()
+		heart.text = "♥"
+		heart.add_theme_font_size_override("font_size", 28)
+		hearts_row.add_child(heart)
+		_hearts.append(heart)
+	_credits_label = Label.new()
+	_credits_label.add_theme_font_size_override("font_size", 20)
+	_credits_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.55))
+	_credits_label.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_credits_label.add_theme_constant_override("outline_size", 4)
+	stat.add_child(_credits_label)
+
+	# ── Toast — centered just above the hotbar ───────────────────────────
 	_toast = Label.new()
-	_toast.add_theme_font_size_override("font_size", 13)
+	_toast.add_theme_font_size_override("font_size", 16)
 	_toast.add_theme_color_override("font_color", Color(1.0, 0.95, 0.7))
-	_toast.position = Vector2(742, 42)
+	_toast.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	_toast.add_theme_constant_override("outline_size", 4)
+	_toast.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_toast.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_toast.offset_left = -300
+	_toast.offset_right = 300
+	_toast.offset_top = -(SLOT + 46)
+	_toast.offset_bottom = -(SLOT + 22)
+	_toast.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_toast.modulate.a = 0.0
-	add_child(_toast)
+	root.add_child(_toast)
 	GameState.credits_changed.connect(func(n): _credits_label.text = "$%d" % n)
 	var t := Timer.new()
 	t.wait_time = 0.35
