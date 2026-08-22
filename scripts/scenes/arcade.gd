@@ -118,6 +118,9 @@ func _setup_environment() -> void:
 	env.ambient_light_energy = 0.75
 	env.ssao_enabled = true
 	env.ssao_intensity = 1.2
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 1.12
 	env.fog_enabled = true
 	env.fog_density = 0.012
 	env.fog_light_color = Color(0.07, 0.03, 0.11)

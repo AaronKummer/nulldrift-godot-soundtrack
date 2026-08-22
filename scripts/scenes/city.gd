@@ -212,6 +212,11 @@ func _setup_environment() -> void:
 	_env.ssao_radius = 1.4
 	_env.ssao_intensity = 1.6
 
+	# Match the rest of the city's grading — punchier neon, a touch of contrast
+	_env.adjustment_enabled = true
+	_env.adjustment_contrast = 1.08
+	_env.adjustment_saturation = 1.12
+
 	_env.fog_enabled = true
 	_env.fog_density = 0.003
 	_env.fog_light_color = Color(0.18, 0.08, 0.28)
